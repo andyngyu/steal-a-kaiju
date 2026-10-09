@@ -1,6 +1,7 @@
 -- Studio-only test commands (DevConfig.AdminCommands is forced off in live servers).
 -- Chat:         /givecash 1000      /resetdata (wipes your save to a brand-new player, then kicks you)
 -- Command bar:  game.ServerStorage.DevHooks.GiveCash:Invoke(<userId or nil for everyone>, 1000)
+--               game.ServerStorage.DevHooks.SetTrained:Invoke(<userId or nil>, 0)   -- treadmill bonus
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -8,6 +9,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
+local SpeedService = require(script.Parent.SpeedService)
 
 local DevService = {}
 
@@ -36,6 +38,17 @@ function DevService:Start()
 		return true
 	end
 	give.Parent = hooks
+	local setTrained = Instance.new("BindableFunction")
+	setTrained.Name = "SetTrained"
+	setTrained.OnInvoke = function(userId, value)
+		for _, player in Players:GetPlayers() do
+			if userId == nil or player.UserId == userId then
+				SpeedService:SetTrainedForTesting(player, tonumber(value) or 0)
+			end
+		end
+		return true
+	end
+	setTrained.Parent = hooks
 	hooks.Parent = ServerStorage
 
 	local function onPlayer(player)

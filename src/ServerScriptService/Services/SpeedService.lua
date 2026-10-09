@@ -87,6 +87,15 @@ function SpeedService:AddTrained(player, amount, cap)
 	return s.Trained >= cap
 end
 
+-- Studio testing only (DevService guards it).
+function SpeedService:SetTrainedForTesting(player, value)
+	local data = DataService:Get(player)
+	if data then
+		data.Speed.Trained = math.max(0, value)
+		publish(player, data)
+	end
+end
+
 function SpeedService:Init()
 	gameEvent = ReplicatedStorage.Remotes:WaitForChild("GameEvent")
 	local map = workspace:WaitForChild("Map")
