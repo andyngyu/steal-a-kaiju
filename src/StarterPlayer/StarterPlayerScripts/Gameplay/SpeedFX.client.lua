@@ -2,7 +2,8 @@
 --   personal treadmills: run animation for the local runner, chevrons scrolling while anyone runs, jump to get off,
 --   "+Speed" popups while training, pulsing hologram when locked, burst on unlock/upgrade
 --   running VFX (any runner, scales with tier): belt sparks, pulsing ground rings, glowing trim + belt light,
---   wind streaks (2+), sparkle shower (3+), roaring fire jets (Blaze), light pillar (5), "SPEED UP!" every +1 Speed
+--   wind streaks (2+), sparkle shower (3+), roaring fire jets (Blaze), light pillar (5).
+--   Popups and ground rings fire on a beat (TreadmillConfig.PopupEveryTicks), "SPEED UP!" every MilestoneEvery Speed.
 --   Speed Shop kiosk showing this viewer's own price; biome signs showing the viewer's speed vs recommended
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -167,14 +168,23 @@ local function burstOnCharacter(color)
 	end
 end
 
--- treadmill gains: one popup per server tick while running, scattered like a combo counter;
--- a bigger "SPEED UP!" burst every time the treadmill bonus crosses a whole number
+-- treadmill gains: batched into one popup every PopupEveryTicks training ticks (the beat);
+-- a bigger "SPEED UP!" burst each time the treadmill bonus passes a multiple of MilestoneEvery
 local lastTrained = player:GetAttribute("TrainedSpeed")
+local pendingGain, pendingTicks = 0, 0
+local beat = Instance.new("BindableEvent") -- fired on each popup so the local treadmill's ground ring lands on it
 player:GetAttributeChangedSignal("TrainedSpeed"):Connect(function()
 	local now = player:GetAttribute("TrainedSpeed") or 0
 	if lastTrained and now > lastTrained and player:GetAttribute("OnTreadmill") then
-		popup("+" .. string.format("%.2f", now - lastTrained):gsub("0+$", ""):gsub("%.$", "") .. " Speed", ORANGE, true, 150)
-		if math.floor(now) > math.floor(lastTrained) then
+		pendingGain += now - lastTrained
+		pendingTicks += 1
+		if pendingTicks >= TreadmillConfig.PopupEveryTicks then
+			popup("+" .. string.format("%.2f", pendingGain):gsub("0+$", ""):gsub("%.$", "") .. " Speed", ORANGE, true, 170)
+			pendingGain, pendingTicks = 0, 0
+			beat:Fire()
+		end
+		local step = TreadmillConfig.MilestoneEvery
+		if math.floor(now / step) > math.floor(lastTrained / step) then
 			local level = TreadmillConfig.Levels[player:GetAttribute("TreadmillLevel") or 1]
 			local color = level and level.Theme.Chevron or GOLD
 			popup("SPEED UP!", GOLD, false, 230)
@@ -182,6 +192,9 @@ player:GetAttributeChangedSignal("TrainedSpeed"):Connect(function()
 		end
 	end
 	lastTrained = now
+end)
+player:GetAttributeChangedSignal("OnTreadmill"):Connect(function()
+	pendingGain, pendingTicks = 0, 0
 end)
 
 gameEvent.OnClientEvent:Connect(function(name, data)
@@ -345,6 +358,7 @@ local function stopFX(st)
 		return
 	end
 	st.fx = nil
+	st.ownBeat = nil
 	for _, s in fx.saved do
 		if s[1].Parent then
 			s[1].Size = s[2]
@@ -388,8 +402,9 @@ local function updateFX(st, t)
 		g[1].Color = g[2]:Lerp(Color3.new(1, 1, 1), k * 0.45)
 	end
 	fx.light.Brightness = 1.5 + k * 2.5
-	if t >= fx.nextRing then
-		fx.nextRing = t + math.max(0.4, 1.1 - fx.level * 0.14)
+	-- other players' treadmills pulse on a timer matching the popup beat; the local runner's pulses on the beat itself
+	if not st.ownBeat and t >= fx.nextRing then
+		fx.nextRing = t + TreadmillConfig.PopupEveryTicks * TreadmillConfig.CheckInterval
 		ringPulse(st)
 	end
 	if fx.beam then
@@ -401,7 +416,16 @@ end
 
 -- ---------- treadmills ----------
 
-local treadmills = {} -- [model] = { chevrons = { {arms = {parts}, offsets = {CFrame}, z = number} }, ghostParts }
+local treadmills = {}
+
+beat.Event:Connect(function()
+	for model, st in treadmills do
+		if st.fx and model:GetAttribute("Runner") == player.UserId then
+			st.ownBeat = true
+			ringPulse(st)
+		end
+	end
+end) -- [model] = { chevrons = { {arms = {parts}, offsets = {CFrame}, z = number} }, ghostParts }
 
 local function addTreadmill(model)
 	if treadmills[model] then
