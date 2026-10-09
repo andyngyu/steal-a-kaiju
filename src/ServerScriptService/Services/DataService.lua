@@ -12,6 +12,7 @@
 --      Level/XP are missing on kaiju from before levels existed = level 1, 0 XP)
 --   Food = { [foodId] = count }, SelectedFood = held foodId or "" (empty hands)
 --   FoodStock = { Cycle = restock number, Bought = { [foodId] = count bought this restock } }
+--   Index = { [species] = { Count, Best, First } } (Kaiju Index, IndexService)
 --   Trails = { Owned = { [trailId] = true }, Equipped = trailId or "" }
 --   Stats = { EggsDelivered, EggsHatched, KaijuSold, FoodFed }
 --   Store = { Purchases = { [purchaseId] = os.time }, LuckUntil, Passes = { [itemId] = true } } - created lazily and
@@ -47,6 +48,7 @@ local TEMPLATE = {
 		Cycle = 0,
 		Bought = {},
 	},
+	Index = {},
 	Trails = {
 		Owned = {},
 		Equipped = "",

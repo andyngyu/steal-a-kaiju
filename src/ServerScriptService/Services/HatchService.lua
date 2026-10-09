@@ -28,6 +28,7 @@ local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 local DataService = require(script.Parent.DataService)
 local BaseService = require(script.Parent.BaseService)
 local KaijuService = require(script.Parent.KaijuService)
+local IndexService = require(script.Parent.IndexService)
 
 local HatchService = {}
 
@@ -138,6 +139,7 @@ local function tryHatch(owner, id, player, fromMenu)
 		BaseService:SetItem(owner, id, kaiju, kaijuEntry)
 		local data = DataService:Get(owner)
 		data.Stats.EggsHatched += 1
+		local isNew = IndexService:Record(owner, entry.Species, size)
 		DataService:Save(owner)
 		local tier = EggConfig.SizeTierName(size)
 		local payload = {
@@ -148,6 +150,7 @@ local function tryHatch(owner, id, player, fromMenu)
 			SizeTier = tier,
 			CashPerSecond = KaijuStats.EntryCashPerSecond(kaijuEntry),
 			Grand = grand,
+			New = isNew, -- first of this species for this player (Kaiju Index)
 		}
 		gameEvent:FireClient(owner, "EggHatched", payload)
 		if grand then
