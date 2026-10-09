@@ -160,6 +160,10 @@ function EggService:Start()
 		if player:GetAttribute("BaseWalkSpeed") == nil then
 			player:SetAttribute("BaseWalkSpeed", MapConfig.StartingWalkSpeed)
 		end
+		-- SpeedService changes BaseWalkSpeed (training, upgrades); re-apply with the carry slowdown
+		player:GetAttributeChangedSignal("BaseWalkSpeed"):Connect(function()
+			applyWalkSpeed(player)
+		end)
 		player.CharacterAdded:Connect(function(char)
 			local hum = char:WaitForChild("Humanoid")
 			applyWalkSpeed(player)

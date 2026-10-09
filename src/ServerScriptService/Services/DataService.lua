@@ -3,7 +3,8 @@
 -- Player attribute: DataLoaded = true once the profile is ready.
 --
 -- Data shape (string keys only - ProfileStore can't store gappy arrays):
---   Cash, PendingCash, TotalEarned, LastOnline (os.time)
+--   Cash, TotalEarned, LastOnline (os.time)
+--   Speed = { Trained (treadmill bonus), Level (bought upgrades) }
 --   Pen = { Level, Items = { [id] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt, X, D }
 --                                | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt } } }
 --     (X, D are pen-local, see Shared.Util.PenGeometry; kaiju wander so their position isn't saved)
@@ -20,8 +21,11 @@ local SAVE_THROTTLE_SECONDS = 15
 
 local TEMPLATE = {
 	Cash = EconomyConfig.StartingCash,
-	PendingCash = 0,
 	TotalEarned = 0,
+	Speed = {
+		Trained = 0,
+		Level = 0,
+	},
 	LastOnline = 0,
 	Pen = {
 		Level = 1,
@@ -56,6 +60,10 @@ local function load(player)
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
 	profile.Data.Pads = nil -- pre-pen format (pads were removed)
+	if profile.Data.PendingCash then -- collect pad was removed; cash is now earned straight into Cash
+		profile.Data.Cash += math.floor(profile.Data.PendingCash)
+		profile.Data.PendingCash = nil
+	end
 	profile.OnSessionEnd:Connect(function()
 		profiles[player] = nil
 		if player.Parent == Players then
