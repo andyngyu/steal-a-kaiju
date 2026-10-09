@@ -1,5 +1,7 @@
 -- Edit-time map generator. Rebuilds Workspace.Map from MapConfig + BiomeConfig.
 -- Run from the command bar: require(game.ServerStorage.Tools.MapBuilder:Clone()).Build()
+-- Lane only (biomes, safe zone line, hub walls next to the lane, then the biome art; plots / market / spawn untouched):
+--   require(game.ServerStorage.Tools.MapBuilder:Clone()).BuildLane()
 -- (Clone + fresh config loads bypass Studio's module cache so edits take effect without restarting.)
 --
 -- Runtime contract (attributes are the API):
@@ -33,6 +35,7 @@ local PenGeometry = fresh(Shared.Util.PenGeometry)
 local C = MapConfig.Palette
 
 local MapBuilder = {}
+local laneGeometry, buildLane -- defined below Build
 
 local TOP = { Enum.NormalId.Top }
 local SIDES = { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
@@ -475,9 +478,8 @@ function MapBuilder.Build()
 	cliff("HubWest", walls, Vector3.new(wt, wh, hubHalfZ * 2 + wt * 2), Vector3.new(westX - wt / 2, wh / 2, 0), C.Dirt, C.GrassCap)
 	for _, s in { -1, 1 } do
 		cliff(s < 0 and "HubSouth" or "HubNorth", walls, Vector3.new(laneStart - westX, wh, wt), Vector3.new((westX + laneStart) / 2, wh / 2, s * (hubHalfZ + wt / 2)), C.Dirt, C.GrassCap)
-		local span = hubHalfZ - laneHalf
-		cliff(s < 0 and "HubEastS" or "HubEastN", walls, Vector3.new(wt, wh, span + wt), Vector3.new(laneStart + wt / 2, wh / 2, s * (laneHalf + (span + wt) / 2)), C.Dirt, C.GrassCap)
 	end
+	-- (HubEastS / HubEastN, beside the lane mouth, are built with the lane)
 
 	local hubDecor = Instance.new("Folder")
 	hubDecor.Name = "HubDecor"
@@ -520,6 +522,78 @@ function MapBuilder.Build()
 			entrances[id] = Vector3.new(cx, 0, frontZ)
 		end
 		task.wait()
+	end
+
+	local firstNestX = buildLane(map, rng)
+
+	local speed = MapConfig.StartingWalkSpeed
+	local timings = {}
+	for pid, e in entrances do
+		timings["Plot" .. pid] = math.round((math.abs(e.Z) + (firstNestX - e.X)) / speed * 10) / 10
+	end
+	-- Kaiju Market (stalls around the spawn plaza) and the biome art pass
+	local tools = game:GetService("ServerStorage").Tools
+	require(tools.MarketBuilder:Clone()).Build(map)
+	local art = tools:FindFirstChild("BiomeArtBuilder")
+	if art then
+		require(art:Clone()).Build()
+	end
+
+	local count = 0
+	for _, d in map:GetDescendants() do
+		if d:IsA("BasePart") then
+			count += 1
+		end
+	end
+	return { laneStart = laneStart, firstNestX = firstNestX, secondsToFirstNest = timings, partCount = count }
+end
+
+-- Where the lane starts / ends and how wide the hub is (shared by Build and BuildLane).
+function laneGeometry()
+	local P = MapConfig.Plots
+	local L = MapConfig.Lane
+	local plotsEnd = P.FirstOffset + P.PerSide * P.LotWidth + (P.PerSide - 1) * P.Gap
+	local laneStart = plotsEnd + L.GapAfterPlots
+	local laneLength = 0
+	for _, b in BiomeConfig.List do
+		laneLength += b.Length
+	end
+	local plotFarZ = MapConfig.Path.Width / 2 + P.Setback + P.LotDepth
+	return {
+		laneStart = laneStart,
+		laneEnd = laneStart + laneLength,
+		hubHalfZ = math.max(plotFarZ, MapConfig.SpawnPlaza.Size / 2) + MapConfig.Hub.Margin,
+		laneHalf = L.Width / 2,
+	}
+end
+
+-- Map.Lane (every biome), the safe zone line and the hub walls beside the lane mouth, replacing old ones.
+-- Returns the x of the first nest.
+function buildLane(map, rng)
+	local L = MapConfig.Lane
+	local H = MapConfig.Hub
+	local g = laneGeometry()
+	local laneStart, laneEnd, laneHalf, hubHalfZ = g.laneStart, g.laneEnd, g.laneHalf, g.hubHalfZ
+	map:SetAttribute("SafeZoneX", laneStart)
+	for _, name in { "Lane", "SafeZoneLine" } do
+		local old = map:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+	local walls = map:FindFirstChild("Walls")
+	if walls then
+		for _, name in { "HubEastS", "HubEastN" } do
+			local old = walls:FindFirstChild(name)
+			if old then
+				old:Destroy()
+			end
+		end
+		local wt, wh = H.WallThickness, H.WallHeight
+		for _, s in { -1, 1 } do
+			local span = hubHalfZ - laneHalf
+			cliff(s < 0 and "HubEastS" or "HubEastN", walls, Vector3.new(wt, wh, span + wt), Vector3.new(laneStart + wt / 2, wh / 2, s * (laneHalf + (span + wt) / 2)), C.Dirt, C.GrassCap)
+		end
 	end
 
 	local safe = block("SafeZoneLine", map, Vector3.new(4, 0.3, L.Width), CFrame.new(laneStart - 2, 0.15, 0), C.Cream)
@@ -585,27 +659,17 @@ function MapBuilder.Build()
 	end
 	local last = BiomeConfig.List[#BiomeConfig.List]
 	cliff("EndWall", lane, Vector3.new(L.WallThickness, L.WallHeight, L.Width + L.WallThickness * 2), Vector3.new(laneEnd + L.WallThickness / 2, L.WallHeight / 2, 0), last.Wall, last.WallCap)
+	return firstNestX
+end
 
-	local speed = MapConfig.StartingWalkSpeed
-	local timings = {}
-	for pid, e in entrances do
-		timings["Plot" .. pid] = math.round((math.abs(e.Z) + (firstNestX - e.X)) / speed * 10) / 10
-	end
-	-- Kaiju Market (stalls around the spawn plaza) and the biome art pass
-	local tools = game:GetService("ServerStorage").Tools
-	require(tools.MarketBuilder:Clone()).Build(map)
-	local art = tools:FindFirstChild("BiomeArtBuilder")
-	if art then
-		require(art:Clone()).Build()
-	end
-
-	local count = 0
-	for _, d in map:GetDescendants() do
-		if d:IsA("BasePart") then
-			count += 1
-		end
-	end
-	return { laneStart = laneStart, firstNestX = firstNestX, secondsToFirstNest = timings, partCount = count }
+-- Rebuilds just the lane (see buildLane) and dresses it with Tools.BiomeArtBuilder.DressLane.
+function MapBuilder.BuildLane()
+	local map = assert(workspace:FindFirstChild("Map"), "no Workspace.Map - run Build first")
+	local firstNestX = buildLane(map, Random.new(MapConfig.DecorSeed))
+	local art = game:GetService("ServerStorage").Tools:FindFirstChild("BiomeArtBuilder")
+	local dressed = art and require(art:Clone()).DressLane() or "no BiomeArtBuilder"
+	local g = laneGeometry()
+	return string.format("lane %d..%d (width %d), first nest x=%d\n%s", g.laneStart, g.laneEnd, MapConfig.Lane.Width, firstNestX, dressed)
 end
 
 return MapBuilder

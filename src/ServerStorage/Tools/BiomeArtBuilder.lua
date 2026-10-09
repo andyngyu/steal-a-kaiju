@@ -289,14 +289,99 @@ end
 
 -- ---------- props ----------
 
-local PROPS = { "Bush", "BerryBush", "Boulder", "Tree", "FlowersPink", "FlowersMixed", "FlowersRed", "Grass", "Mushroom", "VineShort", "VineLong", "NestSign" }
+local FX_TEX = {
+	Smoke = "rbxasset://textures/particles/smoke_main.dds",
+	Sparks = "rbxasset://textures/particles/fire_sparks_main.dds",
+	Sparkle = "rbxasset://textures/particles/sparkles_main.dds",
+	Blob = "rbxassetid://1084962479",
+}
+
+local function seq(a, b)
+	return NumberSequence.new(a, b)
+end
+
+-- Prop effects (spec.Fx): an invisible anchored "FxAnchor" part at At (prop space; Area = its size for box-shaped
+-- emitters) carrying the emitter or light. Kinds: Smoke, Embers, Bubbles, Sparkle, Glow (PointLight: Color, Range,
+-- Brightness). Rate overrides the emitter rate. They travel with the prop (PivotTo / ScaleTo).
+local function addFx(model, list)
+	for _, f in list do
+		local size = f.Area and Vector3.new(f.Area[1], f.Area[2], f.Area[3]) or Vector3.new(0.4, 0.4, 0.4)
+		local p = invisiblePart("FxAnchor", size, CFrame.new(f.At[1], f.At[2], f.At[3]))
+		p.Anchored = true
+		p.Parent = model
+		if f.Kind == "Glow" then
+			local light = Instance.new("PointLight")
+			light.Color = Color3.fromHex(f.Color or "FFFFFF")
+			light.Range = f.Range or 10
+			light.Brightness = f.Brightness or 1
+			light.Shadows = false
+			light.Parent = p
+		else
+			local pe = Instance.new("ParticleEmitter")
+			pe.LightInfluence = 0
+			if f.Kind == "Smoke" then
+				pe.Texture = FX_TEX.Smoke
+				pe.Color = ColorSequence.new(Color3.fromHex("3A3232"), Color3.fromHex("6E6464"))
+				pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.45), NumberSequenceKeypoint.new(1, 1) })
+				pe.Size = seq(1.4, 4.5)
+				pe.Lifetime = NumberRange.new(2.5, 3.5)
+				pe.Speed = NumberRange.new(2, 4)
+				pe.SpreadAngle = Vector2.new(12, 12)
+				pe.Acceleration = Vector3.new(0, 1, 0)
+				pe.Rotation = NumberRange.new(0, 360)
+				pe.RotSpeed = NumberRange.new(-20, 20)
+				pe.Rate = f.Rate or 4
+			elseif f.Kind == "Embers" then
+				pe.Texture = FX_TEX.Sparks
+				pe.Color = ColorSequence.new(Color3.fromHex("FFE24A"), Color3.fromHex("FF4A1A"))
+				pe.LightEmission = 1
+				pe.Size = seq(0.35, 0)
+				pe.Lifetime = NumberRange.new(1, 1.8)
+				pe.Speed = NumberRange.new(4, 9)
+				pe.SpreadAngle = Vector2.new(25, 25)
+				pe.Acceleration = Vector3.new(0, 3, 0)
+				pe.Drag = 0.6
+				pe.Rate = f.Rate or 5
+			elseif f.Kind == "Bubbles" then
+				pe.Texture = FX_TEX.Blob
+				pe.Color = ColorSequence.new(Color3.fromHex("FFE070"), Color3.fromHex("FF6A1F"))
+				pe.LightEmission = 1
+				pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6, 0.8), NumberSequenceKeypoint.new(1, 0) })
+				pe.Lifetime = NumberRange.new(0.4, 0.7)
+				pe.Speed = NumberRange.new(0.5, 1.5)
+				pe.Shape = Enum.ParticleEmitterShape.Box
+				pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+				pe.EmissionDirection = Enum.NormalId.Top
+				pe.Rate = f.Rate or 6
+			elseif f.Kind == "Sparkle" then
+				pe.Texture = FX_TEX.Sparkle
+				pe.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHex("9FDCFF"))
+				pe.LightEmission = 1
+				pe.Size = seq(0.45, 0)
+				pe.Lifetime = NumberRange.new(0.6, 1)
+				pe.Speed = NumberRange.new(0, 0.5)
+				pe.Shape = Enum.ParticleEmitterShape.Box
+				pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+				pe.Rate = f.Rate or 3
+			end
+			pe.Parent = p
+		end
+	end
+end
 
 -- Builds every Prop_* spec into ServerStorage.Assets.Props (pivot = centre of the base, facing -Z).
 function BiomeArtBuilder.BuildProps()
 	local B, specs = tools()
 	local folder = assetFolder("Props")
 	local out = {}
-	for _, name in PROPS do
+	local names = {}
+	for key in specs do
+		if key:sub(1, 5) == "Prop_" then
+			table.insert(names, key:sub(6))
+		end
+	end
+	table.sort(names)
+	for _, name in names do
 		local spec = specs["Prop_" .. name]
 		local model = B.BuildModel(name, spec)
 		for _, d in model:GetDescendants() do
@@ -334,6 +419,9 @@ function BiomeArtBuilder.BuildProps()
 				gui.Parent = best
 			end
 		end
+		if spec.Fx then
+			addFx(model, spec.Fx)
+		end
 		store(folder, model)
 		table.insert(out, name .. " " .. tostring(model:GetAttribute("Bricks")))
 		task.wait()
@@ -344,10 +432,14 @@ end
 -- ---------- lane ground: dirt trail + wall trim ----------
 
 local STUD_TEXTURE = "rbxassetid://6372755229"
-local TRAIL_COLORS = { Color3.fromHex("C9A26B"), Color3.fromHex("B88E58") }
-local PEBBLE_COLORS = { Color3.fromHex("B7B9C4"), Color3.fromHex("9EA1AD"), Color3.fromHex("DCDEE6") }
-local ROCK_COLORS = { Color3.fromHex("A7AAB6"), Color3.fromHex("8E91A0"), Color3.fromHex("B7B9C4") }
-local MOSS_COLORS = { Color3.fromHex("6FBF3F"), Color3.fromHex("5FAE36") }
+
+local function colors(list)
+	local out = {}
+	for _, hex in list do
+		table.insert(out, Color3.fromHex(hex))
+	end
+	return out
+end
 
 -- Anchored decor brick with studs on the given faces. Solid ones block players like the boulders do.
 local function brick(parent, name, size, cf, color, faces, studScale, solid)
@@ -406,7 +498,9 @@ end
 -- Worn dirt trail: one branch from the entrance into the nest's walk-in gap, one round the nest and the guardian's bed
 -- to the far end. Blocky 2-stud cells (merged into runs) with pebbles along the edges. Visual only (no collision /
 -- queries), its top is 0.06 above the grass. Returns the trail's distance function for keeping props off it.
-local function dressTrail(decor, x0, x1, halfZ, nest, rng)
+local function dressTrail(decor, x0, x1, halfZ, nest, rng, dress)
+	local TRAIL_COLORS = colors(dress.Trail)
+	local PEBBLE_COLORS = colors(dress.TrailPebbles)
 	local V = Vector2.new
 	local n = V(nest.X, nest.Z)
 	local trails = {
@@ -474,28 +568,60 @@ local function dressTrail(decor, x0, x1, halfZ, nest, rng)
 	end
 end
 
--- Stone skirting along the foot of both cliffs: rocks of mixed size tucked into the wall, some with moss on top and the
--- odd taller boulder. Solid, like the boulders.
-local function dressWallTrim(decor, x0, x1, halfZ, rng)
+-- Skirting along the foot of both cliffs: rocks of mixed size tucked into the wall, some capped (moss, snow, or a
+-- glowing crust when trim.CapNeon) and the odd taller boulder. Solid, like the boulders. gaps[side] = { {xa, xb}, ... }
+-- leaves room for props standing against the wall.
+local function dressWallTrim(decor, x0, x1, halfZ, rng, trim, gaps)
+	local ROCK_COLORS = colors(trim.Rocks)
+	local CAP_COLORS = colors(trim.Caps)
 	local count = 0
 	for _, s in { -1, 1 } do
 		local face = s > 0 and Enum.NormalId.Front or Enum.NormalId.Back -- the side facing into the lane
 		local x = x0
 		while x < x1 - 0.5 do
 			local len = math.min(rng:NextNumber(3, 7), x1 - x)
+			local blocked = false
+			for _, g in gaps[s] or {} do
+				if x + len > g[1] and x < g[2] then
+					blocked = true
+				end
+			end
 			local h = rng:NextNumber() < 0.15 and rng:NextNumber(3.6, 5) or rng:NextNumber(1.3, 3)
 			local depth = rng:NextNumber(1.3, 2.4)
 			local z = s * (halfZ - depth / 2 + 0.2)
-			brick(decor, "WallRock", Vector3.new(len, h, depth + 0.4), CFrame.new(x + len / 2, h / 2, z), ROCK_COLORS[rng:NextInteger(1, #ROCK_COLORS)], { Enum.NormalId.Top, face }, 2, true)
-			count += 1
-			if rng:NextNumber() < 0.45 then
-				brick(decor, "Moss", Vector3.new(len - 0.3, 0.3, depth + 0.1), CFrame.new(x + len / 2, h + 0.15, z), MOSS_COLORS[rng:NextInteger(1, #MOSS_COLORS)], { Enum.NormalId.Top }, 2, false)
+			local rockColor = ROCK_COLORS[rng:NextInteger(1, #ROCK_COLORS)]
+			local capped = rng:NextNumber() < (trim.CapChance or 0.45)
+			local capColor = CAP_COLORS[rng:NextInteger(1, #CAP_COLORS)]
+			if not blocked then
+				brick(decor, "WallRock", Vector3.new(len, h, depth + 0.4), CFrame.new(x + len / 2, h / 2, z), rockColor, { Enum.NormalId.Top, face }, 2, true)
 				count += 1
+				if capped then
+					local cap = brick(decor, "Cap", Vector3.new(len - 0.3, 0.3, depth + 0.1), CFrame.new(x + len / 2, h + 0.15, z), capColor, trim.CapNeon and {} or { Enum.NormalId.Top }, 2, false)
+					if trim.CapNeon then
+						cap.Material = Enum.Material.Neon
+					end
+					count += 1
+				end
 			end
 			x += len
 		end
 	end
 	return count
+end
+
+local function pickWeighted(rng, picks)
+	local total = 0
+	for _, p in picks do
+		total += p[2]
+	end
+	local roll = rng:NextNumber() * total
+	for _, p in picks do
+		roll -= p[2]
+		if roll <= 0 then
+			return p
+		end
+	end
+	return picks[#picks]
 end
 
 -- Replaces the biome's old blocky Decor with brick art: a dirt trail to the nest, stone trim along both cliffs, trees

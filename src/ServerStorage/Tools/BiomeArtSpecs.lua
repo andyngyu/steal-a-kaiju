@@ -488,4 +488,33 @@ specs.Prop_NestSign = {
 	Board = { C = { 0.25, 3.3, -0.3 } },
 }
 
+-- ---------- Pebble Plains lane dressing (Tools.BiomeArtBuilder.DressLane) ----------
+-- Trail / Trim colours, then props: Edge = along both cliffs, Bands = the side bands, Small = scattered off the path,
+-- Walls = on the cliff faces (Hang = from the top, Floor = standing at the foot, Band = at a random height).
+-- Picks are { prop name, weight, collide } (Small: { name, weight, minScale?, maxScale? }). Counts are for a 120 x 80
+-- biome and scale with the biome's floor area.
+specs.Dress_PebblePlains = {
+	Trail = { "C9A26B", "B88E58" },
+	TrailPebbles = { "B7B9C4", "9EA1AD", "DCDEE6" },
+	Trim = { Rocks = { "A7AAB6", "8E91A0", "B7B9C4" }, Caps = { "6FBF3F", "5FAE36" }, CapChance = 0.45 },
+	Edge = { Picks = { { "Tree", 1, true } }, Every = { 24, 32 }, Inset = 6.5, Scale = { 0.9, 1.15 }, Radius = 5 },
+	Bands = { Count = 14, Picks = { { "Bush", 38, false }, { "BerryBush", 22, false }, { "Boulder", 40, true } }, Scale = { 0.8, 1.25 }, Radius = 3 },
+	Small = { Count = 26, Picks = { { "FlowersPink", 1 }, { "FlowersMixed", 1 }, { "FlowersRed", 1 }, { "Grass", 2 }, { "Mushroom", 1 } }, Scale = { 0.9, 1.3 } },
+	Walls = {
+		{ Name = "VineShort", Mode = "Hang", Every = { 13, 19 }, Alt = "VineLong" },
+	},
+}
+
+-- Lava Lagoon and Frostfang Peaks live in their own modules (Tools.BiomeArtSpecsLava / BiomeArtSpecsFrost)
+for _, name in { "BiomeArtSpecsLava", "BiomeArtSpecsFrost" } do
+	local module = game:GetService("ServerStorage").Tools:FindFirstChild(name)
+	if module then
+		local copy = module:Clone()
+		for key, spec in require(copy) do
+			specs[key] = spec
+		end
+		copy:Destroy()
+	end
+end
+
 return specs
