@@ -1,16 +1,18 @@
 -- Kaiju food and levels (numbers in Shared.Config.FoodConfig).
---   Buying:  the Food stall counter in the Kaiju Market (each item: BuyPrompt E = 1, BuyTenPrompt F = 10),
---            or Remotes.BuyFood (foodId, amount) from the UI. Buying also selects that food for feeding.
---   Feeding: every kaiju has a FeedPrompt (E, feeds one of the selected food) and a SwapFoodPrompt (F, picks the next
---            food you own). Kaiju only move on clients, so the server can't validate these prompts by distance:
+--   Buying:  the Kaiju Food panel (UI FoodShopController; opened at the Food stall) -> Remotes.BuyFood (foodId, amount).
+--   Holding: the food hotbar (UI FoodHotbarController: keys 1-6, tap, DPad) -> Remotes.SelectFood (foodId, or "" to put
+--            it away). The held food is a Tool "HeldFood" in the character's hand (never in the Backpack, can't be
+--            dropped). Buying food with empty hands picks it up; running out of the held food puts it away.
+--   Feeding: every kaiju has a FeedPrompt (E, one of the held food) and a FeedTenPrompt (F, up to 10), shown only while
+--            its owner holds food. Kaiju only move on clients, so the server can't validate these prompts by distance:
 --            Gameplay.MarketFX shows them to the owner only and turns a trigger into Remotes.FeedKaiju (kaijuId,
---            foodId?, count?) / Remotes.SelectFood (foodId, "" = auto, "next" = cycle). The UI uses the same remotes.
+--            foodId?, count?); without foodId the held food is used.
 --   Levels:  food XP fills the kaiju's level bar (FoodConfig.XPToNext). Each level adds income and size; a level-up
 --            rebuilds the kaiju bigger where it stands (KaijuService:Refresh) after the food lands.
--- Player attributes: Food_<FoodId> (count owned), SelectedFood ("" = auto: best food owned).
--- GameEvent: FoodBought {FoodId, Amount, Count}, NoFood {}, NotEnoughCash {Cost}, KaijuMaxLevel {KaijuId},
---   KaijuFed {KaijuId, OwnerUserId, FoodId, Count, XPGained, Level, XP, XPToNext, LevelsGained} (to every client, for
---   the eating effect).
+-- Player attributes: Food_<FoodId> (count owned), SelectedFood (held food id, "" = empty hands).
+-- GameEvent: FoodBought {FoodId, Amount, Count}, NoFood {FoodId}, NotHoldingFood {}, FoodRanOut {FoodId},
+--   NotEnoughCash {Cost}, KaijuMaxLevel {KaijuId}, KaijuFed {KaijuId, OwnerUserId, FoodId, Count, XPGained, Level, XP,
+--   XPToNext, LevelsGained} (to every client, for the eating effect).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -27,6 +29,8 @@ local KaijuService = require(script.Parent.KaijuService)
 
 local FoodService = {}
 
+local HELD = "HeldFood"
+local foodArt = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Food")
 local gameEvent
 local kaijuFolder
 local lastAction = {} -- [player] = os.clock(), light spam guard
@@ -42,62 +46,122 @@ local function owned(data, foodId)
 	return data.Food[foodId] or 0
 end
 
--- The food a feed uses: the one asked for, else the selected one, else the best one owned.
-local function chooseFood(data, requested)
-	if requested and FoodConfig.ById[requested] and owned(data, requested) > 0 then
-		return FoodConfig.ById[requested]
-	end
-	local selected = FoodConfig.ById[data.SelectedFood or ""]
-	if selected and owned(data, selected.Id) > 0 then
-		return selected
-	end
-	for i = #FoodConfig.Foods, 1, -1 do
-		local food = FoodConfig.Foods[i]
-		if owned(data, food.Id) > 0 then
-			return food
-		end
-	end
-	return nil
+-- The food in the player's hands (nil when empty or when they've run out of it).
+local function heldFood(data)
+	local food = FoodConfig.ById[data.SelectedFood or ""]
+	return food and owned(data, food.Id) > 0 and food or nil
 end
 
--- Owner-facing prompt texts on every kaiju the player owns (only the owner sees these prompts).
+-- Owner-facing prompts on every kaiju the player owns (only the owner sees them): shown while holding food.
 local function refreshPrompts(player)
 	local data = DataService:Get(player)
 	if not data then
 		return
 	end
-	local food = chooseFood(data, nil)
+	local food = heldFood(data)
+	local count = food and owned(data, food.Id) or 0
 	BaseService:ForEachItem(player, function(_, entry, model)
 		local attach = entry.Kind == "Kaiju" and model and model.PrimaryPart and model.PrimaryPart:FindFirstChild("PromptAttachment")
 		if not attach then
 			return
 		end
-		local feed, swap = attach:FindFirstChild("FeedPrompt"), attach:FindFirstChild("SwapFoodPrompt")
+		local feed, ten = attach:FindFirstChild("FeedPrompt"), attach:FindFirstChild("FeedTenPrompt")
 		local cfg = KaijuConfig[entry.Species]
 		local level = entry.Level or 1
-		local maxed = level >= FoodConfig.MaxLevel
+		local canFeed = food ~= nil and level < FoodConfig.MaxLevel
 		if feed then
-			feed.ObjectText = (cfg and cfg.DisplayName or entry.Species) .. (maxed and "  MAX LEVEL" or ("  Lv " .. level))
-			if maxed then
-				feed.ActionText = "Max level!"
-			elseif food then
-				feed.ActionText = string.format("Feed %s (%d)", food.DisplayName, owned(data, food.Id))
-			else
-				feed.ActionText = "Feed (no food - visit the Food stall)"
-			end
+			feed.Enabled = canFeed
+			feed.ObjectText = (cfg and cfg.DisplayName or entry.Species) .. "  Lv " .. level
+			feed.ActionText = food and string.format("Feed %s (%d)", food.DisplayName, count) or "Feed"
 		end
-		if swap then
-			swap.Enabled = food ~= nil and not maxed
-			swap.ObjectText = food and ("Using " .. food.DisplayName) or ""
+		if ten then
+			ten.Enabled = canFeed and count > 1
+			ten.ActionText = count >= 10 and "Feed x10" or string.format("Feed all (%d)", count)
 		end
 	end)
 end
 
+-- A Tool holding the food's brick model (Root becomes the Handle; the rest is welded to it).
+local function makeTool(food)
+	local art = foodArt:FindFirstChild(food.Id)
+	if not (art and art.PrimaryPart) then
+		return nil
+	end
+	local model = art:Clone()
+	local tool = Instance.new("Tool")
+	tool.Name = HELD
+	tool.ToolTip = food.DisplayName
+	tool.CanBeDropped = false
+	tool.RequiresHandle = true
+	tool.ManualActivationOnly = true
+	tool:SetAttribute("FoodId", food.Id)
+	local handle = model.PrimaryPart
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") then
+			p.Anchored = false
+			p.CanCollide = false
+			p.CanTouch = false
+			p.CanQuery = false
+			p.Massless = true
+			if p ~= handle then
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = handle
+				weld.Part1 = p
+				weld.Parent = p
+			end
+		end
+	end
+	for _, child in model:GetChildren() do
+		child.Parent = tool
+	end
+	model:Destroy()
+	handle.Name = "Handle"
+	-- held up in front of the hand, food centred on the grip
+	local _, size = art:GetBoundingBox()
+	tool.Grip = CFrame.new(0, -size.Y * 0.15, -0.15) * CFrame.Angles(0, math.rad(90), 0)
+	return tool
+end
+
+-- Puts the held food in the character's hand (or takes it away).
+local function updateHeld(player, data)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hum then
+		return
+	end
+	local food = heldFood(data)
+	local current = char:FindFirstChild(HELD)
+	if current and food and current:GetAttribute("FoodId") == food.Id then
+		return
+	end
+	if current then
+		current:SetAttribute("Swapping", true)
+		current:Destroy()
+	end
+	if food and hum.Health > 0 then
+		local tool = makeTool(food)
+		if tool then
+			-- the client can unequip it (it lands in the Backpack): treat that as putting the food away
+			tool.AncestryChanged:Connect(function(_, parent)
+				if parent and parent:IsA("Backpack") and not tool:GetAttribute("Swapping") then
+					tool:Destroy()
+					FoodService:Select(player, "")
+				end
+			end)
+			tool.Parent = char
+		end
+	end
+end
+
 local function publish(player, data)
+	if data.SelectedFood ~= "" and not heldFood(data) then
+		data.SelectedFood = ""
+	end
 	for _, f in FoodConfig.Foods do
 		player:SetAttribute("Food_" .. f.Id, owned(data, f.Id))
 	end
 	player:SetAttribute("SelectedFood", data.SelectedFood or "")
+	updateHeld(player, data)
 	refreshPrompts(player)
 end
 
@@ -123,7 +187,9 @@ function FoodService:Buy(player, foodId, amount)
 		return false
 	end
 	data.Food[food.Id] = owned(data, food.Id) + amount
-	data.SelectedFood = food.Id
+	if not heldFood(data) then
+		data.SelectedFood = food.Id -- empty hands pick up what was just bought
+	end
 	publish(player, data)
 	DataService:Save(player)
 	gameEvent:FireClient(player, "FoodBought", { FoodId = food.Id, Amount = amount, Count = data.Food[food.Id] })
@@ -131,31 +197,25 @@ function FoodService:Buy(player, foodId, amount)
 	return true
 end
 
+-- Hold a food ("" = empty hands). Only food the player owns can be held.
 function FoodService:Select(player, foodId)
 	local data = DataService:Get(player)
-	if not data or (foodId ~= "" and not FoodConfig.ById[foodId]) then
-		return
+	if not data then
+		return false
+	end
+	if foodId ~= "" then
+		local food = FoodConfig.ById[foodId]
+		if not food then
+			return false
+		end
+		if owned(data, food.Id) <= 0 then
+			gameEvent:FireClient(player, "NoFood", { FoodId = food.Id })
+			return false
+		end
 	end
 	data.SelectedFood = foodId
 	publish(player, data)
-end
-
--- Next owned food after the selected one (wraps around).
-function FoodService:CycleSelected(player)
-	local data = DataService:Get(player)
-	if not data then
-		return
-	end
-	local current = chooseFood(data, nil)
-	local start = current and current.Order or 0
-	local n = #FoodConfig.Foods
-	for step = 1, n do
-		local food = FoodConfig.Foods[(start + step - 1) % n + 1]
-		if owned(data, food.Id) > 0 then
-			self:Select(player, food.Id)
-			return
-		end
-	end
+	return true
 end
 
 -- Feeds up to `count` of one food to the player's kaiju. Returns true if anything was eaten.
@@ -171,9 +231,13 @@ function FoodService:Feed(player, kaijuId, foodId, count)
 		gameEvent:FireClient(player, "KaijuMaxLevel", { KaijuId = kaijuId })
 		return false
 	end
-	local food = chooseFood(data, foodId)
+	local food = FoodConfig.ById[foodId or data.SelectedFood or ""]
 	if not food then
-		gameEvent:FireClient(player, "NoFood", {})
+		gameEvent:FireClient(player, "NotHoldingFood", {})
+		return false
+	end
+	if owned(data, food.Id) <= 0 then
+		gameEvent:FireClient(player, "NoFood", { FoodId = food.Id })
 		return false
 	end
 	count = math.clamp(math.floor(tonumber(count) or 1), 1, FoodConfig.MaxFeed)
@@ -197,6 +261,10 @@ function FoodService:Feed(player, kaijuId, foodId, count)
 	end
 	if owned(data, food.Id) <= 0 then
 		data.Food[food.Id] = nil
+		if data.SelectedFood == food.Id then
+			data.SelectedFood = ""
+			gameEvent:FireClient(player, "FoodRanOut", { FoodId = food.Id })
+		end
 	end
 	data.Stats.FoodFed = (data.Stats.FoodFed or 0) + fed
 
@@ -238,8 +306,8 @@ function FoodService:Feed(player, kaijuId, foodId, count)
 	return true
 end
 
--- Feed (E) and change-food (F) prompts on a kaiju, at mid-body height. The owner's client handles them
--- (Gameplay.MarketFX -> Remotes.FeedKaiju / SelectFood); the server only labels them.
+-- Feed (E) and feed-ten (F) prompts on a kaiju, at mid-body height. The owner's client handles them
+-- (Gameplay.MarketFX -> Remotes.FeedKaiju); the server only labels and enables them.
 local function addPrompts(model)
 	if model:GetAttribute("Showcase") or not model.PrimaryPart then
 		return
@@ -255,49 +323,27 @@ local function addPrompts(model)
 	local feed = Instance.new("ProximityPrompt")
 	feed.Name = "FeedPrompt"
 	feed.ActionText = "Feed"
+	feed.Enabled = false
 	feed.HoldDuration = FoodConfig.FeedHoldSeconds
 	feed.MaxActivationDistance = reach
 	feed.RequiresLineOfSight = false
 	feed.Parent = attach
 
-	local swap = Instance.new("ProximityPrompt")
-	swap.Name = "SwapFoodPrompt"
-	swap.ActionText = "Change food"
-	swap.KeyboardKeyCode = Enum.KeyCode.F
-	swap.GamepadKeyCode = Enum.KeyCode.ButtonY
-	swap.HoldDuration = 0
-	swap.MaxActivationDistance = reach
-	swap.RequiresLineOfSight = false
-	swap.UIOffset = Vector2.new(0, 80)
-	swap.Parent = attach
+	local ten = Instance.new("ProximityPrompt")
+	ten.Name = "FeedTenPrompt"
+	ten.ActionText = "Feed x10"
+	ten.Enabled = false
+	ten.KeyboardKeyCode = Enum.KeyCode.F
+	ten.GamepadKeyCode = Enum.KeyCode.ButtonY
+	ten.HoldDuration = FoodConfig.FeedHoldSeconds * 2
+	ten.MaxActivationDistance = reach
+	ten.RequiresLineOfSight = false
+	ten.UIOffset = Vector2.new(0, 80)
+	ten.Parent = attach
 
 	local owner = Players:GetPlayerByUserId(ownerId)
 	if owner then
 		task.defer(refreshPrompts, owner)
-	end
-end
-
--- Food stall counter: every item has BuyPrompt (1) and BuyTenPrompt (10).
-local function hookCounter()
-	local market = workspace:WaitForChild("Map"):WaitForChild("Market", 10)
-	local stall = market and market:FindFirstChild("FoodStall")
-	local items = stall and stall:FindFirstChild("Items")
-	if not items then
-		warn("[FoodService] no Map.Market.FoodStall.Items - run Tools.MarketBuilder")
-		return
-	end
-	for _, item in items:GetChildren() do
-		local foodId = item:GetAttribute("FoodId")
-		for _, prompt in item:GetDescendants() do
-			if prompt:IsA("ProximityPrompt") then
-				local amount = prompt.Name == "BuyTenPrompt" and 10 or 1
-				prompt.Triggered:Connect(function(player)
-					if spamGuard(player, 0.12) then
-						FoodService:Buy(player, foodId, amount)
-					end
-				end)
-			end
-		end
 	end
 end
 
@@ -310,11 +356,7 @@ function FoodService:Init()
 		end
 	end)
 	remotes:WaitForChild("SelectFood").OnServerEvent:Connect(function(player, foodId)
-		if foodId == "next" then
-			if spamGuard(player, 0.15) then
-				self:CycleSelected(player)
-			end
-		elseif type(foodId) == "string" then
+		if type(foodId) == "string" then
 			self:Select(player, foodId)
 		end
 	end)
@@ -332,7 +374,23 @@ function FoodService:Start()
 	for _, model in kaijuFolder:GetChildren() do
 		addPrompts(model)
 	end
-	hookCounter()
+	local function onCharacter(player)
+		local char = player.Character
+		local data = DataService:Get(player)
+		if char and data then
+			char:WaitForChild("Humanoid", 10)
+			updateHeld(player, data)
+		end
+	end
+	local function onPlayer(player)
+		player.CharacterAdded:Connect(function()
+			onCharacter(player)
+		end)
+	end
+	Players.PlayerAdded:Connect(onPlayer)
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
 	DataService:OnLoaded(function(player, data)
 		-- drop unknown foods (renamed/removed in config)
 		for id in data.Food do
