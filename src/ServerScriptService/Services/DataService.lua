@@ -1,0 +1,130 @@
+-- Player data via ProfileStore (session-locked). Other services read/write DataService:Get(player) and call :Save() after
+-- important changes. ProfileStore also auto-saves periodically and on leave/shutdown.
+-- Player attribute: DataLoaded = true once the profile is ready.
+--
+-- Data shape (string keys only - ProfileStore can't store gappy arrays):
+--   Cash, PendingCash, TotalEarned, LastOnline (os.time)
+--   Pads["1".."N"] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt }
+--                   | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt }
+--   Stats = { EggsDelivered, EggsHatched }
+local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local ProfileStore = require(ServerScriptService.Lib.ProfileStore)
+local EconomyConfig = require(ReplicatedStorage.Shared.Config.EconomyConfig)
+
+local STORE_NAME = "PlayerData_v1"
+local SAVE_THROTTLE_SECONDS = 15
+
+local TEMPLATE = {
+	Cash = EconomyConfig.StartingCash,
+	PendingCash = 0,
+	TotalEarned = 0,
+	LastOnline = 0,
+	Pads = {},
+	Stats = {
+		EggsDelivered = 0,
+		EggsHatched = 0,
+	},
+}
+
+local DataService = {}
+
+local store
+local profiles = {} -- [player] = profile
+local loadedCallbacks = {}
+local lastSave = {}
+local pendingSave = {}
+
+local function load(player)
+	local profile = store:StartSessionAsync("Player_" .. player.UserId, {
+		Cancel = function()
+			return player.Parent ~= Players
+		end,
+	})
+	if not profile then
+		if player.Parent == Players then
+			player:Kick("Couldn't load your data. Please rejoin.")
+		end
+		return
+	end
+	profile:AddUserId(player.UserId)
+	profile:Reconcile()
+	profile.OnSessionEnd:Connect(function()
+		profiles[player] = nil
+		if player.Parent == Players then
+			player:Kick("Your data was opened on another server. Please rejoin.")
+		end
+	end)
+	if player.Parent ~= Players then
+		profile:EndSession()
+		return
+	end
+	profiles[player] = profile
+	player:SetAttribute("DataLoaded", true)
+	for _, fn in loadedCallbacks do
+		task.spawn(fn, player, profile.Data)
+	end
+end
+
+function DataService:Init()
+	store = ProfileStore.New(STORE_NAME, TEMPLATE)
+end
+
+function DataService:Start()
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(load, player)
+	end)
+	for _, player in Players:GetPlayers() do
+		task.spawn(load, player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		local profile = profiles[player]
+		profiles[player] = nil
+		lastSave[player] = nil
+		pendingSave[player] = nil
+		if profile then
+			profile.Data.LastOnline = os.time()
+			profile:EndSession()
+		end
+	end)
+end
+
+-- Returns the player's data table, or nil if it isn't loaded (yet).
+function DataService:Get(player)
+	local profile = profiles[player]
+	return profile and profile.Data
+end
+
+function DataService:IsLoaded(player)
+	return profiles[player] ~= nil
+end
+
+-- fn(player, data) runs for every player whose profile loads, including ones already loaded.
+function DataService:OnLoaded(fn)
+	table.insert(loadedCallbacks, fn)
+	for player, profile in profiles do
+		task.spawn(fn, player, profile.Data)
+	end
+end
+
+-- Saves soon after an important change; throttled so bursts collapse into one write.
+function DataService:Save(player)
+	local profile = profiles[player]
+	if not profile or pendingSave[player] then
+		return
+	end
+	local wait = SAVE_THROTTLE_SECONDS - (os.clock() - (lastSave[player] or 0))
+	pendingSave[player] = true
+	task.delay(math.max(0, wait), function()
+		pendingSave[player] = nil
+		local p = profiles[player]
+		if p and p:IsActive() then
+			lastSave[player] = os.clock()
+			p:Save()
+		end
+	end)
+end
+
+return DataService

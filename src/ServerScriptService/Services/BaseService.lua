@@ -1,17 +1,19 @@
--- Assigns plots, spawns players at their base, and tracks what sits on each Nest Pad.
+-- Assigns plots, spawns players at their base, and owns what sits on each Nest Pad.
+-- Pad contents are persisted in DataService data.Pads[tostring(i)]; the in-world model is kept in sync here.
 -- Player attribute: PlotId. Plot model attribute: OwnerUserId.
 local Players = game:GetService("Players")
+
+local DataService = require(script.Parent.DataService)
 
 local BaseService = {}
 
 local plots = {} -- sorted list of plot models
 local ownerOf = {} -- [plotModel] = player
 local plotOf = {} -- [player] = plotModel
-local padEggs = {} -- [player] = { [padIndex] = eggModel }
+local padModels = {} -- [player] = { [padIndex] = model }
 
 local function setLabels(plot, text)
-	local arch = plot:FindFirstChild("Arch")
-	local board = arch and arch:FindFirstChild("Board")
+	local board = plot:FindFirstChild("Arch") and plot.Arch:FindFirstChild("Board")
 	if not board then
 		return
 	end
@@ -33,13 +35,8 @@ local function spawnAtBase(player, character)
 	if not plot then
 		return
 	end
-	local mat = plot:FindFirstChild("EntranceMat")
-	local zone = plot:FindFirstChild("Zone")
-	if not (mat and zone) then
-		return
-	end
-	local entrance = mat.Entrance.WorldPosition
-	local inward = Vector3.new(0, 0, zone.Position.Z - entrance.Z).Unit
+	local entrance = plot.EntranceMat.Entrance.WorldPosition
+	local inward = Vector3.new(0, 0, plot.Zone.Position.Z - entrance.Z).Unit
 	local pos = entrance + inward * 10 + Vector3.new(0, 3.5, 0)
 	character:WaitForChild("HumanoidRootPart")
 	task.defer(function()
@@ -54,7 +51,7 @@ local function assign(player)
 		if not ownerOf[plot] then
 			ownerOf[plot] = player
 			plotOf[player] = plot
-			padEggs[player] = {}
+			padModels[player] = {}
 			plot:SetAttribute("OwnerUserId", player.UserId)
 			player:SetAttribute("PlotId", plot:GetAttribute("PlotId"))
 			setLabels(plot, player.DisplayName .. "'s Base")
@@ -70,10 +67,10 @@ local function release(player)
 	if not plot then
 		return
 	end
-	for _, egg in padEggs[player] or {} do
-		egg:Destroy()
+	for _, model in padModels[player] or {} do
+		model:Destroy()
 	end
-	padEggs[player] = nil
+	padModels[player] = nil
 	ownerOf[plot] = nil
 	plotOf[player] = nil
 	plot:SetAttribute("OwnerUserId", nil)
@@ -114,15 +111,25 @@ end
 
 function BaseService:IsInOwnPlot(player, position)
 	local plot = plotOf[player]
-	local zone = plot and plot:FindFirstChild("Zone")
-	return zone ~= nil and insideZone(zone, position)
+	return plot ~= nil and insideZone(plot.Zone, position)
 end
 
--- Returns padIndex, padPart for the first empty pad, or nil if the base is full.
+function BaseService:GetPadPart(player, padIndex)
+	local plot = plotOf[player]
+	return plot and plot.NestPads:FindFirstChild("Pad" .. padIndex)
+end
+
+-- Direction a model on this plot should face (towards the path).
+function BaseService:GetFacing(player)
+	local plot = plotOf[player]
+	return plot and Vector3.new(0, 0, -plot:GetAttribute("Side")) or -Vector3.zAxis
+end
+
+-- Returns padIndex, padPart for the first empty pad, or nil if the base is full or data isn't loaded.
 function BaseService:FindEmptyPad(player)
 	local plot = plotOf[player]
-	local eggs = padEggs[player]
-	if not (plot and eggs) then
+	local data = DataService:Get(player)
+	if not (plot and data) then
 		return nil
 	end
 	local pads = plot.NestPads:GetChildren()
@@ -131,22 +138,47 @@ function BaseService:FindEmptyPad(player)
 	end)
 	for _, pad in pads do
 		local i = pad:GetAttribute("PadIndex")
-		if not eggs[i] then
+		if data.Pads[tostring(i)] == nil then
 			return i, pad
 		end
 	end
 	return nil
 end
 
-function BaseService:SetPadEgg(player, padIndex, egg)
-	local eggs = padEggs[player]
-	if eggs then
-		eggs[padIndex] = egg
+-- Puts an entry (saved) and its model (world) on a pad, replacing whatever was there.
+function BaseService:SetPad(player, padIndex, model, entry)
+	local data = DataService:Get(player)
+	local models = padModels[player]
+	if not (data and models) then
+		if model then
+			model:Destroy()
+		end
+		return false
 	end
+	local old = models[padIndex]
+	if old and old ~= model then
+		old:Destroy()
+	end
+	models[padIndex] = model
+	data.Pads[tostring(padIndex)] = entry
+	return true
 end
 
-function BaseService:GetPadEggs(player)
-	return padEggs[player]
+function BaseService:GetPadModel(player, padIndex)
+	local models = padModels[player]
+	return models and models[padIndex]
+end
+
+-- Iterates saved pad entries: fn(padIndex, entry, model).
+function BaseService:ForEachPad(player, fn)
+	local data = DataService:Get(player)
+	if not data then
+		return
+	end
+	for key, entry in data.Pads do
+		local i = tonumber(key)
+		fn(i, entry, padModels[player] and padModels[player][i])
+	end
 end
 
 return BaseService

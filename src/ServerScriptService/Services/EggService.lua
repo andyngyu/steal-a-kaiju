@@ -1,7 +1,7 @@
--- Nest spawns, rarity rolls, pickup, carry, drop and delivery onto Nest Pads.
--- One egg model moves through states: Nest -> Carried -> (Ground -> Carried)* -> Pad. State lives in the model's "State" attribute.
--- Player attributes: CarryingEgg (rarity), CarryingFromBiome, StunnedUntil (workspace:GetServerTimeNow()), BaseWalkSpeed.
-local HttpService = game:GetService("HttpService")
+-- Nest spawns, rarity rolls, pickup, carry, drop, and delivery (hands off to HatchService for the pad).
+-- An egg moves through states (model attribute "State"): Nest -> Carried -> (Ground -> Carried)* -> Pad.
+-- Carried eggs are never saved: leaving mid-carry drops the egg in the world, so nothing can be duplicated.
+-- Player attributes: CarryingEgg (rarity), CarryingFromBiome, StunnedUntil (server time), BaseWalkSpeed.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -12,15 +12,18 @@ local BiomeConfig = require(Config.BiomeConfig)
 local MapConfig = require(Config.MapConfig)
 local DevConfig = require(Config.DevConfig)
 
+local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
+
 local BaseService = require(script.Parent.BaseService)
 local GuardianService = require(script.Parent.GuardianService)
+local HatchService = require(script.Parent.HatchService)
 
 local EggService = {}
 
 local rng = Random.new()
 local gameEvent
 local eggFolder
-local nests = {} -- [biomeId] = { center = Part, slots = { [k] = { attachment, egg? } } }
+local nests = {} -- [biomeId] = { slots = { { attachment, egg? } } }
 local carried = {} -- [player] = egg model
 local lastPickup = {} -- [player] = os.clock()
 local fullWarned = {} -- [player] = true once BaseFull was sent for the current carry
@@ -57,82 +60,19 @@ local function setPrompt(egg, enabled, action)
 	end
 end
 
-local function setPhysics(egg, anchored)
-	for _, p in egg:GetDescendants() do
-		if p:IsA("BasePart") then
-			p.Anchored = anchored and p == egg.PrimaryPart
-			p.CanCollide = false
-			p.CanTouch = false
-			p.Massless = true
-		end
-	end
-end
-
--- Placeholder egg: shell + rarity-coloured crack band. The art pass swaps this for ServerStorage.Assets.Eggs models.
-local function makeEgg(biomeId, rarityId)
-	local rarity = EggConfig.RarityById[rarityId]
-	local size = EggConfig.Size
-	local egg = Instance.new("Model")
-	egg.Name = "Egg"
-	egg:SetAttribute("EggId", HttpService:GenerateGUID(false))
-	egg:SetAttribute("BiomeId", biomeId)
-	egg:SetAttribute("Rarity", rarityId)
-
-	local shell = Instance.new("Part")
-	shell.Name = "Shell"
-	shell.Size = size
-	shell.Color = EggConfig.ShellColors[biomeId] or Color3.new(1, 1, 1)
-	shell.Material = Enum.Material.SmoothPlastic
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.Sphere
-	mesh.Parent = shell
-	shell.Parent = egg
-	egg.PrimaryPart = shell
-
-	local band = Instance.new("Part")
-	band.Name = "Crack"
-	band.Size = Vector3.new(size.X * 1.04, size.Y * 0.18, size.Z * 1.04)
-	band.CFrame = shell.CFrame * CFrame.new(0, size.Y * 0.05, 0)
-	band.Color = rarity.Color
-	band.Material = rarity.Glow and Enum.Material.Neon or Enum.Material.SmoothPlastic
-	local bandMesh = Instance.new("SpecialMesh")
-	bandMesh.MeshType = Enum.MeshType.Sphere
-	bandMesh.Parent = band
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = shell
-	weld.Part1 = band
-	weld.Parent = band
-	band.Parent = egg
-
-	if rarity.Glow then
-		local light = Instance.new("PointLight")
-		light.Color = rarity.Color
-		light.Range = 10
-		light.Brightness = 1.5
-		light.Parent = shell
-	end
-
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "Prompt"
-	prompt.ActionText = "Steal"
-	prompt.ObjectText = rarityId .. " Egg"
-	prompt.HoldDuration = EggConfig.Pickup.HoldSeconds
-	prompt.MaxActivationDistance = EggConfig.Pickup.PromptDistance
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = shell
-	prompt.Triggered:Connect(function(player)
+-- World egg (nest/ground) with its prompt wired to pickup.
+local function makeEgg(biomeId, rarityId, eggId)
+	local egg = EggModel.Build(biomeId, rarityId, eggId)
+	egg.PrimaryPart.Prompt.Triggered:Connect(function(player)
 		EggService:TryPickup(player, egg)
 	end)
-
-	setPhysics(egg, true)
 	return egg
 end
 
 -- A carried egg is part of the player's client-owned assembly, so moving that same instance from the server
 -- doesn't reliably replicate. Swap it for a fresh server-owned copy with the same identity instead.
 local function rebuild(egg)
-	local new = makeEgg(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"))
-	new:SetAttribute("EggId", egg:GetAttribute("EggId"))
+	local new = makeEgg(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"))
 	egg:Destroy()
 	return new
 end
@@ -140,25 +80,25 @@ end
 local function spawnInSlot(biomeId, slot)
 	local egg = makeEgg(biomeId, rollRarity(biomeId))
 	egg:SetAttribute("State", "Nest")
+	setPrompt(egg, true, "Steal")
 	egg:PivotTo(CFrame.new(slot.attachment.WorldPosition + Vector3.new(0, EggConfig.Size.Y / 2 - 0.4, 0)))
 	egg.Parent = eggFolder
 	slot.egg = egg
-	return egg
 end
 
 local function fillNest(biomeId)
 	local nest = nests[biomeId]
 	local empty, count = {}, 0
 	for _, slot in nest.slots do
-		if slot.egg then
+		if slot.egg and slot.egg.Parent then
 			count += 1
 		else
+			slot.egg = nil
 			table.insert(empty, slot)
 		end
 	end
 	while count < EggConfig.Nest.EggsPerNest and #empty > 0 do
-		local slot = table.remove(empty, rng:NextInteger(1, #empty))
-		spawnInSlot(biomeId, slot)
+		spawnInSlot(biomeId, table.remove(empty, rng:NextInteger(1, #empty)))
 		count += 1
 	end
 end
@@ -194,20 +134,19 @@ function EggService:Init()
 	local runtime = workspace:FindFirstChild("Runtime") or Instance.new("Folder")
 	runtime.Name = "Runtime"
 	runtime.Parent = workspace
-	eggFolder = Instance.new("Folder")
+	eggFolder = runtime:FindFirstChild("Eggs") or Instance.new("Folder")
 	eggFolder.Name = "Eggs"
 	eggFolder.Parent = runtime
 
 	local lane = workspace:WaitForChild("Map"):WaitForChild("Lane")
 	for _, biome in BiomeConfig.List do
-		local center = lane[biome.Id].NestSite.Center
 		local slots = {}
-		for _, a in center:GetChildren() do
+		for _, a in lane[biome.Id].NestSite.Center:GetChildren() do
 			if a:IsA("Attachment") and a.Name:match("^EggSpawn") then
 				table.insert(slots, { attachment = a })
 			end
 		end
-		nests[biome.Id] = { center = center, slots = slots }
+		nests[biome.Id] = { slots = slots }
 	end
 end
 
@@ -285,7 +224,6 @@ function EggService:TryPickup(player, egg)
 	end
 	lastPickup[player] = now
 
-	-- free the nest slot and schedule a respawn
 	if state == "Nest" then
 		local biomeId = egg:GetAttribute("BiomeId")
 		for _, slot in nests[biomeId].slots do
@@ -298,7 +236,7 @@ function EggService:TryPickup(player, egg)
 
 	egg:SetAttribute("State", "Carried")
 	setPrompt(egg, false)
-	setPhysics(egg, false)
+	EggModel.SetPhysics(egg, false)
 	egg:PivotTo(hrp.CFrame * CFrame.new(0, EggConfig.Carry.OverheadOffset, 0))
 	local weld = Instance.new("Weld")
 	weld.Name = "CarryWeld"
@@ -339,9 +277,9 @@ function EggService:DropCarried(player, reason)
 	end
 	local y = groundY(pos, ignore)
 	egg:PivotTo(CFrame.new(pos.X, y + EggConfig.Size.Y / 2, pos.Z))
-	egg.Parent = eggFolder
 	egg:SetAttribute("State", "Ground")
 	setPrompt(egg, true, "Grab")
+	egg.Parent = eggFolder
 	if player.Parent == Players then
 		gameEvent:FireClient(player, "EggDropped", { Reason = reason })
 	end
@@ -356,7 +294,7 @@ function EggService:DropCarried(player, reason)
 end
 
 function EggService:Deliver(player, egg)
-	local padIndex, pad = BaseService:FindEmptyPad(player)
+	local padIndex = BaseService:FindEmptyPad(player)
 	if not padIndex then
 		if not fullWarned[player] then
 			fullWarned[player] = true
@@ -365,17 +303,12 @@ function EggService:Deliver(player, egg)
 		return
 	end
 	clearCarry(player)
-	egg = rebuild(egg)
-	egg:PivotTo(CFrame.new(pad.Position + Vector3.new(0, pad.Size.Y / 2 + EggConfig.Size.Y / 2, 0)))
-	egg:SetAttribute("State", "Pad")
-	egg:SetAttribute("OwnerUserId", player.UserId)
-	egg:SetAttribute("PadIndex", padIndex)
-	egg:SetAttribute("PlacedAt", workspace:GetServerTimeNow())
-	setPrompt(egg, false)
-	egg.Parent = eggFolder
-	BaseService:SetPadEgg(player, padIndex, egg)
-	gameEvent:FireClient(player, "EggDelivered", { Rarity = egg:GetAttribute("Rarity"), PadIndex = padIndex })
-	log(player.Name, "delivered", egg:GetAttribute("Rarity"), "to pad", padIndex)
+	local fresh = EggModel.Build(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"))
+	egg:Destroy()
+	if HatchService:PlaceEgg(player, padIndex, fresh) then
+		gameEvent:FireClient(player, "EggDelivered", { Rarity = fresh:GetAttribute("Rarity"), PadIndex = padIndex })
+		log(player.Name, "delivered", fresh:GetAttribute("Rarity"), "to pad", padIndex)
+	end
 end
 
 function EggService:GetCarried(player)
