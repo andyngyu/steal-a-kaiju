@@ -1,6 +1,6 @@
 -- Gameplay input for carried eggs (not UI): a ghost egg previews where the egg will land, and a click / tap /
 -- gamepad R2 sends Remotes.DropEgg. The server validates everything (reach, pen, capacity).
--- Ghost colours: green = inside your pen, white = on the ground, red = your pen is full.
+-- Ghost colours: green = inside your pen, white = on the ground, red = your pen is full. The ghost matches the carried egg's size.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -141,11 +141,15 @@ RunService.RenderStepped:Connect(function()
 	local y = groundY(spot)
 	local color = COLORS[classify(spot)]
 	local t = os.clock()
+	local egg = player.Character:FindFirstChild("Egg")
+	local eggSize = egg and egg.PrimaryPart and egg.PrimaryPart.Size or EggConfig.Size
+	local k = eggSize.X / EggConfig.Size.X
+	ghost.Size = eggSize
 	ghost.Color = color
 	ring.Color = color
-	ghost.CFrame = CFrame.new(spot.X, y + EggConfig.Size.Y / 2 + 0.3 + math.sin(t * 4) * 0.2, spot.Z) * CFrame.Angles(0, t * 1.5, 0)
+	ghost.CFrame = CFrame.new(spot.X, y + eggSize.Y / 2 + 0.3 + math.sin(t * 4) * 0.2, spot.Z) * CFrame.Angles(0, t * 1.5, 0)
 	ring.CFrame = CFrame.new(spot.X, y + 0.08, spot.Z) * CFrame.Angles(0, 0, math.rad(90))
-	local pulse = 4.5 + math.sin(t * 6) * 0.35
+	local pulse = (4.5 + math.sin(t * 6) * 0.35) * k
 	ring.Size = Vector3.new(0.15, pulse, pulse)
 	ghost.Parent = workspace
 	ring.Parent = workspace
