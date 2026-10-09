@@ -8,6 +8,7 @@
 --   HatchGrand (bool), DropFrom (Vector3) + DroppedAt (server time) for the toss arc.
 -- GiveEgg (store bundles, rewards) drops an egg from the sky straight into the pen, ignoring the pen's capacity so a
 -- paid egg is never refused; fires GameEvent EggGiven {ItemId, BiomeId, Rarity, Size, SizeTier}.
+-- Auto Hatch setting (SettingsService "AutoHatch"): ready eggs hatch by themselves, one per second per player.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -314,6 +315,12 @@ end
 function HatchService:Start()
 	DataService:OnLoaded(restore)
 
+	local settingsModule = script.Parent:FindFirstChild("SettingsService")
+	local SettingsService = settingsModule and require(settingsModule)
+	local function autoHatch(player)
+		return SettingsService ~= nil and SettingsService:Get(player, "AutoHatch") == true
+	end
+
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)
 		acc += dt
@@ -323,9 +330,14 @@ function HatchService:Start()
 		acc = 0
 		local now = os.time()
 		for _, player in Players:GetPlayers() do
-			BaseService:ForEachItem(player, function(_, entry, egg)
+			local auto = autoHatch(player)
+			local autoId = nil
+			BaseService:ForEachItem(player, function(id, entry, egg)
 				if entry.Kind ~= "Egg" or not egg or egg:GetAttribute("HatchStartedAt") then
 					return
+				end
+				if auto and not autoId and now >= entry.HatchAt and egg:GetAttribute("Ready") then
+					autoId = id
 				end
 				local label = egg.PrimaryPart:FindFirstChild("Countdown")
 				local left = entry.HatchAt - now
@@ -343,6 +355,9 @@ function HatchService:Start()
 					gameEvent:FireClient(player, "EggReady", { Rarity = entry.Rarity })
 				end
 			end)
+			if autoId then
+				tryHatch(player, autoId, player, true)
+			end
 		end
 	end)
 end

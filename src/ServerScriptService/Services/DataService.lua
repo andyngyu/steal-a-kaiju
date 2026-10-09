@@ -10,7 +10,8 @@
 --                                | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt, Size, Level, XP } } }
 --     (X, D are pen-local, see Shared.Util.PenGeometry; kaiju wander so their position isn't saved;
 --      Level/XP are missing on kaiju from before levels existed = level 1, 0 XP)
---   Food = { [foodId] = count }, SelectedFood = foodId or "" (auto)
+--   Food = { [foodId] = count }, SelectedFood = held foodId or "" (empty hands)
+--   FoodStock = { Cycle = restock number, Bought = { [foodId] = count bought this restock } }
 --   Trails = { Owned = { [trailId] = true }, Equipped = trailId or "" }
 --   Stats = { EggsDelivered, EggsHatched, KaijuSold, FoodFed }
 --   Store = { Purchases = { [purchaseId] = os.time }, LuckUntil, Passes = { [itemId] = true } } - created lazily and
@@ -42,6 +43,10 @@ local TEMPLATE = {
 	},
 	Food = {},
 	SelectedFood = "",
+	FoodStock = {
+		Cycle = 0,
+		Bought = {},
+	},
 	Trails = {
 		Owned = {},
 		Equipped = "",

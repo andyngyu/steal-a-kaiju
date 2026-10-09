@@ -1,5 +1,8 @@
 -- One guardian per biome: Sleeping -> Waking (roar) -> Chasing -> Returning -> Sleeping.
--- Wakes when an egg is taken in its biome. Gives up when the thief leaves the biome, drops the egg, or MaxChaseSeconds passes.
+-- Wakes when an egg is taken in its biome and chases the thief out of its biome, through every biome nearer the bases,
+-- all the way to the safe zone (Map attribute SafeZoneX; the lanes are joined end to end). Gives up when the thief
+-- reaches the safe zone, drops or delivers the egg, dies, or the chase runs too long (MaxChaseSeconds plus the time to
+-- run the whole way home). While walking home it re-targets carriers of its own eggs anywhere along that way.
 -- Uses ServerStorage.Assets.Kaiju.Guardian_<BiomeId> if present, otherwise builds a placeholder.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -133,6 +136,11 @@ local function inZoneX(g, pos)
 	return pos.X >= g.minX and pos.X <= g.maxX and math.abs(pos.Z) <= g.halfZ + 2
 end
 
+-- Where the guardian may chase: from the safe zone line to the far end of its own biome.
+local function inChaseArea(g, pos)
+	return pos.X >= g.safeX and pos.X <= g.maxX and math.abs(pos.Z) <= g.halfZ + 2
+end
+
 local function targetValid(g, player)
 	if not player or player.Parent ~= Players then
 		return false
@@ -166,6 +174,9 @@ local function setState(g, state, target)
 		setAwakeLook(g, true)
 		hum.WalkSpeed = g.cfg.ReturnSpeed
 		hum:MoveTo(g.home)
+		-- the walk home can now be a few biomes long: allow for it before the safety net teleports it home
+		local away = Vector3.new(g.home.X - g.root.Position.X, 0, g.home.Z - g.root.Position.Z).Magnitude
+		g.returnLimit = 12 + away / g.cfg.ReturnSpeed * 1.6
 	end
 	log(g.biome.Id, state, target and target.Name or "")
 end
@@ -201,7 +212,7 @@ local function findCarrierNear(g)
 	for _, player in Players:GetPlayers() do
 		if player:GetAttribute("CarryingFromBiome") == g.biome.Id then
 			local ok, hrp = targetValid(g, player)
-			if ok and inZoneX(g, hrp.Position) then
+			if ok and inChaseArea(g, hrp.Position) then
 				local d = (hrp.Position - g.root.Position).Magnitude
 				if d <= g.cfg.DetectionRadius and (not bestDist or d < bestDist) then
 					best, bestDist = player, d
@@ -236,13 +247,13 @@ local function step(g)
 			setState(g, "Returning")
 			return
 		end
-		if not inZoneX(g, hrp.Position) then
-			log(g.biome.Id, "target left biome at x=" .. math.floor(hrp.Position.X))
+		if not inChaseArea(g, hrp.Position) then
+			log(g.biome.Id, "target escaped at x=" .. math.floor(hrp.Position.X))
 			gameEvent:FireClient(g.target, "GuardianGaveUp", { BiomeId = g.biome.Id })
 			setState(g, "Returning")
 			return
 		end
-		if now - g.stateTime > g.cfg.MaxChaseSeconds then
+		if now - g.stateTime > g.maxChase then
 			log(g.biome.Id, "chase timed out")
 			setState(g, "Returning")
 			return
@@ -253,7 +264,7 @@ local function step(g)
 			catch(g, g.target, hrp)
 			return
 		end
-		local goal = Vector3.new(math.clamp(hrp.Position.X, g.minX + 2, g.maxX - 2), g.home.Y, math.clamp(hrp.Position.Z, -g.halfZ + 4, g.halfZ - 4))
+		local goal = Vector3.new(math.clamp(hrp.Position.X, g.safeX + 2, g.maxX - 2), g.home.Y, math.clamp(hrp.Position.Z, -g.halfZ + 4, g.halfZ - 4))
 		g.humanoid:MoveTo(goal)
 	elseif g.state == "Returning" then
 		local carrier = findCarrierNear(g)
@@ -269,7 +280,7 @@ local function step(g)
 			g.lastMoveTo = now
 			g.humanoid:MoveTo(g.home)
 		end
-		if now - g.stateTime > 30 then
+		if now - g.stateTime > (g.returnLimit or 30) then
 			-- safety net: never leave a guardian stuck away from home
 			g.model:PivotTo(CFrame.lookAt(g.homeCFrame.Position, g.homeCFrame.Position - Vector3.xAxis))
 			setState(g, "Sleeping")
@@ -315,9 +326,13 @@ function GuardianService:Init()
 		root.Anchored = false
 		root:SetNetworkOwner(nil)
 
+		local maxX = zone.Position.X + zone.Size.X / 2
+		local safeX = workspace.Map:GetAttribute("SafeZoneX") or (zone.Position.X - zone.Size.X / 2)
 		guardians[biome.Id] = {
 			biome = biome,
 			cfg = biome.Guardian,
+			safeX = safeX,
+			maxChase = biome.Guardian.MaxChaseSeconds + (maxX - safeX) / biome.Guardian.WalkSpeed * 1.5,
 			model = model,
 			root = root,
 			humanoid = model:FindFirstChildOfClass("Humanoid"),

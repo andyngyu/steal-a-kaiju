@@ -1,5 +1,9 @@
 -- Kaiju food and levels (numbers in Shared.Config.FoodConfig).
 --   Buying:  the Kaiju Food panel (UI FoodShopController; opened at the Food stall) -> Remotes.BuyFood (foodId, amount).
+--   Stock:   limited supply that restocks every FoodConfig.RestockSeconds on one clock (FoodConfig.RollStock: rarer food
+--            is in stock less often and in smaller amounts). Each player buys from their own copy of the restock
+--            (data.FoodStock, so rejoining doesn't refill it). Buying more than is left buys what's left.
+--            workspace attribute FoodRestockAt = unix time of the next restock (compare with GetServerTimeNow()).
 --   Holding: the food hotbar (UI FoodHotbarController: keys 1-6, tap, DPad) -> Remotes.SelectFood (foodId, or "" to put
 --            it away). The held food is a Tool "HeldFood" in the character's hand (never in the Backpack, can't be
 --            dropped). Buying food with empty hands picks it up; running out of the held food puts it away.
@@ -9,12 +13,15 @@
 --            foodId?, count?); without foodId the held food is used.
 --   Levels:  food XP fills the kaiju's level bar (FoodConfig.XPToNext). Each level adds income and size; a level-up
 --            rebuilds the kaiju bigger where it stands (KaijuService:Refresh) after the food lands.
--- Player attributes: Food_<FoodId> (count owned), SelectedFood (held food id, "" = empty hands).
--- GameEvent: FoodBought {FoodId, Amount, Count}, NoFood {FoodId}, NotHoldingFood {}, FoodRanOut {FoodId},
+-- Player attributes: Food_<FoodId> (count owned), FoodStock_<FoodId> (left in this restock), SelectedFood (held food id,
+--   "" = empty hands).
+-- GameEvent: FoodBought {FoodId, Amount, Count}, OutOfStock {FoodId, RestockAt}, FoodRestocked {Stock = {[foodId] = n},
+--   Rare = {foodIds}} (to everyone when a rare food is in stock), NoFood {FoodId}, NotHoldingFood {}, FoodRanOut {FoodId},
 --   NotEnoughCash {Cost}, KaijuMaxLevel {KaijuId}, KaijuFed {KaijuId, OwnerUserId, FoodId, Count, XPGained, Level, XP,
 --   XPToNext, LevelsGained} (to every client, for the eating effect).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Config = ReplicatedStorage.Shared.Config
 local FoodConfig = require(Config.FoodConfig)
@@ -44,6 +51,38 @@ end
 
 local function owned(data, foodId)
 	return data.Food[foodId] or 0
+end
+
+-- ---------- stock ----------
+
+local cycleOffset = 0 -- Studio testing only (RestockForTesting)
+local rolled = { cycle = nil, stock = nil }
+
+local function currentCycle()
+	return math.floor(os.time() / FoodConfig.RestockSeconds) + cycleOffset
+end
+
+local function shopStock()
+	local cycle = currentCycle()
+	if rolled.cycle ~= cycle then
+		rolled.cycle, rolled.stock = cycle, FoodConfig.RollStock(cycle)
+	end
+	return rolled.stock, cycle
+end
+
+-- How many of a food this player can still buy in the current restock.
+local function stockLeft(data, foodId)
+	local stock, cycle = shopStock()
+	local s = data.FoodStock
+	if s.Cycle ~= cycle then
+		s.Cycle = cycle
+		s.Bought = {}
+	end
+	return math.max(0, (stock[foodId] or 0) - (s.Bought[foodId] or 0))
+end
+
+local function restockAt()
+	return (currentCycle() - cycleOffset + 1) * FoodConfig.RestockSeconds
 end
 
 -- The food in the player's hands (nil when empty or when they've run out of it).
@@ -159,6 +198,7 @@ local function publish(player, data)
 	end
 	for _, f in FoodConfig.Foods do
 		player:SetAttribute("Food_" .. f.Id, owned(data, f.Id))
+		player:SetAttribute("FoodStock_" .. f.Id, stockLeft(data, f.Id))
 	end
 	player:SetAttribute("SelectedFood", data.SelectedFood or "")
 	updateHeld(player, data)
@@ -180,12 +220,19 @@ function FoodService:Buy(player, foodId, amount)
 	if not (food and data) then
 		return false
 	end
-	amount = math.clamp(math.floor(tonumber(amount) or 1), 1, FoodConfig.MaxBuy)
+	local left = stockLeft(data, food.Id)
+	if left <= 0 then
+		gameEvent:FireClient(player, "OutOfStock", { FoodId = food.Id, RestockAt = restockAt() })
+		publish(player, data)
+		return false
+	end
+	amount = math.clamp(math.floor(tonumber(amount) or 1), 1, math.min(FoodConfig.MaxBuy, left))
 	local cost = food.Price * amount
 	if not EconomyService:TrySpend(player, cost) then
 		gameEvent:FireClient(player, "NotEnoughCash", { Cost = cost })
 		return false
 	end
+	data.FoodStock.Bought[food.Id] = (data.FoodStock.Bought[food.Id] or 0) + amount
 	data.Food[food.Id] = owned(data, food.Id) + amount
 	if not heldFood(data) then
 		data.SelectedFood = food.Id -- empty hands pick up what was just bought
@@ -195,6 +242,13 @@ function FoodService:Buy(player, foodId, amount)
 	gameEvent:FireClient(player, "FoodBought", { FoodId = food.Id, Amount = amount, Count = data.Food[food.Id] })
 	log(player.Name, "bought", amount, food.Id, "for", cost)
 	return true
+end
+
+-- Restocks the shop now (Studio testing only; everyone in the server gets the next restock early).
+function FoodService:RestockForTesting()
+	if RunService:IsStudio() then
+		cycleOffset += 1
+	end
 end
 
 -- Hold a food ("" = empty hands). Only food the player owns can be held.
@@ -399,6 +453,37 @@ function FoodService:Start()
 			end
 		end
 		publish(player, data)
+	end)
+
+	-- restock clock: republish everyone's stock when a new restock starts; rare stock is news for the whole server
+	local lastCycle = currentCycle()
+	workspace:SetAttribute("FoodRestockAt", restockAt())
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local cycle = currentCycle()
+			if cycle ~= lastCycle then
+				lastCycle = cycle
+				workspace:SetAttribute("FoodRestockAt", restockAt())
+				for _, player in Players:GetPlayers() do
+					local data = DataService:Get(player)
+					if data then
+						publish(player, data)
+					end
+				end
+				local stock = shopStock()
+				local rare = {}
+				for _, f in FoodConfig.Foods do
+					if (stock[f.Id] or 0) > 0 and f.Stock.Chance < FoodConfig.RareStockChance then
+						table.insert(rare, f.Id)
+					end
+				end
+				if #rare > 0 then
+					gameEvent:FireAllClients("FoodRestocked", { Stock = stock, Rare = rare })
+				end
+				log("restock", cycle, "rare:", table.concat(rare, ","))
+			end
+		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
