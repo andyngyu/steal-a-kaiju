@@ -1,10 +1,13 @@
 -- Studio-only test commands (DevConfig.AdminCommands is forced off in live servers).
 -- Chat:         /givecash 1000      /resetdata (wipes your save to a brand-new player, then kicks you)
 --               /egg Legendary 2.8  (puts a ready-to-hatch egg in your pen; size optional = random roll)
+--               /showcase [Species ...] [size]   (every species, or the ones named, wandering in your pen;
+--               display only: not saved, no income)      /showcase clear
 -- Command bar:  game.ServerStorage.DevHooks.GiveCash:Invoke(<userId or nil for everyone>, 1000)
 --               game.ServerStorage.DevHooks.SetTrained:Invoke(<userId or nil>, 0)   -- treadmill bonus
 --               game.ServerStorage.DevHooks.SpawnEgg:Invoke(userId, "Epic", 2.1)  -> item id
 --               game.ServerStorage.DevHooks.HatchEgg:Invoke(userId, itemId)  -- as if the owner held Hatch
+--               game.ServerStorage.DevHooks.Showcase:Invoke(userId, { "Rumblerex", "2" })   or (userId, "clear")
 --               game.ServerStorage.DevHooks.PatchData:Invoke(userId, { Cash = 1000, PenLevel = 2, RemoveItems = { id } })
 --                 (edits the live save; the pen fence rebuilds for a new level on the next join)
 local Players = game:GetService("Players")
@@ -13,6 +16,7 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
 local EggConfig = require(ReplicatedStorage.Shared.Config.EggConfig)
+local KaijuConfig = require(ReplicatedStorage.Shared.Config.KaijuConfig)
 local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 local EconomyService = require(script.Parent.EconomyService)
@@ -20,6 +24,7 @@ local DataService = require(script.Parent.DataService)
 local SpeedService = require(script.Parent.SpeedService)
 local BaseService = require(script.Parent.BaseService)
 local HatchService = require(script.Parent.HatchService)
+local KaijuService = require(script.Parent.KaijuService)
 
 local DevService = {}
 
@@ -29,6 +34,52 @@ local function giveCash(player, amount)
 		EconomyService:AddCash(player, math.floor(amount))
 		print("[Dev] gave", player.Name, amount, "cash")
 	end
+end
+
+-- Display-only kaiju (not in the save, no income) for looking at models and animations.
+local showcase = {} -- [player] = { models }
+
+local function clearShowcase(player)
+	for _, model in showcase[player] or {} do
+		model:Destroy()
+	end
+	showcase[player] = nil
+end
+
+local function spawnShowcase(player, words)
+	clearShowcase(player)
+	if not BaseService:GetPlot(player) then
+		return
+	end
+	local list, size = {}, 1
+	for _, word in words do
+		if tonumber(word) then
+			size = tonumber(word)
+		else
+			for id in KaijuConfig do
+				if string.lower(id) == string.lower(word) then
+					table.insert(list, id)
+				end
+			end
+		end
+	end
+	if #list == 0 then
+		for id in KaijuConfig do
+			table.insert(list, id)
+		end
+		table.sort(list, function(a, b)
+			local ra, rb = EggConfig.RarityById[KaijuConfig[a].Rarity].Order, EggConfig.RarityById[KaijuConfig[b].Rarity].Order
+			return ra == rb and a < b or ra < rb
+		end)
+	end
+	showcase[player] = {}
+	for i, species in list do
+		local spot = BaseService:RandomSpot(player, 5)
+		local model = KaijuService:Spawn(player, "Showcase" .. i, { Species = species, Size = size }, spot, false)
+		model:SetAttribute("Showcase", true)
+		table.insert(showcase[player], model)
+	end
+	print("[Dev] showcase of", #list, "kaiju for", player.Name)
 end
 
 -- Ready egg of a chosen rarity/size near the middle of the player's pen. Returns its item id or nil.
@@ -139,6 +190,20 @@ function DevService:Start()
 		return true
 	end
 	patchData.Parent = hooks
+	local showcaseHook = Instance.new("BindableFunction")
+	showcaseHook.Name = "Showcase"
+	showcaseHook.OnInvoke = function(userId, words)
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			if words == "clear" then
+				clearShowcase(player)
+			else
+				spawnShowcase(player, words or {})
+			end
+		end
+		return true
+	end
+	showcaseHook.Parent = hooks
 	hooks.Parent = ServerStorage
 
 	local function onPlayer(player)
@@ -149,12 +214,19 @@ function DevService:Start()
 				giveCash(player, amount)
 			elseif eggRarity then
 				spawnEgg(player, eggRarity, tonumber(eggSize))
+			elseif message == "/showcase clear" then
+				clearShowcase(player)
+			elseif message:match("^/showcase") then
+				local words = string.split(message, " ")
+				table.remove(words, 1)
+				spawnShowcase(player, words)
 			elseif message == "/resetdata" then
 				print("[Dev] resetting data for", player.Name)
 				DataService:ResetForTesting(player)
 			end
 		end)
 	end
+	Players.PlayerRemoving:Connect(clearShowcase)
 	Players.PlayerAdded:Connect(onPlayer)
 	for _, player in Players:GetPlayers() do
 		onPlayer(player)

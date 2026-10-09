@@ -265,6 +265,14 @@ function KaijuModel.Build(speciesId, size)
 	local _, ext = model:GetBoundingBox()
 	infoBillboard(model, ext.Y, cfg, size, scale)
 	aura(model, EggConfig.RarityById[cfg.Rarity], scale)
+	-- clients wait until this many parts have arrived before animating the model (big models replicate over several frames)
+	local parts = 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			parts += 1
+		end
+	end
+	model:SetAttribute("PartCount", parts)
 	return model
 end
 

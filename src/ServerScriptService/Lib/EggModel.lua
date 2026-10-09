@@ -119,6 +119,15 @@ function EggModel.Build(biomeId, rarityId, eggId, size)
 	prompt.Enabled = false
 	prompt.Parent = shell
 
+	-- clients wait until this many parts have arrived before animating the model (big models replicate over several frames)
+	local parts = 0
+	for _, d in egg:GetDescendants() do
+		if d:IsA("BasePart") then
+			parts += 1
+		end
+	end
+	egg:SetAttribute("PartCount", parts)
+
 	EggModel.SetPhysics(egg, true)
 	return egg
 end
