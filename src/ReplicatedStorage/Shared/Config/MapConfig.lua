@@ -51,10 +51,6 @@ return table.freeze({
 		}),
 	}),
 
-	Treadmill = table.freeze({
-		Size = Vector3.new(14, 1, 30), -- X = belt width, Z = belt length (runs along the map's X axis)
-	}),
-
 	Hub = table.freeze({
 		Margin = 36, -- open ground between lots and the cliff wall
 		WallHeight = 28,

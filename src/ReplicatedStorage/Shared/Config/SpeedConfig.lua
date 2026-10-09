@@ -1,5 +1,5 @@
 --!strict
--- Player Speed (WalkSpeed). Speed = BaseSpeed + trained (treadmill) + Level * Upgrade.SpeedPerLevel, capped at MaxSpeed.
+-- Player Speed (WalkSpeed). Speed = BaseSpeed + trained (personal treadmill) + Level * Upgrade.SpeedPerLevel, capped at MaxSpeed.
 -- Biome RecommendedSpeed values live in BiomeConfig; guardian chase speeds are tuned against them.
 local Speed = {
 	BaseSpeed = 16,
@@ -13,12 +13,7 @@ local Speed = {
 		CooldownSeconds = 0.25,
 	}),
 
-	Treadmill = table.freeze({
-		SpeedPerSecond = 0.1, -- gained while running on the belt
-		MaxTrained = 10, -- treadmill can add at most this much Speed
-		BeltSpeed = 13, -- studs/s the belt pushes backwards; standing still slides you off
-		CheckInterval = 0.5,
-	}),
+	-- Treadmill training rates/caps per treadmill level live in TreadmillConfig.
 }
 
 -- Rounds prices to friendly numbers: 2 significant figures (113 -> 110, 1922 -> 1900).
