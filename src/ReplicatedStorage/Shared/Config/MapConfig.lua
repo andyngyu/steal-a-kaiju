@@ -59,8 +59,8 @@ return table.freeze({
 
 	Lane = table.freeze({
 		GapAfterPlots = 14, -- path length between the last plot and the safe-zone line
-		Width = 80,
-		WallHeight = 34,
+		Width = 110,
+		WallHeight = 44,
 		WallThickness = 8,
 		BorderWidth = 3, -- strip between biomes
 		ClearPathWidth = 30, -- centre strip kept free of decorations
