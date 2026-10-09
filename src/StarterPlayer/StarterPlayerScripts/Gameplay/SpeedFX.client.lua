@@ -1,24 +1,37 @@
--- Speed visuals, client-only: scrolling treadmill belt, "+Speed" popups while training, the Speed Shop kiosk showing
--- this viewer's own price, biome signs showing the viewer's speed against the recommended speed, and a burst on purchase.
+-- Speed visuals, client-only:
+--   personal treadmills: run animation for the local runner, chevrons scrolling while anyone runs, jump to get off,
+--   "+Speed" popups while training, pulsing hologram when locked, burst on unlock/upgrade
+--   Speed Shop kiosk showing this viewer's own price; biome signs showing the viewer's speed vs recommended
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 
-local SpeedConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("SpeedConfig"))
+local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
+local SpeedConfig = require(Config.SpeedConfig)
+local TreadmillConfig = require(Config.TreadmillConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
-local gameEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameEvent")
+local remotes = ReplicatedStorage:WaitForChild("Remotes")
+local gameEvent = remotes:WaitForChild("GameEvent")
+local treadmillRemote = remotes:WaitForChild("Treadmill")
 
 local player = Players.LocalPlayer
 local map = workspace:WaitForChild("Map")
-local belt = map:WaitForChild("Treadmill"):WaitForChild("Belt")
 local shop = map:WaitForChild("SpeedShop")
+shop:WaitForChild("Board")
 local lane = map:WaitForChild("Lane")
+local plotsFolder = map:WaitForChild("Plots")
 
 local GREEN = Color3.fromHex("6BE04A")
 local RED = Color3.fromHex("FF4D5E")
 local GOLD = Color3.fromHex("FFD23F")
+local ORANGE = Color3.fromHex("FF9A2E")
+local DEFAULT_RUN = "rbxassetid://913376220" -- Roblox's default R15 run
+local BELT_HALF = 4.3
+
+local rng = Random.new()
 
 local function fmtSpeed(n)
 	return (string.format("%.1f", n):gsub("%.0$", ""))
@@ -56,9 +69,10 @@ local function refreshBiomeSigns()
 	for _, biome in lane:GetChildren() do
 		local sign = biome:FindFirstChild("Sign")
 		local rec = sign and sign:GetAttribute("RecommendedSpeed")
-		if rec then
+		local board = sign and sign:FindFirstChild("Board")
+		if rec and board then
 			local ready = speed >= rec
-			local gui = sign.Board:FindFirstChildOfClass("SurfaceGui")
+			local gui = board:FindFirstChildOfClass("SurfaceGui")
 			if gui and gui:FindFirstChild("Status") then
 				gui.Status.Text = "Your Speed: " .. fmtSpeed(speed) .. (ready and "  OK" or "  Too slow")
 				gui.Status.TextColor3 = ready and GREEN or RED
@@ -75,67 +89,82 @@ local function refreshAll()
 	refreshShop()
 	refreshBiomeSigns()
 end
-
 player:GetAttributeChangedSignal("Speed"):Connect(refreshAll)
 player:GetAttributeChangedSignal("NextSpeedCost"):Connect(refreshShop)
 refreshAll()
+task.delay(3, refreshAll) -- lane signs may still be loading on join
 
 -- ---------- popups & bursts ----------
 
-local function popup(text, color)
+local function popup(text, color, jitter, size)
 	local char = player.Character
 	local head = char and char:FindFirstChild("Head")
 	if not head then
 		return
 	end
+	local start = Vector3.new(jitter and rng:NextNumber(-1.6, 1.6) or 0, 2.2, 0)
 	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(140, 36)
-	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.5, 0)
+	bb.Size = UDim2.fromOffset(size or 140, (size or 140) * 0.28)
+	bb.StudsOffsetWorldSpace = start
+	bb.LightInfluence = 0
 	local l = Instance.new("TextLabel")
 	l.Size = UDim2.fromScale(1, 1)
 	l.BackgroundTransparency = 1
 	l.Font = Enum.Font.FredokaOne
 	l.TextScaled = true
 	l.TextColor3 = color
-	l.TextStrokeTransparency = 0.1
+	l.TextStrokeTransparency = 0
+	l.TextStrokeColor3 = Color3.fromHex("1A1033")
 	l.Text = text
 	l.Parent = bb
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.4
+	scale.Parent = l
 	bb.Parent = head
-	local info = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(bb, info, { StudsOffsetWorldSpace = Vector3.new(0, 5, 0) }):Play()
-	TweenService:Create(l, info, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-	Debris:AddItem(bb, 1.1)
+	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	local info = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(bb, info, { StudsOffsetWorldSpace = start + Vector3.new(0, 3, 0) }):Play()
+	TweenService:Create(l, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 0.6), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	Debris:AddItem(bb, 1.2)
 end
 
-local function burst(color)
-	local char = player.Character
-	local hrp = char and char:FindFirstChild("HumanoidRootPart")
-	if not hrp then
-		return
-	end
-	local att = Instance.new("Attachment")
-	att.Parent = hrp
+local function burstAt(pos, color, count)
+	local holder = Instance.new("Part")
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanQuery = false
+	holder.Transparency = 1
+	holder.Size = Vector3.one
+	holder.CFrame = CFrame.new(pos)
 	local pe = Instance.new("ParticleEmitter")
 	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
 	pe.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
 	pe.LightEmission = 1
-	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0) })
-	pe.Speed = NumberRange.new(8, 16)
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 0) })
+	pe.Speed = NumberRange.new(8, 18)
 	pe.SpreadAngle = Vector2.new(180, 180)
-	pe.Lifetime = NumberRange.new(0.4, 0.8)
+	pe.Lifetime = NumberRange.new(0.5, 1)
+	pe.Drag = 2
 	pe.Rate = 0
-	pe.Parent = att
-	pe:Emit(40)
-	Debris:AddItem(att, 1.2)
+	pe.Parent = holder
+	holder.Parent = workspace
+	pe:Emit(count)
+	Debris:AddItem(holder, 1.5)
 end
 
--- batch treadmill gains into one popup per second
+local function burstOnCharacter(color)
+	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		burstAt(hrp.Position, color, 40)
+	end
+end
+
+-- treadmill gains: one popup per server tick while running, scattered like a combo counter
 local lastTrained = player:GetAttribute("TrainedSpeed")
-local pendingGain, lastPopup = 0, 0
 player:GetAttributeChangedSignal("TrainedSpeed"):Connect(function()
 	local now = player:GetAttribute("TrainedSpeed") or 0
-	if lastTrained and now > lastTrained then
-		pendingGain += now - lastTrained
+	if lastTrained and now > lastTrained and player:GetAttribute("OnTreadmill") then
+		popup("+" .. string.format("%.2f", now - lastTrained):gsub("0+$", ""):gsub("%.$", "") .. " Speed", ORANGE, true, 150)
 	end
 	lastTrained = now
 end)
@@ -143,22 +172,152 @@ end)
 gameEvent.OnClientEvent:Connect(function(name, data)
 	if name == "SpeedBought" then
 		popup("Speed " .. fmtSpeed(data.Speed) .. "!", GOLD)
-		burst(GOLD)
+		burstOnCharacter(GOLD)
 	elseif name == "TreadmillMaxed" then
-		popup("Treadmill maxed! Buy Speed to go faster", GOLD)
+		popup(data.NextName and ("Maxed! Upgrade to " .. data.NextName) or "Treadmill fully trained!", GOLD, false, 220)
+	elseif name == "TreadmillUpgraded" then
+		local plot = plotsFolder:FindFirstChild("Plot" .. tostring(player:GetAttribute("PlotId")))
+		local tm = plot and plot:FindFirstChild("Treadmill")
+		if tm then
+			local theme = TreadmillConfig.Levels[data.Level].Theme
+			burstAt(tm:GetPivot().Position + Vector3.new(0, 4, 0), theme.Trim, 60)
+		end
+		popup(data.Name .. " Treadmill!", GOLD, false, 200)
+	elseif name == "TreadmillCarrying" then
+		popup("Drop your egg first!", RED, false, 180)
 	end
 end)
 
--- ---------- treadmill belt ----------
+-- ---------- treadmills ----------
 
-local stripes = belt:FindFirstChild("Stripes")
-RunService.RenderStepped:Connect(function(dt)
-	if stripes then
-		stripes.OffsetStudsU = (stripes.OffsetStudsU + SpeedConfig.Treadmill.BeltSpeed * dt) % stripes.StudsPerTileU
+local treadmills = {} -- [model] = { chevrons = { {arms = {parts}, offsets = {CFrame}, z = number} }, ghostParts }
+
+local function addTreadmill(model)
+	if treadmills[model] then
+		return
 	end
-	if pendingGain > 0 and os.clock() - lastPopup > 1 then
-		lastPopup = os.clock()
-		popup("+" .. string.format("%.1f", pendingGain) .. " Speed", GREEN)
-		pendingGain = 0
+	local pivot = model:GetPivot()
+	local st = { phase = 0, chevrons = {} }
+	local folder = model:FindFirstChild("Chevrons")
+	if folder then
+		for _, ch in folder:GetChildren() do
+			local entry = { parts = {}, offsets = {}, cfs = {} }
+			local sumZ = 0
+			for _, arm in ch:GetChildren() do
+				if arm:IsA("BasePart") then
+					local off = pivot:ToObjectSpace(arm.CFrame)
+					table.insert(entry.parts, arm)
+					table.insert(entry.offsets, off)
+					sumZ += off.Position.Z
+				end
+			end
+			entry.z = #entry.parts > 0 and sumZ / #entry.parts or 0
+			table.insert(st.chevrons, entry)
+		end
+	end
+	st.pivot = pivot
+	if model:GetAttribute("Ghost") then
+		st.ghost = {}
+		for _, p in model:GetDescendants() do
+			if p:IsA("BasePart") then
+				table.insert(st.ghost, p)
+			end
+		end
+	end
+	treadmills[model] = st
+end
+
+local function watchPlot(plot)
+	plot.ChildAdded:Connect(function(child)
+		if child.Name == "Treadmill" then
+			task.defer(addTreadmill, child)
+		end
+	end)
+	plot.ChildRemoved:Connect(function(child)
+		treadmills[child] = nil
+	end)
+	local existing = plot:FindFirstChild("Treadmill")
+	if existing then
+		addTreadmill(existing)
+	end
+end
+for _, plot in plotsFolder:GetChildren() do
+	watchPlot(plot)
+end
+
+-- run animation for the local player while on their treadmill
+local runTrack
+local function stopRunning()
+	if runTrack then
+		runTrack:Stop(0.25)
+		runTrack = nil
+	end
+end
+
+local function startRunning()
+	stopRunning()
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local animator = hum and hum:FindFirstChildOfClass("Animator")
+	if not animator then
+		return
+	end
+	local id = DEFAULT_RUN
+	local animate = char:FindFirstChild("Animate")
+	local runFolder = animate and animate:FindFirstChild("run")
+	local runAnim = runFolder and runFolder:FindFirstChildOfClass("Animation")
+	if runAnim and runAnim.AnimationId ~= "" then
+		id = runAnim.AnimationId -- the player's own animation pack
+	end
+	local anim = Instance.new("Animation")
+	anim.AnimationId = id
+	runTrack = animator:LoadAnimation(anim)
+	runTrack.Priority = Enum.AnimationPriority.Action
+	runTrack.Looped = true
+	runTrack:Play(0.2)
+	local level = TreadmillConfig.Levels[player:GetAttribute("TreadmillLevel") or 1]
+	runTrack:AdjustSpeed(level and level.RunAnimSpeed or 1.2)
+end
+
+player:GetAttributeChangedSignal("OnTreadmill"):Connect(function()
+	if player:GetAttribute("OnTreadmill") then
+		startRunning()
+		popup("Jump to get off", Color3.new(1, 1, 1), false, 160)
+	else
+		stopRunning()
+	end
+end)
+player.CharacterAdded:Connect(stopRunning)
+
+UserInputService.JumpRequest:Connect(function()
+	if player:GetAttribute("OnTreadmill") then
+		treadmillRemote:FireServer("Stop")
+	end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+	local t = os.clock()
+	for model, st in treadmills do
+		if not model.Parent then
+			treadmills[model] = nil
+			continue
+		end
+		if st.ghost then
+			local a = 0.25 + (math.sin(t * 2.5) + 1) * 0.2
+			for _, p in st.ghost do
+				p.LocalTransparencyModifier = a
+			end
+		elseif model:GetAttribute("Runner") then
+			local level = TreadmillConfig.Levels[model:GetAttribute("Level") or 1]
+			st.phase = (st.phase + (level and level.BeltSpeed or 8) * dt) % (BELT_HALF * 2)
+			for _, ch in st.chevrons do
+				local z = ((ch.z + st.phase + BELT_HALF) % (BELT_HALF * 2)) - BELT_HALF
+				local shift = CFrame.new(0, 0, z - ch.z)
+				for i, off in ch.offsets do
+					ch.cfs[i] = st.pivot * shift * off
+				end
+				workspace:BulkMoveTo(ch.parts, ch.cfs, Enum.BulkMoveMode.FireCFrameChanged)
+			end
+		end
 	end
 end)
