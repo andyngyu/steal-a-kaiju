@@ -5,12 +5,15 @@
 -- Runtime contract (attributes are the API):
 --   Map                          attribute SafeZoneX (bases side is x < SafeZoneX)
 --   Map.Plots.Plot<n>            Model, PlotId, Side (-1|1), Color, PenOrigin (front-centre of the pen, see Shared.Util.PenGeometry).
---                                Children: Zone (invisible, whole lot), EntranceMat (Attachment "Entrance"), CollectPad (PlotId),
+--                                Children: Zone (invisible, whole lot), EntranceMat (Attachment "Entrance"),
 --                                Arch/Board (owner TextLabels), UpgradeSign (Board/SurfaceGui Title|Levels|PriceFrame.Price, Board.UpgradePrompt).
 --                                The pen fence ("Pen") is built at runtime by BaseService for the owner's level.
 --   Map.Lane.<BiomeId>           Model, BiomeId, Order, RecommendedSpeed. Children: Zone (invisible volume, BiomeId),
---                                NestSite (Model; Center part has GuardianSpawn + EggSpawn<i> attachments)
---   Map.Spawn.SpawnLocation, Map.Treadmill (Model, Treadmill=true, Belt)
+--                                NestSite (Model; Center part has GuardianSpawn + EggSpawn<i> attachments),
+--                                Sign (Board/SurfaceGui Title|Rec|Status; clients fill Status with the viewer's speed)
+--   Map.Spawn.SpawnLocation
+--   Map.Treadmill (Model, Treadmill=true): Belt (attribute Direction = Vector3 the belt pushes), rails, FrontBar
+--   Map.SpeedShop (Model): Board/SurfaceGui Title|Detail|PriceFrame.Price, Board.BuyPrompt
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 
@@ -273,11 +276,11 @@ end
 
 -- ---------- plots ----------
 
-local function upgradeSign(model, frame, x, d)
+-- Navy shop board (reference: Steal An Egg's "Upgrade Pen" sign). `cf` is the base; the Front face looks along its LookVector.
+local function shopSign(parent, name, cf, title, middleName, middleText, priceText, promptName, promptAction)
 	local sign = Instance.new("Model")
-	sign.Name = "UpgradeSign"
-	local base = frame * CFrame.new(x, 0, -d)
-	local facePath = base * CFrame.Angles(0, math.rad(180), 0) -- Front face looks at the path
+	sign.Name = name
+	local facePath = cf
 	local navy = Color3.fromHex("1F2A44")
 	for _, sx in { -3.5, 3.5 } do
 		block("Post", sign, Vector3.new(1, 5, 1), facePath * CFrame.new(sx, 2.5, 0.3), navy)
@@ -298,8 +301,8 @@ local function upgradeSign(model, frame, x, d)
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	list.Padding = UDim.new(0.03, 0)
 	list.Parent = gui
-	label(gui, "Title", "Upgrade Pen", Color3.new(1, 1, 1), 0.3).LayoutOrder = 1
-	label(gui, "Levels", "Level 1 > Level 2", Color3.fromHex("6BE04A"), 0.22).LayoutOrder = 2
+	label(gui, "Title", title, Color3.new(1, 1, 1), 0.3).LayoutOrder = 1
+	label(gui, middleName, middleText, Color3.fromHex("6BE04A"), 0.22).LayoutOrder = 2
 	local priceFrame = Instance.new("Frame")
 	priceFrame.Name = "PriceFrame"
 	priceFrame.Size = UDim2.new(1, 0, 0.36, 0)
@@ -312,19 +315,59 @@ local function upgradeSign(model, frame, x, d)
 	stroke.Thickness = 4
 	stroke.Color = Color3.fromHex("1A1033")
 	stroke.Parent = priceFrame
-	label(priceFrame, "Price", "$0", Color3.new(1, 1, 1), 1)
+	label(priceFrame, "Price", priceText, Color3.new(1, 1, 1), 1)
 	priceFrame.Parent = gui
 	gui.Parent = board
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "UpgradePrompt"
-	prompt.ActionText = "Upgrade Pen"
-	prompt.ObjectText = "Pen"
+	prompt.Name = promptName
+	prompt.ActionText = promptAction
+	prompt.ObjectText = title
 	prompt.HoldDuration = 0.4
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = board
 	sign.PrimaryPart = board
-	sign.Parent = model
+	sign.Parent = parent
+	return sign
+end
+
+local function upgradeSign(model, frame, x, d)
+	local facePath = frame * CFrame.new(x, 0, -d) * CFrame.Angles(0, math.rad(180), 0) -- Front face looks at the path
+	shopSign(model, "UpgradeSign", facePath, "Upgrade Pen", "Levels", "Level 1 > Level 2", "$0", "UpgradePrompt", "Upgrade Pen")
+end
+
+-- Biome entrance sign: name, recommended speed, and a Status line each client fills in with the viewer's own speed.
+local function biomeSign(parent, b, pos)
+	local model = Instance.new("Model")
+	model.Name = "Sign"
+	model:SetAttribute("RecommendedSpeed", b.RecommendedSpeed)
+	for _, dz in { -5, 5 } do
+		block("Post", model, Vector3.new(1.2, 10, 1.2), CFrame.new(pos + Vector3.new(0.4, 5, dz)), C.WoodDark)
+	end
+	local board = block("Board", model, Vector3.new(0.8, 7, 15), CFrame.new(pos + Vector3.new(0, 8.5, 0)), C.Wood, SIDES)
+	block("Lamp", model, Vector3.new(1, 1.4, 1.4), CFrame.new(pos + Vector3.new(0, 12.8, 0)), Color3.fromHex("FFD23F"), nil, Enum.Material.Neon)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Left
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0.06, 0)
+	pad.PaddingBottom = UDim.new(0.06, 0)
+	pad.PaddingLeft = UDim.new(0.04, 0)
+	pad.PaddingRight = UDim.new(0.04, 0)
+	pad.Parent = gui
+	local list = Instance.new("UIListLayout")
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.Padding = UDim.new(0.02, 0)
+	list.Parent = gui
+	label(gui, "Title", b.DisplayName, Color3.new(1, 1, 1), 0.36).LayoutOrder = 1
+	label(gui, "Rec", "Recommended Speed: " .. b.RecommendedSpeed, Color3.fromHex("FFD23F"), 0.26).LayoutOrder = 2
+	label(gui, "Status", "", Color3.new(1, 1, 1), 0.26).LayoutOrder = 3
+	gui.Parent = board
+	model.PrimaryPart = board
+	model.Parent = parent
+	return model
 end
 
 local function buildPlot(plots, id, side, cx, frontZ)
@@ -364,13 +407,6 @@ local function buildPlot(plots, id, side, cx, frontZ)
 		textGui(board, face, "PLOT " .. id)
 	end
 	arch.Parent = model
-
-	-- collect pad just inside the entrance
-	local collect = block("CollectPad", model, Vector3.new(7, 0.5, 7), at(-(eh + 6), 7, 0.25), Color3.fromHex("6BE04A"), TOP)
-	collect:SetAttribute("PlotId", id)
-	block("CollectRim", model, Vector3.new(8.2, 0.3, 8.2), at(-(eh + 6), 7, 0.15), Color3.fromHex("FFD23F"))
-	local collectLabel = textGui(collect, Enum.NormalId.Top, "COLLECT", Color3.new(1, 1, 1), 30)
-	collectLabel.Rotation = 180
 
 	upgradeSign(model, frame, eh + 9, -4)
 	model.Parent = plots
@@ -458,16 +494,37 @@ function MapBuilder.Build()
 		stray:Destroy()
 	end
 
+	-- Treadmill on the plaza's north side: the belt pushes towards -X, so players run towards +X (the lane) to stay on.
 	local tm = Instance.new("Model")
 	tm.Name = "Treadmill"
 	tm:SetAttribute("Treadmill", true)
 	local ts = MapConfig.Treadmill.Size
-	local tmPos = Vector3.new(-S / 2, 0.3, S / 2 - ts.X / 2 - 4)
-	block("Frame", tm, Vector3.new(ts.Z + 2, ts.Y, ts.X + 2), CFrame.new(tmPos + Vector3.new(0, ts.Y / 2, 0)), Color3.fromHex("2B1B4D"))
-	local belt = block("Belt", tm, Vector3.new(ts.Z, 0.2, ts.X), CFrame.new(tmPos + Vector3.new(0, ts.Y + 0.1, 0)), Color3.fromHex("1A1033"), nil, Enum.Material.Fabric)
+	local len, wid = ts.Z, ts.X
+	local tmPos = Vector3.new(-S / 2, 0.3, S / 2 - wid / 2 - 5)
+	local purple = Color3.fromHex("2B1B4D")
+	block("Frame", tm, Vector3.new(len + 3, ts.Y, wid + 3), CFrame.new(tmPos + Vector3.new(0, ts.Y / 2, 0)), purple)
+	local belt = block("Belt", tm, Vector3.new(len, 0.3, wid), CFrame.new(tmPos + Vector3.new(0, ts.Y + 0.15, 0)), Color3.fromHex("3A3550"), nil, Enum.Material.Fabric)
+	belt:SetAttribute("Direction", -Vector3.xAxis)
+	local stripes = Instance.new("Texture")
+	stripes.Name = "Stripes"
+	stripes.Texture = MapConfig.StudTexture
+	stripes.Face = Enum.NormalId.Top
+	stripes.StudsPerTileU = 2
+	stripes.StudsPerTileV = 2
+	stripes.Color3 = Color3.fromHex("6BE04A")
+	stripes.Transparency = 0.55
+	stripes.Parent = belt
 	tm.PrimaryPart = belt
-	signpost(tm, "Sign", tmPos + Vector3.new(0, 0, -(ts.X / 2 + 3)), Enum.NormalId.Front, Vector3.new(10, 3, 0.6), "TREADMILL")
+	for _, s in { -1, 1 } do
+		block("Rail", tm, Vector3.new(len + 3, 3.2, 0.8), CFrame.new(tmPos + Vector3.new(0, ts.Y + 1.6, s * (wid / 2 + 1.1))), Color3.fromHex("FFD23F"), SIDES)
+	end
+	block("FrontBar", tm, Vector3.new(0.8, 3.2, wid + 3), CFrame.new(tmPos + Vector3.new(len / 2 + 1.1, ts.Y + 1.6, 0)), Color3.fromHex("FF8A1F"), SIDES)
+	signpost(tm, "Sign", tmPos + Vector3.new(len / 2 + 4, 0, 0), Enum.NormalId.Left, Vector3.new(0.6, 3, 12), "TREADMILL")
 	tm.Parent = map
+
+	-- Speed Shop kiosk on the plaza's south side, facing the plaza centre
+	local shopPos = Vector3.new(-S / 2, 0, -S / 2 + 6)
+	shopSign(map, "SpeedShop", CFrame.lookAt(shopPos, shopPos + Vector3.zAxis), "Speed Shop", "Detail", "+2 Speed", "Buy", "BuyPrompt", "Buy Speed")
 	task.wait()
 
 	local plots = Instance.new("Folder")
@@ -542,7 +599,7 @@ function MapBuilder.Build()
 		end
 		site.Parent = m
 
-		signpost(m, "Sign", Vector3.new(x0 + 4, 0, laneHalf - 8), Enum.NormalId.Left, Vector3.new(0.6, 5, 12), b.DisplayName .. "\nRecommended Speed: " .. b.RecommendedSpeed)
+		biomeSign(m, b, Vector3.new(x0 + 4, 0, laneHalf - 10))
 		decorateBiome(m, b, x0, x1, nestX, rng)
 		x0 = x1
 		task.wait()
