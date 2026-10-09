@@ -1,6 +1,7 @@
 -- Plots and pens: assigns a plot per player, builds the pen fence for the owner's level, handles Upgrade Pen,
 -- and keeps the registry of what's in each pen (saved in data.Pen.Items, models kept in sync here).
--- Player attributes: PlotId, PenLevel, PenCount, PenCapacity. Plot attributes: OwnerUserId, PenLevel.
+-- Player attributes: PlotId, PenLevel, PenCount, PenCapacity (level capacity + BonusPenCapacity, a perk set by
+-- GamePassService). Plot attributes: OwnerUserId, PenLevel.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -67,6 +68,13 @@ local function buildPen(plot, level)
 	plot:SetAttribute("PenLevel", level)
 end
 
+-- Pen level capacity plus the Bigger Pen perk.
+local function capacityOf(player, data)
+	local bonus = player:GetAttribute("BonusPenCapacity")
+	bonus = type(bonus) == "number" and math.max(0, math.floor(bonus)) or 0
+	return PenGeometry.Level(data.Pen.Level).Capacity + bonus
+end
+
 local function publishCounts(player)
 	local data = DataService:Get(player)
 	if not data then
@@ -78,7 +86,7 @@ local function publishCounts(player)
 	end
 	player:SetAttribute("PenLevel", data.Pen.Level)
 	player:SetAttribute("PenCount", count)
-	player:SetAttribute("PenCapacity", PenGeometry.Level(data.Pen.Level).Capacity)
+	player:SetAttribute("PenCapacity", capacityOf(player, data))
 end
 
 local function spawnAtBase(player, character)
@@ -158,6 +166,9 @@ end
 function BaseService:Start()
 	local function onPlayer(player)
 		assign(player)
+		player:GetAttributeChangedSignal("BonusPenCapacity"):Connect(function()
+			publishCounts(player)
+		end)
 		player.CharacterAdded:Connect(function(character)
 			spawnAtBase(player, character)
 		end)
@@ -219,7 +230,13 @@ function BaseService:HasRoom(player)
 	for _ in data.Pen.Items do
 		count += 1
 	end
-	return count < PenGeometry.Level(data.Pen.Level).Capacity
+	return count < capacityOf(player, data)
+end
+
+-- How many eggs + kaiju fit in the player's pen right now (level + perks).
+function BaseService:GetCapacity(player)
+	local data = DataService:Get(player)
+	return data and capacityOf(player, data) or 0
 end
 
 -- Footprint radius of an egg of this rarity and size roll.
@@ -353,7 +370,8 @@ function BaseService:ForEachItem(player, fn)
 	end
 end
 
-function BaseService:TryUpgrade(player)
+-- Next pen level; paid in cash unless `free`. False when maxed, unaffordable or the player's data/plot isn't ready.
+local function upgrade(player, free)
 	local data = DataService:Get(player)
 	local plot = plotOf[player]
 	if not (data and plot) then
@@ -364,7 +382,7 @@ function BaseService:TryUpgrade(player)
 		return false
 	end
 	local EconomyService = require(script.Parent.EconomyService)
-	if not EconomyService:TrySpend(player, nextLevel.Cost) then
+	if not free and not EconomyService:TrySpend(player, nextLevel.Cost) then
 		gameEvent:FireClient(player, "NotEnoughCash", { Cost = nextLevel.Cost })
 		return false
 	end
@@ -374,8 +392,18 @@ function BaseService:TryUpgrade(player)
 	publishCounts(player)
 	DataService:Save(player)
 	gameEvent:FireClient(player, "PenUpgraded", { Level = data.Pen.Level })
-	log(player.Name, "upgraded pen to", data.Pen.Level)
+	log(player.Name, free and "was granted pen level" or "upgraded pen to", data.Pen.Level)
 	return true
+end
+
+-- The Upgrade Pen sign: next level for its cash cost.
+function BaseService:TryUpgrade(player)
+	return upgrade(player, false)
+end
+
+-- Next level with no cash (a Robux upgrade from GamePassService's receipt handler). False when maxed or not ready.
+function BaseService:GrantUpgrade(player)
+	return upgrade(player, true)
 end
 
 return BaseService

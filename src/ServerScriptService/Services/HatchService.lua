@@ -6,6 +6,8 @@
 -- Pen egg model attributes: State="Pen", ItemId, OwnerUserId, PlacedAt, HatchAt (os.time; compare with workspace:GetServerTimeNow()),
 --   Ready (bool), HatchStartedAt (server time, hatch animation running), HatchAnim (its length in seconds),
 --   HatchGrand (bool), DropFrom (Vector3) + DroppedAt (server time) for the toss arc.
+-- GiveEgg (store bundles, rewards) drops an egg from the sky straight into the pen, ignoring the pen's capacity so a
+-- paid egg is never refused; fires GameEvent EggGiven {ItemId, BiomeId, Rarity, Size, SizeTier}.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -15,7 +17,9 @@ local KaijuConfig = require(Config.KaijuConfig)
 local EggConfig = require(Config.EggConfig)
 local BaseConfig = require(Config.BaseConfig)
 local DevConfig = require(Config.DevConfig)
+local BiomeConfig = require(Config.BiomeConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
 local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
 
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
@@ -201,7 +205,8 @@ end
 
 -- Called by EggService when a carried egg is dropped inside the owner's pen at pen-local (x, d).
 -- `egg` is a fresh server-owned model; fromPos is where it was carried (for the toss animation).
-function HatchService:PlaceEgg(player, egg, x, d, fromPos)
+-- Gifted eggs (GiveEgg) don't count towards Stats.EggsDelivered.
+function HatchService:PlaceEgg(player, egg, x, d, fromPos, gifted)
 	local now = os.time()
 	local id = egg:GetAttribute("EggId")
 	local biomeId, rarity = egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity")
@@ -222,11 +227,51 @@ function HatchService:PlaceEgg(player, egg, x, d, fromPos)
 	if not BaseService:SetItem(player, id, egg, entry) then
 		return false
 	end
-	local data = DataService:Get(player)
-	data.Stats.EggsDelivered += 1
+	if not gifted then
+		DataService:Get(player).Stats.EggsDelivered += 1
+	end
 	DataService:Save(player)
-	log(player.Name, "placed", rarity, "egg ->", species, "ready in", entry.HatchAt - now, "s")
+	log(player.Name, gifted and "was given" or "placed", rarity, "egg ->", species, "ready in", entry.HatchAt - now, "s")
 	return true
+end
+
+local SIZE_MIN, SIZE_MAX = math.huge, 0
+for _, t in EggConfig.SizeTiers do
+	SIZE_MIN = math.min(SIZE_MIN, t.Min)
+	SIZE_MAX = math.max(SIZE_MAX, t.Max)
+end
+
+-- Puts a new egg into the player's pen (it falls from the sky onto the free spot nearest the middle). size is optional
+-- (a normal roll when nil). Returns the egg's item id, or nil for an unknown biome/rarity or when the player's data or
+-- plot isn't ready yet (call again later - a dev product receipt should return NotProcessedYet).
+function HatchService:GiveEgg(player, biomeId, rarityId, size)
+	if not (BiomeConfig.ById[biomeId] and EggConfig.RarityById[rarityId]) then
+		warn("[HatchService] GiveEgg: unknown biome or rarity", biomeId, rarityId)
+		return nil
+	end
+	if not (DataService:Get(player) and BaseService:GetPlot(player)) then
+		return nil
+	end
+	size = type(size) == "number" and math.clamp(size, SIZE_MIN, SIZE_MAX) or EggModel.RollSize()
+	local middle = PenGeometry.Level(BaseService:GetLevel(player)).Depth / 2
+	local x, d = BaseService:FindFreeSpot(player, 0, middle, size, rarityId)
+	if not x then
+		x, d = 0, middle -- packed with eggs: share the middle rather than lose a purchase
+	end
+	local egg = EggModel.Build(biomeId, rarityId, nil, size)
+	local id = egg:GetAttribute("EggId")
+	local sky = BaseService:PenToWorld(player, x, d) + Vector3.new(0, 30, 0)
+	if not self:PlaceEgg(player, egg, x, d, sky, true) then
+		return nil
+	end
+	gameEvent:FireClient(player, "EggGiven", {
+		ItemId = id,
+		BiomeId = biomeId,
+		Rarity = rarityId,
+		Size = size,
+		SizeTier = EggConfig.SizeTierName(size),
+	})
+	return id
 end
 
 local function restore(player, data)

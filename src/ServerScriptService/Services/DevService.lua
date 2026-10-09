@@ -14,6 +14,9 @@
 --                 RemoveItems = { id }, AddItems = { [id] = entry }, Food = {...}, SelectedFood = "", Trails = {...},
 --                 StatDeltas = { KaijuSold = -1 } })
 --                 (edits the live save; pen changes show on the next join)
+--               game.ServerStorage.DevHooks.Call:Invoke(userId, "HatchService", "GiveEgg", "PebblePlains", "Rare")
+--                 -> whatever Services.<name>:<method>(player, ...) returns (the command bar's require() gets
+--                 separate module copies, so server APIs are tested through this)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -263,6 +266,21 @@ function DevService:Start()
 		return true
 	end
 	restoreHook.Parent = hooks
+	local call = Instance.new("BindableFunction")
+	call.Name = "Call"
+	call.OnInvoke = function(userId, serviceName, method, ...)
+		local player = Players:GetPlayerByUserId(userId)
+		local module = script.Parent:FindFirstChild(tostring(serviceName))
+		if not (player and module and module:IsA("ModuleScript")) then
+			return nil
+		end
+		local service = require(module)
+		if type(service[method]) ~= "function" then
+			return nil
+		end
+		return service[method](service, player, ...)
+	end
+	call.Parent = hooks
 	hooks.Parent = ServerStorage
 
 	local function onPlayer(player)

@@ -2,6 +2,7 @@
 --   Remotes.BuyTrail (trailId): buys and equips it. Remotes.EquipTrail (trailId, or "" to take it off).
 --   Used by the UI's POWERS / Trail Shop panel; the Trails stall in the Kaiju Market opens that panel.
 --   Free trails (Price 0) are owned by everyone; new players start with the first free one equipped.
+--   Robux trails (ProductId > 0) are granted by GamePassService's receipt handler through TrailService:Grant.
 -- Player attributes: OwnedTrails ("PebbleDust,JungleLeaf"), EquippedTrail (trailId or "").
 -- The equipped trail is a Trail between two attachments on the HumanoidRootPart (+ sparkles for Legendary and up).
 -- GameEvent: TrailBought {Id}, TrailEquipped {Id}, NotEnoughCash {Cost}.
@@ -175,6 +176,23 @@ function TrailService:Buy(player, trailId)
 	gameEvent:FireClient(player, "TrailBought", { Id = trail.Id })
 	log(player.Name, "bought trail", trail.Id)
 	return self:Equip(player, trail.Id)
+end
+
+-- Gives a trail for free (Robux purchase): owned + equipped + TrailBought. True if the player has it afterwards (also
+-- when they already did); false for an unknown trail or when their data isn't loaded yet.
+function TrailService:Grant(player, trailId)
+	local data = DataService:Get(player)
+	local trail = TrailConfig.ById[trailId]
+	if not (data and trail) then
+		return false
+	end
+	if not owns(data, trail) then
+		data.Trails.Owned[trail.Id] = true
+		gameEvent:FireClient(player, "TrailBought", { Id = trail.Id })
+		log(player.Name, "was granted trail", trail.Id)
+	end
+	self:Equip(player, trail.Id)
+	return true
 end
 
 function TrailService:Init()

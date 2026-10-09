@@ -5,6 +5,8 @@
 -- Each nest egg rolls a Size (EggConfig.SizeTiers) that stays with it through carry/drop/pen and becomes the kaiju's size.
 -- Carried eggs get attribute CarryOffset (weld height) so client FX can bob them at the right height.
 -- Carried eggs are never saved: leaving mid-carry drops the egg in the world, so nothing can be duplicated.
+-- Egg luck perk (EggLuckMultiplier = the effective multiplier right now, EggLuckUntil = server time it ends or 0/nil for
+-- no end; both set by GamePassService; EggConfig.Luck): applied when the egg lands in the pen; an upgrade fires GameEvent EggLucky {FromRarity, ToRarity, FromSize, ToSize, ItemId}.
 -- Player attributes: CarryingEgg (rarity), CarryingFromBiome, StunnedUntil (server time), BaseWalkSpeed.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -300,6 +302,37 @@ local function validTarget(v)
 	return typeof(v) == "Vector3" and v.X == v.X and v.Z == v.Z and math.abs(v.X) < 1e5 and math.abs(v.Z) < 1e5
 end
 
+-- Active egg luck multiplier for a player (1 = none). EggLuckUntil 0/nil means it doesn't run out (VIP).
+local function luckOf(player)
+	local untilTime = player:GetAttribute("EggLuckUntil")
+	local mult = player:GetAttribute("EggLuckMultiplier")
+	local running = type(untilTime) ~= "number" or untilTime <= 0 or workspace:GetServerTimeNow() < untilTime
+	if type(mult) == "number" and mult > 1 and running then
+		return mult
+	end
+	return 1
+end
+
+-- A lucky player's egg can grow as it lands in their pen. Returns rarity, size (unchanged without luck).
+local function applyLuck(player, biomeId, rarityId, size)
+	local luck = luckOf(player)
+	if luck <= 1 then
+		return rarityId, size
+	end
+	local L = EggConfig.Luck
+	local nextRarity = EggConfig.Rarities[EggConfig.RarityById[rarityId].Order + 1]
+	local weights = EggConfig.Weights[biomeId] or {}
+	if nextRarity and nextRarity.Id ~= "Secret" and (weights[nextRarity.Id] or 0) > 0 then
+		if rng:NextNumber() < math.min(L.MaxUpgradeChance, L.UpgradeChancePerLuck * (luck - 1)) then
+			rarityId = nextRarity.Id
+		end
+	end
+	for _ = 1, math.max(0, math.floor(luck - 1 + 0.5)) do
+		size = math.max(size, EggModel.RollSize())
+	end
+	return rarityId, size
+end
+
 -- Client asked to drop the carried egg at `target` (a world point under the cursor/tap).
 function EggService:TryDropAt(player, target)
 	local egg = carried[player]
@@ -323,10 +356,14 @@ function EggService:TryDropAt(player, target)
 	local spot = Vector3.new(hrp.Position.X + flat.X, 0, hrp.Position.Z + flat.Z)
 
 	if BaseService:IsInOwnPen(player, spot, 0) then
+		local biomeId = egg:GetAttribute("BiomeId")
+		local fromRarity, fromSize = egg:GetAttribute("Rarity"), egg:GetAttribute("Size") or 1
+		local rarityId, size = fromRarity, fromSize
 		local x, d
 		if BaseService:HasRoom(player) then
+			rarityId, size = applyLuck(player, biomeId, fromRarity, fromSize)
 			x, d = BaseService:ToPenLocal(player, spot)
-			x, d = BaseService:FindFreeSpot(player, x, d, egg:GetAttribute("Size") or 1, egg:GetAttribute("Rarity"))
+			x, d = BaseService:FindFreeSpot(player, x, d, size, rarityId)
 		end
 		if not x then
 			gameEvent:FireClient(player, "PenFull", {})
@@ -334,11 +371,20 @@ function EggService:TryDropAt(player, target)
 		end
 		local fromPos = egg.PrimaryPart.Position
 		clearCarry(player)
-		local fresh = EggModel.Build(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"), egg:GetAttribute("Size"))
+		local fresh = EggModel.Build(biomeId, rarityId, egg:GetAttribute("EggId"), size)
 		egg:Destroy()
 		if HatchService:PlaceEgg(player, fresh, x, d, fromPos) then
-			gameEvent:FireClient(player, "EggPlaced", { Rarity = fresh:GetAttribute("Rarity") })
-			log(player.Name, "placed", fresh:GetAttribute("Rarity"), "in pen")
+			gameEvent:FireClient(player, "EggPlaced", { Rarity = rarityId })
+			if rarityId ~= fromRarity or size ~= fromSize then
+				gameEvent:FireClient(player, "EggLucky", {
+					ItemId = fresh:GetAttribute("EggId"),
+					FromRarity = fromRarity,
+					ToRarity = rarityId,
+					FromSize = fromSize,
+					ToSize = size,
+				})
+			end
+			log(player.Name, "placed", rarityId, "in pen", rarityId ~= fromRarity and ("(lucky from " .. fromRarity .. ")") or "")
 		end
 	else
 		self:DropCarried(player, "Dropped", spot)

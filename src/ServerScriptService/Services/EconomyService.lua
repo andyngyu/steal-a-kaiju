@@ -1,6 +1,9 @@
 -- Passive income: every tick, each kaiju in the player's pen adds its CashPerSecond straight into Cash
 -- (species x size roll x level, see Shared.Util.KaijuStats).
 -- Offline earnings are added to Cash on join (capped, reduced rate).
+-- Perks (set by GamePassService): player attribute CashMultiplier (default 1) multiplies all income and the shown
+-- CashPerSecond (kaiju models keep their own base CashPerSecond, which also sets sell prices). Offline earnings pay the
+-- base amount on join and the multiplier's extra once the player attribute PerksLoaded becomes true.
 -- Player attributes: Cash, CashPerSecond. Also leaderstats.Cash.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,6 +23,14 @@ local EconomyService = {}
 local gameEvent
 local lastTick = {} -- [player] = os.clock() of the last payout
 local fraction = {} -- [player] = sub-dollar remainder carried between ticks
+local pendingOfflineBonus = {} -- [player] = base offline amount still owed the CashMultiplier extra
+local PERKS_WAIT_SECONDS = 20
+
+-- x2 Cash and similar perks; 1 when the player has none.
+local function cashMultiplier(player)
+	local m = player:GetAttribute("CashMultiplier")
+	return type(m) == "number" and m > 0 and m or 1
+end
 
 local function log(...)
 	if DevConfig.VerboseLogging then
@@ -34,7 +45,7 @@ function EconomyService:GetCashPerSecond(player)
 			total += KaijuStats.EntryCashPerSecond(entry)
 		end
 	end)
-	return total
+	return total * cashMultiplier(player)
 end
 
 local function publish(player, data)
@@ -82,6 +93,31 @@ local function onLoaded(player, data)
 		data.TotalEarned += amount
 		gameEvent:FireClient(player, "OfflineEarnings", { Amount = amount, Seconds = seconds })
 		log(player.Name, "offline earnings", amount, "for", seconds, "s")
+		-- perks load asynchronously (game pass checks); their extra is paid once PerksLoaded arrives
+		pendingOfflineBonus[player] = amount
+		local function payBonus()
+			local base = pendingOfflineBonus[player]
+			pendingOfflineBonus[player] = nil
+			local extra = base and math.floor(base * (cashMultiplier(player) - 1)) or 0
+			if extra > 0 and EconomyService:AddCash(player, extra) then
+				gameEvent:FireClient(player, "OfflineEarnings", { Amount = extra, Seconds = seconds, Bonus = true })
+			end
+		end
+		if player:GetAttribute("PerksLoaded") then
+			payBonus()
+		else
+			local conn
+			conn = player:GetAttributeChangedSignal("PerksLoaded"):Connect(function()
+				conn:Disconnect()
+				payBonus()
+			end)
+			task.delay(PERKS_WAIT_SECONDS, function()
+				if conn.Connected then
+					conn:Disconnect()
+					pendingOfflineBonus[player] = nil
+				end
+			end)
+		end
 	end
 	data.LastOnline = os.time()
 	lastTick[player] = os.clock()
@@ -130,7 +166,17 @@ function EconomyService:Start()
 	Players.PlayerRemoving:Connect(function(player)
 		lastTick[player] = nil
 		fraction[player] = nil
+		pendingOfflineBonus[player] = nil
 	end)
+	local function watchPerks(player)
+		player:GetAttributeChangedSignal("CashMultiplier"):Connect(function()
+			self:Publish(player)
+		end)
+	end
+	Players.PlayerAdded:Connect(watchPerks)
+	for _, player in Players:GetPlayers() do
+		watchPerks(player)
+	end
 
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)

@@ -13,6 +13,17 @@ local EggModel = {}
 
 local rng = Random.new()
 
+-- Neon washes light colours toward pink (the Epic purple and the Mythic pink both rendered hot pink), so glowing bands
+-- use a deeper shade that still reads as the rarity's hue.
+local NEON_TINT = {
+	Epic = Color3.fromHex("6A1FE0"),
+	Mythic = Color3.fromHex("F0306A"),
+}
+
+local function bandColor(rarity)
+	return rarity.Glow and NEON_TINT[rarity.Id] or rarity.Color
+end
+
 function EggModel.RollSize()
 	local total = 0
 	for _, t in EggConfig.SizeTiers do
@@ -69,7 +80,7 @@ local function placeholder(biomeId, rarity, scale)
 	band.Name = "Crack"
 	band.Size = Vector3.new(size.X * 1.04, size.Y * 0.18, size.Z * 1.04)
 	band.CFrame = shell.CFrame * CFrame.new(0, size.Y * 0.05, 0)
-	band.Color = rarity.Color
+	band.Color = bandColor(rarity)
 	band.Material = rarity.Glow and Enum.Material.Neon or Enum.Material.SmoothPlastic
 	local bandMesh = Instance.new("SpecialMesh")
 	bandMesh.MeshType = Enum.MeshType.Sphere
@@ -100,7 +111,7 @@ function EggModel.Build(biomeId, rarityId, eggId, size)
 					local offset = p.Position - centre
 					p.Color = Color3.fromHSV((math.atan2(offset.Z, offset.X) / (math.pi * 2)) % 1, 0.75, 1)
 				else
-					p.Color = rarity.Color
+					p.Color = bandColor(rarity)
 				end
 				p.Material = rarity.Glow and Enum.Material.Neon or Enum.Material.SmoothPlastic
 			end

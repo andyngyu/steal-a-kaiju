@@ -13,6 +13,8 @@
 --   Food = { [foodId] = count }, SelectedFood = foodId or "" (auto)
 --   Trails = { Owned = { [trailId] = true }, Equipped = trailId or "" }
 --   Stats = { EggsDelivered, EggsHatched, KaijuSold, FoodFed }
+--   Store = { Purchases = { [purchaseId] = os.time }, LuckUntil, Passes = { [itemId] = true } } - created lazily and
+--     owned by GamePassService (receipts, timed luck, owned-pass cache); not in TEMPLATE
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -160,6 +162,27 @@ function DataService:ResetForTesting(player)
 	profile:Save()
 	player:Kick("Test data reset. Start the playtest again for a fresh save.")
 	return true
+end
+
+-- Writes right now and waits for the write to finish (dev product receipts must be stored before returning
+-- PurchaseGranted). Returns true once saved, false if the profile isn't active or it timed out.
+function DataService:SaveNow(player, timeoutSeconds)
+	local profile = profiles[player]
+	if not (profile and profile:IsActive()) then
+		return false
+	end
+	local saved = false
+	local conn = profile.OnAfterSave:Connect(function()
+		saved = true
+	end)
+	profile:Save()
+	local t0 = os.clock()
+	while not saved and profile:IsActive() and os.clock() - t0 < (timeoutSeconds or 20) do
+		task.wait(0.1)
+	end
+	conn:Disconnect()
+	lastSave[player] = os.clock()
+	return saved
 end
 
 -- Saves soon after an important change; throttled so bursts collapse into one write.

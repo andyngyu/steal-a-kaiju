@@ -142,7 +142,8 @@ local function placeModel(plot, level)
 	return model
 end
 
-function TreadmillService:TryBuy(player)
+-- Unlocks / upgrades to the next level; paid with cash unless free (a Robux upgrade from GamePassService).
+local function upgrade(self, player, free)
 	local data = DataService:Get(player)
 	local plot = BaseService:GetPlot(player)
 	if not (data and plot) then
@@ -152,7 +153,7 @@ function TreadmillService:TryBuy(player)
 	if not nextLevel then
 		return false
 	end
-	if not EconomyService:TrySpend(player, nextLevel.Cost) then
+	if not free and not EconomyService:TrySpend(player, nextLevel.Cost) then
 		gameEvent:FireClient(player, "NotEnoughCash", { Cost = nextLevel.Cost })
 		return false
 	end
@@ -165,6 +166,15 @@ function TreadmillService:TryBuy(player)
 	gameEvent:FireClient(player, "TreadmillUpgraded", { Level = data.Treadmill.Level, Name = nextLevel.Name })
 	log(player.Name, "treadmill now level", data.Treadmill.Level)
 	return true
+end
+
+function TreadmillService:TryBuy(player)
+	return upgrade(self, player, false)
+end
+
+-- Robux upgrade (GamePassService): the next level without spending cash. False when maxed or not ready.
+function TreadmillService:GrantUpgrade(player)
+	return upgrade(self, player, true)
 end
 
 function TreadmillService:Init()
