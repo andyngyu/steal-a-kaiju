@@ -1,11 +1,16 @@
--- Player auras (StarterPlayerScripts.Gameplay.AuraFX): every trail (TrailConfig id) gives its wearer a matching aura.
--- It idles quietly while you move and powers up when you stand still ("aura farming").
+-- Player auras (StarterPlayerScripts.Gameplay.AuraFX): every trail (TrailConfig id) gives its wearer a matching aura in
+-- the Sung Jin-Woo / Shadow Monarch style - dark smoky flames behind the body rimmed with glowing flames in the trail's
+-- colour, crackling energy, rising energy lines, glowing eyes. It idles quietly while you move and powers up when you
+-- stand still ("aura farming").
+-- Layers by tier: glowing flames (all), shadow flames + rising lines + glowing eyes (2+), outline + crackle + ground
+-- swirl + smoke pool (3+), spinning crescents (4+), shockwave rings (5+).
 -- Style fields (anything missing comes from the trail itself):
---   Tier           1-7, how much switches on: glowing outline from 3 (from 2 while farming), ground streaks from 4,
---                  ground shockwaves from 5
---   Colors         flame colours from the hot core outwards (default: the trail's Colors)
---   Glow           outline + light colour (default: the trail's Color)
---   Flames         { moving, farming }: flame wisps per second over the whole body; FlameSize scales them
+--   Tier           1-7 (default: the trail's rarity order)
+--   Colors         glowing flame colours from the hot core outwards (default: the trail's Colors)
+--   Glow           outline, energy and light colour (default: the trail's Color); the shadow flames are a very dark
+--                  shade of it
+--   Flames         { moving, farming }: glowing flames per second over the whole body; FlameSize scales them
+--   Shadow         { moving, farming }: dark shadow flames per second
 --   Smoke          soft smoke wisps instead of fire
 --   LightEmission  1 = glowing fire; lower keeps dark colours dark (void)
 --   Ribbons        energy streaks spiralling round the body while farming; RibbonsMoving while moving
@@ -26,6 +31,21 @@ AuraConfig.Farm = {
 AuraConfig.Range = 150 -- auras further than this from the camera go quiet
 AuraConfig.MaxOutlines = 5 -- outlines are Highlights; Roblox draws at most 31 at once and kaiju use some too
 AuraConfig.ReducedScale = 0.35 -- particle rates with the Reduced Effects setting
+
+-- White VFX textures (tinted per trail), from free Creator Store kits: Axoie's Auras (by louthebeast2019, "free to
+-- use") and "Lighting aura vfx" (lightning flipbook). Swap any id here to restyle every aura.
+AuraConfig.Textures = {
+	Wisp = "rbxassetid://7216854921", -- smoky flame wisp: shadow flames
+	Flame = "rbxassetid://7216855238", -- flame tongue with a bright core: glowing flames
+	Smoke = "rbxassetid://1525327413", -- cloudy puff: smoke pool at the feet
+	Crackle = "rbxassetid://7216850580", -- electric crackle round the body
+	Streak = "rbxassetid://12363818232", -- thin rising energy line
+	Crescent = "rbxassetid://12402878232", -- crescent swirl round the body
+	Swirl = "rbxassetid://5726444189", -- spiral on the ground
+	Ring = "rbxassetid://8084911316", -- thin ring: shockwaves
+	Flare = "rbxassetid://1454292685", -- star flare: glowing eyes
+	Lightning = "rbxassetid://11564576961", -- 4x4 lightning flipbook
+}
 
 AuraConfig.Styles = {
 	PebbleDust = { Tier = 1, Flames = { 0, 16 }, FlameSize = 0.9, Smoke = true, Extra = "Dust" },
@@ -68,6 +88,7 @@ function AuraConfig.ForTrail(trail)
 	end
 	style.Tier = tier
 	style.Flames = base.Flames or { tier * 2, 12 + tier * 7 }
+	style.Shadow = base.Shadow or { tier * 1.5, 8 + tier * 4 }
 	style.Ribbons = base.Ribbons or (tier >= 2 and math.min(4, math.ceil(tier / 2)) or 0)
 	style.RibbonsMoving = base.RibbonsMoving or 0
 	style.FlameSize = base.FlameSize or 1
