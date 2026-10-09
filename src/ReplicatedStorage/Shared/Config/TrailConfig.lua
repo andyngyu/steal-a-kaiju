@@ -55,6 +55,12 @@ local list: { Trail } = {
 		Price = 15000000, RobuxPrice = 0, ProductId = 0, Color = "#FF8AE0", Image = "",
 		Colors = { "#FF4D4D", "#FFB84D", "#FFF04D", "#4DFF88", "#4DB8FF", "#C44DFF" }, Lifetime = 1.1, Width = 2, LightEmission = 0.35, -- higher glow washes the rainbow out to white
 	},
+	{
+		Id = "ShadowMonarch", DisplayName = "Shadow Monarch", Rarity = "Secret", SpeedMultiplier = 1.6,
+		Price = 50000000, RobuxPrice = 0, ProductId = 0, Color = "#3D8BFF", Image = "",
+		-- bright blue at the player fading through navy to black; low glow keeps the dark end dark
+		Colors = { "#BFE6FF", "#3D8BFF", "#1A1F4A", "#000000" }, Lifetime = 1.2, Width = 2.1, LightEmission = 0.3,
+	},
 }
 
 local byId: { [string]: Trail } = {}
