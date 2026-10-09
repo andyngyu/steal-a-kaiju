@@ -1,5 +1,7 @@
 -- World animations, client-only and purely visual (reads server attributes, never changes gameplay):
---   kaiju: walk with hop + waddle, smooth turning, idle bob, random emotes (hop-spin, look around, wiggle), hatch pop-out, "+$" popups
+--   kaiju: walk with bob + waddle, smooth turning, idle bob, random emotes (hop-spin, look around, wiggle), hatch pop-out, "+$" popups
+--   limbs: brick kaiju body groups swing about their joints (legs walk in pairs / diagonals / crab tripods, arms counter-swing,
+--          tails wag, heads bob and look around, jaws chomp, ears flick, trunks sway, serpent necks weave, clouds float)
 --   eggs:  toss arc + landing squash, nest bob, incubating wobble (faster near the end), ready bounce + glow, hatch shake + shell burst
 --   misc:  carried egg hover/spin, pen fence rising after an upgrade, guardian Z Z float
 --   grand hatches (EggConfig.IsGrand: Epic+ or Huge+): egg levitates + spins inside a rarity light pillar with inward sparkles
@@ -94,23 +96,95 @@ local function bannerGradient(id)
 	})
 end
 
--- Rigid animator: remembers each part's offset from the model pivot and moves all parts together in one call.
+-- Animator: remembers each part's offset from the model pivot and moves all parts together in one call.
+-- Brick kaiju also have body groups (sub-Models with a Joint attribute, see ServerStorage.Tools.KaijuBuilder). Each group
+-- gets a local transform (group.anim) applied about its joint; nested groups (Jaw inside Head) follow their parent.
+-- Joint is in build space: relative to the pivot it is (Joint - RootOffset) x the model's VisualScale.
 local function makeRig(model)
 	local pivot = model:GetPivot()
-	local parts, offsets = {}, {}
+	local scale = model:GetAttribute("VisualScale") or 1
+	local rootOffset = model:GetAttribute("RootOffset") or Vector3.new(0, 0.1, 0)
+	local groups, byModel = {}, {}
+	for _, g in model:GetDescendants() do
+		local joint = g:IsA("Model") and g:GetAttribute("Joint")
+		if joint then
+			local info = { name = g.Name, instance = g, joint = (joint - rootOffset) * scale, anim = CFrame.identity, cf = CFrame.identity }
+			byModel[g] = info
+			table.insert(groups, info)
+		end
+	end
+	local function nearestGroup(inst)
+		local a = inst.Parent
+		while a and a ~= model do
+			if byModel[a] then
+				return byModel[a]
+			end
+			a = a.Parent
+		end
+		return nil
+	end
+	for _, info in groups do
+		info.parent = nearestGroup(info.instance)
+	end
+	for _, info in groups do
+		local depth, p = 0, info.parent
+		while p do
+			depth += 1
+			p = p.parent
+		end
+		info.depth = depth
+	end
+	table.sort(groups, function(a, b)
+		return a.depth < b.depth -- parents are posed before their children
+	end)
+	local parts, offsets, owners = {}, {}, {}
 	for _, p in model:GetDescendants() do
 		if p:IsA("BasePart") then
 			table.insert(parts, p)
 			table.insert(offsets, pivot:ToObjectSpace(p.CFrame))
+			table.insert(owners, nearestGroup(p) or false)
 		end
 	end
 	local _, size = model:GetBoundingBox()
-	return { parts = parts, offsets = offsets, base = pivot, size = size, cfs = table.create(#parts) }
+	return { parts = parts, offsets = offsets, owners = owners, groups = groups, base = pivot, size = size, cfs = table.create(#parts) }
+end
+
+-- Big models reach the client over several frames. The server stamps PartCount on kaiju and eggs; build the rig only
+-- once every part has arrived (or after a timeout), otherwise late parts would be left behind at the spawn spot.
+local function whenComplete(model, fn)
+	local want = model:GetAttribute("PartCount")
+	local function have()
+		local n = 0
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				n += 1
+			end
+		end
+		return n
+	end
+	if not want or have() >= want then
+		fn()
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while model.Parent and have() < want and os.clock() - t0 < 10 do
+			task.wait(0.05)
+		end
+		if model.Parent then
+			fn()
+		end
+	end)
 end
 
 local function pose(rig, cf)
+	for _, g in rig.groups do
+		local l = CFrame.new(g.joint) * g.anim * CFrame.new(-g.joint)
+		g.cf = g.parent and g.parent.cf * l or l
+	end
 	for i, off in rig.offsets do
-		rig.cfs[i] = cf * off
+		local g = rig.owners[i]
+		rig.cfs[i] = g and cf * g.cf * off or cf * off
 	end
 	workspace:BulkMoveTo(rig.parts, rig.cfs, Enum.BulkMoveMode.FireCFrameChanged)
 end
@@ -439,6 +513,59 @@ local EMOTES = {
 	{ name = "Hop", duration = 0.45 },
 }
 
+local LIMB_RANGE = 140 -- beyond this, limbs rest and the kaiju moves as one piece
+
+-- Per-group motion for brick kaiju (group names from Tools.KaijuSpecs). st.phase advances while walking,
+-- st.moveBlend fades the walk in and out; everything else is idle motion on os.clock().
+local function animateGroups(st, t)
+	local mb, ph, seed = st.moveBlend, st.phase, st.seed
+	for _, g in st.rig.groups do
+		local n = g.name
+		local side = n:sub(-1) == "R" and -1 or 1
+		local a = CFrame.identity
+		if n == "LegL" or n == "LegR" then
+			a = CFrame.Angles(math.sin(ph + (side == 1 and 0 or math.pi)) * 0.55 * mb, 0, 0)
+		elseif n == "ArmL" or n == "ArmR" then
+			-- swings against the leg on the same side, plus a little idle sway
+			local swing = math.sin(ph + (side == 1 and math.pi or 0)) * 0.45 * mb + math.sin(t * 2 + seed) * 0.05
+			a = CFrame.Angles(swing, 0, side * (0.04 + 0.03 * math.sin(t * 1.7 + seed)))
+		elseif n == "LegFL" or n == "LegFR" or n == "LegBL" or n == "LegBR" then
+			local pair = (n == "LegFL" or n == "LegBR") and 0 or math.pi -- diagonal pairs move together
+			a = CFrame.Angles(math.sin(ph + pair) * 0.5 * mb, 0, 0)
+		elseif n:match("^Leg[ABC][LR]$") then
+			-- crab tripod gait: front + back legs on one side step with the middle leg on the other
+			local tripod = ((n:sub(4, 4) == "B") == (side == 1)) and math.pi or 0
+			local s = ph * 1.6 + tripod
+			a = CFrame.Angles(0, math.sin(s) * 0.35 * mb, side * math.max(0, math.cos(s)) * 0.3 * mb)
+		elseif n == "ClawL" or n == "ClawR" then
+			local snap = math.max(0, math.sin(t * 2.3 + seed + (side == 1 and 0 or 1.3))) ^ 8
+			a = CFrame.Angles(0.12 * mb + snap * 0.3 + math.sin(t * 1.5 + seed) * 0.04, 0, 0)
+		elseif n == "Head" then
+			a = CFrame.Angles(math.sin(ph * 2) * 0.06 * mb + math.sin(t * 1.4 + seed) * 0.035, st.headYaw, 0)
+		elseif n == "Jaw" then
+			local open = mb > 0.3 and math.max(0, math.sin(ph * 2)) or math.max(0, math.sin(t * 1.3 + seed)) ^ 12
+			a = CFrame.Angles(-open * 0.4, 0, 0)
+		elseif n == "Tail" then
+			a = CFrame.Angles(0, math.sin(ph) * 0.25 * mb + math.sin(t * 1.8 + seed) * 0.14, 0)
+		elseif n == "EarL" or n == "EarR" then
+			local flick = math.max(0, math.sin(t * 1.1 + seed + (side == 1 and 0 or 0.7))) ^ 10
+			a = CFrame.Angles(0, 0, side * (flick * 0.35 + math.sin(ph * 2) * 0.1 * mb))
+		elseif n == "Trunk" then
+			a = CFrame.Angles(math.sin(t * 2.1 + seed) * 0.16 + math.sin(ph) * 0.15 * mb, 0, math.sin(t * 1.3 + seed) * 0.1)
+		elseif n == "Neck" then
+			local sway = math.sin(t * 1.6 + seed) * 0.12 + math.sin(ph) * 0.2 * mb
+			a = CFrame.Angles(math.sin(t * 1.2 + seed) * 0.04, sway, math.sin(t * 1.9 + seed) * 0.06 + math.sin(ph) * 0.08 * mb)
+		elseif n == "Fins" then
+			a = CFrame.Angles(0, 0, math.sin(t * 4 + seed) * 0.08)
+		elseif n == "Cloud" then
+			a = CFrame.new(0, math.sin(t * 1.5 + seed) * 0.15 * st.scale, 0) * CFrame.Angles(0, math.sin(t * 0.7 + seed) * 0.08, 0)
+		elseif n == "EyeL" or n == "EyeR" then
+			a = CFrame.Angles(math.sin(t * 2.2 + seed + side) * 0.1, 0, side * math.sin(t * 1.7 + seed) * 0.15)
+		end
+		g.anim = a
+	end
+end
+
 local function bannerLabel(parent, text, font, height, order, strokeThickness)
 	local l = Instance.new("TextLabel")
 	l.LayoutOrder = order
@@ -534,27 +661,36 @@ local function slam(model, st, pos)
 	addShake(st.owned and 1.1 or 0.7, pos)
 end
 
-local function addKaiju(model)
-	if not model:IsA("Model") or kaiju[model] then
+local function setupKaiju(model)
+	if model.Parent ~= kaijuFolder or kaiju[model] then
 		return
 	end
 	local rig = makeRig(model)
 	local _, yaw = rig.base:ToEulerAnglesYXZ()
 	local scale = model:GetAttribute("VisualScale") or 1
+	local limbs = #rig.groups > 0
+	local hasHead = false
+	for _, g in rig.groups do
+		hasHead = hasHead or g.name == "Head" or g.name == "Neck"
+	end
 	local st = {
 		rig = rig,
 		scale = scale,
+		limbs = limbs,
+		hasHead = hasHead,
+		headYaw = 0,
 		owned = model:GetAttribute("OwnerUserId") == player.UserId,
 		seed = rng:NextNumber(0, 100),
 		yaw = yaw,
 		phase = 0,
 		moveBlend = 0,
-		hopHeight = 0.25 + rig.size.Y * 0.07,
+		-- walking legs carry the motion, so limbed kaiju only bob a little instead of hopping
+		hopHeight = (0.25 + rig.size.Y * 0.07) * (limbs and 0.35 or 1),
 		nextEmote = os.clock() + rng:NextNumber(2, 7),
 		nextPopup = os.clock() + rng:NextNumber(0, BaseConfig.IncomePopupSeconds),
 	}
 	local spawned = model:GetAttribute("SpawnedAt")
-	if spawned and serverNow() - spawned < 1.5 then
+	if spawned and serverNow() - spawned < 2.5 then
 		local rarityId = model:GetAttribute("Rarity")
 		local size = model:GetAttribute("Size") or 1
 		st.grand = EggConfig.IsGrand(rarityId or "Common", size)
@@ -567,6 +703,14 @@ local function addKaiju(model)
 		end
 	end
 	kaiju[model] = st
+end
+
+local function addKaiju(model)
+	if model:IsA("Model") and not kaiju[model] then
+		whenComplete(model, function()
+			setupKaiju(model)
+		end)
+	end
 end
 
 local function updateKaiju(model, st, dt, t, camPos)
@@ -592,9 +736,10 @@ local function updateKaiju(model, st, dt, t, camPos)
 	st.moveBlend = lerp(st.moveBlend, moving and 1 or 0, 1 - math.exp(-10 * dt))
 
 	local y = math.abs(math.sin(st.phase)) * st.hopHeight * st.moveBlend + math.sin(t * 2.2 + st.seed) * 0.06 * (1 - st.moveBlend)
-	local roll = math.sin(st.phase) * 0.14 * st.moveBlend
+	local roll = math.sin(st.phase) * (st.limbs and 0.07 or 0.14) * st.moveBlend
 	local pitch = -0.08 * st.moveBlend
 	local extraYaw = 0
+	st.headYaw = lerp(st.headYaw, 0, 1 - math.exp(-6 * dt))
 
 	if not moving and st.moveBlend < 0.1 then
 		if not st.emote and os.clock() > st.nextEmote then
@@ -613,7 +758,12 @@ local function updateKaiju(model, st, dt, t, camPos)
 		elseif st.emote.name == "Hop" then
 			y += math.sin(e * math.pi) * (0.6 + st.hopHeight)
 		elseif st.emote.name == "Look" then
-			extraYaw += math.sin(e * math.pi * 2) * 0.7
+			if st.hasHead then
+				st.headYaw = math.sin(e * math.pi * 2) * 0.65 -- turns its head, body follows a little
+				extraYaw += math.sin(e * math.pi * 2) * 0.2
+			else
+				extraYaw += math.sin(e * math.pi * 2) * 0.7
+			end
 		elseif st.emote.name == "Wiggle" then
 			roll += math.sin(e * math.pi * 6) * 0.22 * (1 - e)
 		end
@@ -633,6 +783,17 @@ local function updateKaiju(model, st, dt, t, camPos)
 		end
 	end
 
+	if st.limbs then
+		if dist < LIMB_RANGE then
+			animateGroups(st, t)
+			st.limbsAtRest = false
+		elseif not st.limbsAtRest then
+			for _, g in st.rig.groups do
+				g.anim = CFrame.identity
+			end
+			st.limbsAtRest = true
+		end
+	end
 	pose(st.rig, CFrame.new(pos + Vector3.new(0, y, 0)) * CFrame.Angles(0, st.yaw + extraYaw, 0) * CFrame.Angles(pitch, 0, roll))
 
 	if os.clock() >= st.nextPopup then
@@ -648,8 +809,8 @@ end
 
 local eggs = {}
 
-local function addEgg(model)
-	if not model:IsA("Model") or eggs[model] or not model.PrimaryPart then
+local function setupEgg(model)
+	if model.Parent ~= eggFolder or eggs[model] or not model.PrimaryPart then
 		return
 	end
 	local st = { rig = makeRig(model), seed = rng:NextNumber(0, 100), half = model.PrimaryPart.Size.Y / 2 }
@@ -659,6 +820,14 @@ local function addEgg(model)
 		st.tossStart = os.clock()
 	end
 	eggs[model] = st
+end
+
+local function addEgg(model)
+	if model:IsA("Model") and not eggs[model] then
+		whenComplete(model, function()
+			setupEgg(model)
+		end)
+	end
 end
 
 local function setGlow(model, st, on)
