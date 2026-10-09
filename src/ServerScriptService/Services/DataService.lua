@@ -5,6 +5,7 @@
 -- Data shape (string keys only - ProfileStore can't store gappy arrays):
 --   Cash, TotalEarned, LastOnline (os.time)
 --   Speed = { Trained (treadmill bonus), Level (bought upgrades) }
+--   Treadmill = { Level } (0 = locked)
 --   Pen = { Level, Items = { [id] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt, X, D }
 --                                | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt } } }
 --     (X, D are pen-local, see Shared.Util.PenGeometry; kaiju wander so their position isn't saved)
@@ -24,6 +25,9 @@ local TEMPLATE = {
 	TotalEarned = 0,
 	Speed = {
 		Trained = 0,
+		Level = 0,
+	},
+	Treadmill = {
 		Level = 0,
 	},
 	LastOnline = 0,
@@ -120,6 +124,25 @@ function DataService:OnLoaded(fn)
 	for player, profile in profiles do
 		task.spawn(fn, player, profile.Data)
 	end
+end
+
+-- Studio testing only (DevService guards it): wipes the profile back to the template and kicks the player to rejoin.
+function DataService:ResetForTesting(player)
+	local profile = profiles[player]
+	if not profile then
+		return false
+	end
+	local data = profile.Data
+	for k in data do
+		data[k] = nil
+	end
+	for k, v in table.clone(TEMPLATE) do
+		data[k] = type(v) == "table" and table.clone(v) or v
+	end
+	data.Pen.Items = {}
+	profile:Save()
+	player:Kick("Test data reset. Start the playtest again for a fresh save.")
+	return true
 end
 
 -- Saves soon after an important change; throttled so bursts collapse into one write.

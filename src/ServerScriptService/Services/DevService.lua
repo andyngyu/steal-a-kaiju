@@ -1,5 +1,5 @@
 -- Studio-only test commands (DevConfig.AdminCommands is forced off in live servers).
--- Chat:         /givecash 1000
+-- Chat:         /givecash 1000      /resetdata (wipes your save to a brand-new player, then kicks you)
 -- Command bar:  game.ServerStorage.DevHooks.GiveCash:Invoke(<userId or nil for everyone>, 1000)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7,6 +7,7 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
 local EconomyService = require(script.Parent.EconomyService)
+local DataService = require(script.Parent.DataService)
 
 local DevService = {}
 
@@ -42,6 +43,9 @@ function DevService:Start()
 			local amount = message:match("^/givecash%s+(%d+)")
 			if amount then
 				giveCash(player, amount)
+			elseif message == "/resetdata" then
+				print("[Dev] resetting data for", player.Name)
+				DataService:ResetForTesting(player)
 			end
 		end)
 	end
