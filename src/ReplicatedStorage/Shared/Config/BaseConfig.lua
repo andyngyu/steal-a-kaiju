@@ -27,6 +27,7 @@ return table.freeze({
 
 	Hatch = table.freeze({
 		AnimSeconds = 1.6, -- shake + burst before the kaiju appears
+		GrandAnimSeconds = 3.4, -- longer build-up for Epic+ / Huge+ hatches (EggConfig.IsGrand)
 		PromptDistance = 10,
 		HoldSeconds = 0.5,
 	}),
@@ -36,7 +37,8 @@ return table.freeze({
 		MaxLeg = 18, -- longest single walk
 		MinPause = 2,
 		MaxPause = 6,
-		Inset = 4,
+		Inset = 4, -- grows with the kaiju's footprint so big ones stay off the fence
+		MaxSpeedScale = 1.8, -- bigger kaiju take longer strides: speed x min(sqrt(scale), this)
 	}),
 
 	IncomePopupSeconds = 3, -- "+$" popup interval over each kaiju
