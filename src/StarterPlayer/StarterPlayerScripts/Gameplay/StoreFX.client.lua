@@ -121,13 +121,13 @@ local function setLuckAura(other, on)
 		aura.Texture = SPARKLE
 		aura.Color = ColorSequence.new(Color3.fromHex("7CFF6B"), GOLD)
 		aura.LightEmission = 1
-		aura.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.5, 0.5), NumberSequenceKeypoint.new(1, 0) })
+		aura.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(0.5, 0.8), NumberSequenceKeypoint.new(1, 0) })
 		aura.Transparency = NumberSequence.new(0.1, 1)
 		aura.Lifetime = NumberRange.new(0.8, 1.3)
 		aura.Speed = NumberRange.new(0.5, 1.5)
 		aura.SpreadAngle = Vector2.new(180, 180)
 		aura.Acceleration = Vector3.new(0, 2.5, 0)
-		aura.Rate = 7
+		aura.Rate = 12
 		aura.Parent = hrp
 	elseif not on and aura then
 		aura:Destroy()

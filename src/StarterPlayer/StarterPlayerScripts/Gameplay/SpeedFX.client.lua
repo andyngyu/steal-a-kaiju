@@ -4,7 +4,7 @@
 --   running VFX (any runner, scales with tier): belt sparks, pulsing ground rings, glowing trim + belt light,
 --   wind streaks (2+), sparkle shower (3+), roaring fire jets (Blaze), light pillar (5).
 --   Popups and ground rings fire on a beat (TreadmillConfig.PopupEveryTicks), "SPEED UP!" every MilestoneEvery Speed.
---   Speed Shop kiosk showing this viewer's own price; biome signs showing the viewer's speed vs recommended
+--   biome signs showing the viewer's speed vs recommended
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -15,15 +15,12 @@ local Debris = game:GetService("Debris")
 local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local SpeedConfig = require(Config.SpeedConfig)
 local TreadmillConfig = require(Config.TreadmillConfig)
-local Format = require(ReplicatedStorage.Shared.Util.Format)
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameEvent = remotes:WaitForChild("GameEvent")
 local treadmillRemote = remotes:WaitForChild("Treadmill")
 
 local player = Players.LocalPlayer
 local map = workspace:WaitForChild("Map")
-local shop = map:WaitForChild("SpeedShop")
-shop:WaitForChild("Board")
 local lane = map:WaitForChild("Lane")
 local plotsFolder = map:WaitForChild("Plots")
 
@@ -48,33 +45,6 @@ end
 
 -- ---------- signs ----------
 
-local function refreshShop()
-	local gui = shop.Board:FindFirstChildOfClass("SurfaceGui")
-	local prompt = shop.Board:FindFirstChild("BuyPrompt")
-	if not gui then
-		return
-	end
-	local speed = player:GetAttribute("Speed") or SpeedConfig.BaseSpeed
-	local cost = player:GetAttribute("NextSpeedCost")
-	if cost and speed < SpeedConfig.MaxSpeed then
-		-- the equipped trail multiplies every point of Speed
-		local step = SpeedConfig.Upgrade.SpeedPerLevel * (player:GetAttribute("TrailSpeedMultiplier") or 1)
-		local nextSpeed = math.min(SpeedConfig.MaxSpeed, speed + step)
-		gui.Detail.Text = "Speed " .. fmtSpeed(speed) .. " > " .. fmtSpeed(nextSpeed)
-		gui.PriceFrame.Price.Text = Format.Money(cost)
-		if prompt then
-			prompt.ObjectText = "+" .. fmtSpeed(step) .. " Speed: " .. Format.Money(cost)
-			prompt.Enabled = true
-		end
-	else
-		gui.Detail.Text = "Speed " .. fmtSpeed(speed) .. " (Max)"
-		gui.PriceFrame.Price.Text = "MAX"
-		if prompt then
-			prompt.Enabled = false
-		end
-	end
-end
-
 local function refreshBiomeSigns()
 	local speed = player:GetAttribute("Speed") or SpeedConfig.BaseSpeed
 	for _, biome in lane:GetChildren() do
@@ -96,14 +66,9 @@ local function refreshBiomeSigns()
 	end
 end
 
-local function refreshAll()
-	refreshShop()
-	refreshBiomeSigns()
-end
-player:GetAttributeChangedSignal("Speed"):Connect(refreshAll)
-player:GetAttributeChangedSignal("NextSpeedCost"):Connect(refreshShop)
-refreshAll()
-task.delay(3, refreshAll) -- lane signs may still be loading on join
+player:GetAttributeChangedSignal("Speed"):Connect(refreshBiomeSigns)
+refreshBiomeSigns()
+task.delay(3, refreshBiomeSigns) -- lane signs may still be loading on join
 
 -- ---------- popups & bursts ----------
 
@@ -200,10 +165,7 @@ player:GetAttributeChangedSignal("OnTreadmill"):Connect(function()
 end)
 
 gameEvent.OnClientEvent:Connect(function(name, data)
-	if name == "SpeedBought" then
-		popup("Speed " .. fmtSpeed(data.Speed) .. "!", GOLD)
-		burstOnCharacter(GOLD)
-	elseif name == "TreadmillMaxed" then
+	if name == "TreadmillMaxed" then
 		popup(data.NextName and ("Maxed! Upgrade to " .. data.NextName) or "Treadmill fully trained!", GOLD, false, 220)
 	elseif name == "TreadmillUpgraded" then
 		local plot = plotsFolder:FindFirstChild("Plot" .. tostring(player:GetAttribute("PlotId")))

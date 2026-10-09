@@ -1,17 +1,16 @@
 -- Kaiju Market + feeding visuals, client-only (the server owns every purchase, sale and level):
---   pads:     standing on a stall's Pad opens that shop's UI panel (Sell / Trail Shop) via the UI's UIApi;
---             the Food and Speed pads show a hint. OpenPrompts on the counters open the same panels.
+--   pads:     standing on a stall's Pad opens that shop's UI panel (Food Shop / Trail Shop / Sell) via the UI's UIApi;
+--             OpenPrompts on the counters open the same panels.
 --   stalls:   pad rings pulse and sparkle, food on the counter bobs, the trail wheel spins its orbs with real trails
---   prompts:  Feed / Change-food prompts on kaiju and Hatch prompts on pen eggs only show for their owner. Kaiju move only
---             on clients, so the owner's Feed / Change-food triggers are sent as Remotes.FeedKaiju / SelectFood("next")
+--   prompts:  Feed (E) / Feed x10 (F) prompts on kaiju and Hatch prompts on pen eggs only show for their owner. Kaiju move
+--             only on clients, so the owner's Feed triggers are sent as Remotes.FeedKaiju (kaijuId, nil, 1 | 10)
 --   feeding:  GameEvent KaijuFed -> the food arcs from the owner into the kaiju's mouth, sets the client-only attribute
 --             EatAt on the kaiju (KaijuFX plays its Eat emote), "+XP" popup; level-ups get a burst + "LEVEL n!" banner
 --             on the rebuilt model (attribute LeveledAt)
 --   selling:  GameEvent KaijuSold -> coin burst + "+$" popup where the kaiju stood
 --   perks:    GameEvent EggLucky -> gold burst + "LUCKY!" and what changed on the upgraded egg; EggGiven -> a store egg
 --             falls into the pen and lands in a light pillar with "BONUS EGG!"
---   toasts:   GameEvent toasts belong to the UI (KaijuUI NotificationsController); only FoodBought, which it doesn't
---             cover, toasts from here
+--   toasts:   GameEvent toasts belong to the UI (KaijuUI NotificationsController)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -26,7 +25,6 @@ local Format = require(ReplicatedStorage.Shared.Util.Format)
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameEvent = remotes:WaitForChild("GameEvent")
 local feedRemote = remotes:WaitForChild("FeedKaiju")
-local selectFoodRemote = remotes:WaitForChild("SelectFood")
 
 local player = Players.LocalPlayer
 local map = workspace:WaitForChild("Map")
@@ -47,7 +45,7 @@ local function serverNow()
 	return workspace:GetServerTimeNow()
 end
 
--- ---------- the UI's API (owned by the UI; used only for panels and toasts) ----------
+-- ---------- the UI's API (owned by the UI; used only for panels) ----------
 
 local uiApi = nil
 local function ui()
@@ -63,13 +61,6 @@ local function ui()
 		end
 	end
 	return uiApi
-end
-
-local function toast(text, kind)
-	local api = ui()
-	if api and api.Toast then
-		pcall(api.Toast, text, kind or "info")
-	end
 end
 
 local function openPanel(name)
@@ -213,13 +204,10 @@ local function filterPrompt(prompt, folder)
 		prompt.MaxActivationDistance = 0 -- local only: other players' feed/hatch prompts never show
 		return
 	end
-	if folder == kaijuFolder and (prompt.Name == "FeedPrompt" or prompt.Name == "SwapFoodPrompt") then
+	if folder == kaijuFolder and (prompt.Name == "FeedPrompt" or prompt.Name == "FeedTenPrompt") then
+		local count = prompt.Name == "FeedTenPrompt" and 10 or 1
 		prompt.Triggered:Connect(function()
-			if prompt.Name == "FeedPrompt" then
-				feedRemote:FireServer(model:GetAttribute("KaijuId"))
-			else
-				selectFoodRemote:FireServer("next")
-			end
+			feedRemote:FireServer(model:GetAttribute("KaijuId"), nil, count)
 		end)
 	end
 end
@@ -235,7 +223,7 @@ end
 
 -- ---------- stalls ----------
 
-local pads = {} -- { pad, ring, radius, shop, panel }
+local pads = {} -- { pad, ring, radius, panel }
 local foodItems = {} -- { model, base, seed }
 local orbs = {} -- { part, index }
 local wheelCenter = nil
@@ -246,7 +234,6 @@ local function addPad(pad)
 		pad = pad,
 		ring = stall:FindFirstChild("PadRing"),
 		radius = pad:GetAttribute("Radius") or 4.6,
-		shop = pad:GetAttribute("Shop"),
 		panel = pad:GetAttribute("Panel"),
 		seed = rng:NextNumber(0, 10),
 	}
@@ -274,11 +261,6 @@ local function setupStalls()
 				openPanel(d:GetAttribute("Panel"))
 			end)
 		end
-	end
-	local speedShop = map:FindFirstChild("SpeedShop")
-	local speedPad = speedShop and speedShop:FindFirstChild("Pad")
-	if speedPad then
-		addPad(speedPad)
 	end
 	local foodStall = market:FindFirstChild("FoodStall")
 	local items = foodStall and foodStall:FindFirstChild("Items")
@@ -325,12 +307,6 @@ local function setupStalls()
 end
 setupStalls()
 
--- Pad hints for shops without a panel.
-local PAD_HINTS = {
-	Food = "Walk up to a food and press E to buy one, F to buy 10!",
-	Speed = "Hold E at the Speed board to get faster!",
-}
-
 local currentPad = nil
 local function checkPads()
 	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -356,8 +332,6 @@ local function checkPads()
 		burst(inside.pad.Position + Vector3.new(0, 0.5, 0), inside.ring and inside.ring.Color or inside.pad.Color, 18, 8, 0.5)
 		if inside.panel then
 			openPanel(inside.panel)
-		elseif PAD_HINTS[inside.shop] then
-			toast(PAD_HINTS[inside.shop], "info")
 		end
 	end
 end
@@ -568,7 +542,7 @@ local function onEggGiven(data)
 	popup(shell, Vector3.new(0, h / 2 + 3.6, 0), "BONUS EGG!", Color3.fromHex("FFD84A"), 3.2, 3.2)
 end
 
--- Gameplay moments. Their toasts are the UI's (NotificationsController); FoodBought has no UI toast, so it's shown here.
+-- Gameplay moments (their toasts are the UI's NotificationsController).
 local function onEvent(kind, data)
 	data = type(data) == "table" and data or {}
 	if kind == "KaijuFed" then
@@ -584,7 +558,6 @@ local function onEvent(kind, data)
 	elseif kind == "FoodBought" then
 		local food = FoodConfig.ById[data.FoodId or ""]
 		if food then
-			toast("+" .. (data.Amount or 1) .. " " .. food.DisplayName .. " (you have " .. (data.Count or 0) .. "). Hold E on your kaiju to feed it!", "info")
 			local stall = market:FindFirstChild("FoodStall")
 			local item = stall and stall:FindFirstChild("Items") and stall.Items:FindFirstChild(food.Id)
 			if item and item.PrimaryPart then
