@@ -13,7 +13,7 @@
 --                                NestSite (Model; Center part has GuardianSpawn + EggSpawn<i> attachments),
 --                                Sign (Board/SurfaceGui Title|Rec|Status; clients fill Status with the viewer's speed)
 --   Map.Spawn.SpawnLocation
---   Map.Market + Map.SpeedShop: the Kaiju Market around the spawn plaza, built by Tools.MarketBuilder (see its header)
+--   Map.Market: the Kaiju Market around the spawn plaza, built by Tools.MarketBuilder (see its header)
 --   Map.Lane decoration: Tools.BiomeArtBuilder runs after the rebuild when it exists
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
@@ -591,7 +591,7 @@ function MapBuilder.Build()
 	for pid, e in entrances do
 		timings["Plot" .. pid] = math.round((math.abs(e.Z) + (firstNestX - e.X)) / speed * 10) / 10
 	end
-	-- Kaiju Market (stalls around the spawn plaza, incl. Map.SpeedShop) and the biome art pass
+	-- Kaiju Market (stalls around the spawn plaza) and the biome art pass
 	local tools = game:GetService("ServerStorage").Tools
 	require(tools.MarketBuilder:Clone()).Build(map)
 	local art = tools:FindFirstChild("BiomeArtBuilder")

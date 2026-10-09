@@ -341,9 +341,166 @@ function BiomeArtBuilder.BuildProps()
 	return "props: " .. table.concat(out, ", ")
 end
 
--- Replaces the biome's old blocky Decor with brick props: trees along the walls, bushes and boulders in the side bands,
--- flowers / grass / mushrooms everywhere off the centre line, vines down both cliff faces and a NEST sign. Keeps clear of
--- the nest, the guardian's bed and the middle of the path.
+-- ---------- lane ground: dirt trail + wall trim ----------
+
+local STUD_TEXTURE = "rbxassetid://6372755229"
+local TRAIL_COLORS = { Color3.fromHex("C9A26B"), Color3.fromHex("B88E58") }
+local PEBBLE_COLORS = { Color3.fromHex("B7B9C4"), Color3.fromHex("9EA1AD"), Color3.fromHex("DCDEE6") }
+local ROCK_COLORS = { Color3.fromHex("A7AAB6"), Color3.fromHex("8E91A0"), Color3.fromHex("B7B9C4") }
+local MOSS_COLORS = { Color3.fromHex("6FBF3F"), Color3.fromHex("5FAE36") }
+
+-- Anchored decor brick with studs on the given faces. Solid ones block players like the boulders do.
+local function brick(parent, name, size, cf, color, faces, studScale, solid)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Anchored = true
+	p.CanCollide = solid == true
+	p.CanQuery = solid == true
+	p.CanTouch = false
+	for _, face in faces do
+		local t = Instance.new("Texture")
+		t.Texture = STUD_TEXTURE
+		t.Face = face
+		t.StudsPerTileU = studScale
+		t.StudsPerTileV = studScale
+		t.Color3 = Color3.new(0, 0, 0)
+		t.Transparency = 0.8
+		t.Parent = p
+	end
+	p.Parent = parent
+	return p
+end
+
+-- Catmull-Rom through the control points (Vector2 x, z), a point about every stud.
+local function smoothPath(points)
+	local out = {}
+	for i = 1, #points - 1 do
+		local p0, p1, p2, p3 = points[math.max(1, i - 1)], points[i], points[i + 1], points[math.min(#points, i + 2)]
+		local steps = math.max(2, math.ceil((p2 - p1).Magnitude))
+		for s = 0, steps - 1 do
+			local t = s / steps
+			local t2, t3 = t * t, t * t * t
+			table.insert(out, (p1 * 2 + (p2 - p0) * t + (p0 * 2 - p1 * 5 + p2 * 4 - p3) * t2 + (p1 * 3 - p0 - p2 * 3 + p3) * t3) * 0.5)
+		end
+	end
+	table.insert(out, points[#points])
+	return out
+end
+
+local function distToPolyline(p, pts)
+	local best = math.huge
+	for i = 1, #pts - 1 do
+		local a, ab = pts[i], pts[i + 1] - pts[i]
+		local t = math.clamp((p - a):Dot(ab) / math.max(ab:Dot(ab), 1e-6), 0, 1)
+		best = math.min(best, (a + ab * t - p).Magnitude)
+	end
+	return best
+end
+
+-- Worn dirt trail: one branch from the entrance into the nest's walk-in gap, one round the nest and the guardian's bed
+-- to the far end. Blocky 2-stud cells (merged into runs) with pebbles along the edges. Visual only (no collision /
+-- queries), its top is 0.06 above the grass. Returns the trail's distance function for keeping props off it.
+local function dressTrail(decor, x0, x1, halfZ, nest, rng)
+	local V = Vector2.new
+	local n = V(nest.X, nest.Z)
+	local trails = {
+		smoothPath({ V(x0 - 1, 2), V(x0 + 12, -3), V(x0 + 24, 2.5), V(n.X - 11.5, n.Y) }),
+		smoothPath({
+			V(x0 + 26, 1.5),
+			V(n.X - 12, n.Y - 8),
+			V(n.X - 2, n.Y - 14),
+			V(n.X + 12, n.Y - 16),
+			V(n.X + 28, n.Y - 13),
+			V(n.X + 44, n.Y - 6),
+			V(x1 - 12, -1),
+			V(x1 + 1, 0),
+		}),
+	}
+	local function trailDist(p)
+		return math.min(distToPolyline(p, trails[1]), distToPolyline(p, trails[2]))
+	end
+	local function halfWidth(x)
+		return 2.7 + 0.45 * math.sin(x * 0.41) + 0.3 * math.sin(x * 0.13 + 1)
+	end
+	local count = 0
+	for gz = -halfZ + 2, halfZ - 4, 2 do
+		local runStart, runColor = nil, nil
+		local function flush(xEnd)
+			if runStart then
+				local len = xEnd - runStart
+				brick(decor, "Trail", Vector3.new(len, 0.12, 2), CFrame.new(runStart + len / 2, 0, gz + 1), TRAIL_COLORS[runColor], { Enum.NormalId.Top }, 4, false)
+				count += 1
+			end
+			runStart, runColor = nil, nil
+		end
+		for gx = x0, x1 - 2, 2 do
+			local c = V(gx + 1, gz + 1)
+			local on = trailDist(c) < halfWidth(c.X) and (c - n).Magnitude > 11
+			local color = on and (math.noise(c.X / 7, c.Y / 7, 3.1) > 0.05 and 2 or 1) or nil
+			if color ~= runColor then
+				flush(gx)
+				if color then
+					runStart, runColor = gx, color
+				end
+			end
+		end
+		flush(x1)
+	end
+	-- pebbles along both edges, alternating sides
+	for _, pts in trails do
+		local side = 1
+		for i = 3, #pts - 1, 3 do
+			local dir = (pts[i + 1] - pts[i - 1]).Unit
+			local normal = V(-dir.Y, dir.X)
+			local p = pts[i] + normal * side * (halfWidth(pts[i].X) + 0.6)
+			side = -side
+			if p.X > x0 + 1 and p.X < x1 - 1 and math.abs(p.Y) < halfZ - 3 and (p - n).Magnitude > 11.5 and trailDist(p) > halfWidth(p.X) then
+				local s = rng:NextNumber(0.7, 1.15)
+				local h = rng:NextNumber(0.35, 0.55)
+				brick(decor, "Pebble", Vector3.new(s, h, s * rng:NextNumber(0.75, 1)), CFrame.new(p.X, h / 2, p.Y) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), PEBBLE_COLORS[rng:NextInteger(1, #PEBBLE_COLORS)], { Enum.NormalId.Top }, 1, false)
+				count += 1
+			end
+		end
+	end
+	return count, function(pos)
+		local p = V(pos.X, pos.Z)
+		return trailDist(p) - halfWidth(p.X)
+	end
+end
+
+-- Stone skirting along the foot of both cliffs: rocks of mixed size tucked into the wall, some with moss on top and the
+-- odd taller boulder. Solid, like the boulders.
+local function dressWallTrim(decor, x0, x1, halfZ, rng)
+	local count = 0
+	for _, s in { -1, 1 } do
+		local face = s > 0 and Enum.NormalId.Front or Enum.NormalId.Back -- the side facing into the lane
+		local x = x0
+		while x < x1 - 0.5 do
+			local len = math.min(rng:NextNumber(3, 7), x1 - x)
+			local h = rng:NextNumber() < 0.15 and rng:NextNumber(3.6, 5) or rng:NextNumber(1.3, 3)
+			local depth = rng:NextNumber(1.3, 2.4)
+			local z = s * (halfZ - depth / 2 + 0.2)
+			brick(decor, "WallRock", Vector3.new(len, h, depth + 0.4), CFrame.new(x + len / 2, h / 2, z), ROCK_COLORS[rng:NextInteger(1, #ROCK_COLORS)], { Enum.NormalId.Top, face }, 2, true)
+			count += 1
+			if rng:NextNumber() < 0.45 then
+				brick(decor, "Moss", Vector3.new(len - 0.3, 0.3, depth + 0.1), CFrame.new(x + len / 2, h + 0.15, z), MOSS_COLORS[rng:NextInteger(1, #MOSS_COLORS)], { Enum.NormalId.Top }, 2, false)
+				count += 1
+			end
+			x += len
+		end
+	end
+	return count
+end
+
+-- Replaces the biome's old blocky Decor with brick art: a dirt trail to the nest, stone trim along both cliffs, trees
+-- along the walls, bushes and boulders in the side bands, flowers / grass / mushrooms off the trail and the centre line,
+-- vines down both cliff faces and a NEST sign. Keeps clear of the nest, the guardian's bed and the trail.
 local function dressProps(laneModel)
 	local props = ServerStorage:FindFirstChild("Assets") and ServerStorage.Assets:FindFirstChild("Props")
 	if not props then
@@ -366,9 +523,11 @@ local function dressProps(laneModel)
 	local bed = center.GuardianSpawn.WorldPosition
 	bed = Vector3.new(bed.X, 0, bed.Z)
 	local rng = Random.new(9)
+	local ground, offTrail = dressTrail(decor, x0, x1, halfZ, nest, rng)
+	ground += dressWallTrim(decor, x0, x1, halfZ, rng)
 	local taken = {}
 	local function free(pos, r)
-		if (pos - nest).Magnitude < 12.5 + r or (pos - bed).Magnitude < 10 + r then
+		if (pos - nest).Magnitude < 12.5 + r or (pos - bed).Magnitude < 10 + r or offTrail(pos) < r then
 			return false
 		end
 		for _, t in taken do
@@ -399,6 +558,9 @@ local function dressProps(laneModel)
 	local function yaw()
 		return CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
 	end
+	-- NEST sign on the right of the trail just inside the entrance, turned towards players coming in so its arrow points
+	-- into the biome
+	put("NestSign", CFrame.new(x0 + 12, 0, -10) * CFrame.Angles(0, 2.53, 0), 1.5, true, 2)
 	-- trees along both walls
 	for _, s in { -1, 1 } do
 		local x = x0 + 14 + rng:NextNumber(0, 6)
@@ -446,9 +608,7 @@ local function dressProps(laneModel)
 			x += rng:NextNumber(13, 19)
 		end
 	end
-	-- NEST sign beside the path near the entrance, arrow pointing into the biome
-	put("NestSign", CFrame.new(x0 + 10, 0, 9), 1.5, true, 2)
-	return "props " .. laneModel.Name .. ": " .. count
+	return "props " .. laneModel.Name .. ": " .. count .. ", trail + trim parts: " .. ground
 end
 
 function BiomeArtBuilder.DressLane()

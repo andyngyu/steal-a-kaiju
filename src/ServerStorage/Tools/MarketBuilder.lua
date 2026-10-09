@@ -1,20 +1,21 @@
 -- Edit-time tool: builds the Kaiju Market around the spawn plaza and the food art. MapBuilder.Build() calls Build(map)
--- at the end of a full map rebuild; on its own (replaces Map.Market and Map.SpeedShop only):
+-- at the end of a full map rebuild; on its own (replaces Map.Market only; also clears the old Map.SpeedShop):
 --   require(game.ServerStorage.Tools.MarketBuilder:Clone()).Build()
 --   require(game.ServerStorage.Tools.MarketBuilder:Clone()).BuildFood()   -- ReplicatedStorage.Assets.Food from Tools.FoodSpecs
 --
 -- Runtime contract (attributes are the API):
 --   Map.Market.ShopTeleport          invisible part; Remotes.TeleportToShop puts players here
---   Map.Market.FoodStall / TrailStall / SellStall and Map.SpeedShop (the Speed stall), each with:
---     Pad        part with attributes Shop ("Food" | "Trails" | "Sell" | "Speed"), Panel (UI panel name, optional), Radius
+--   Map.Market.FoodStall / TrailStall / SellStall, each with:
+--     Pad        part with attributes Shop ("Food" | "Trails" | "Sell"), Panel (UI panel name), Radius
 --     SignAnchor part holding the BillboardGui "Sign"
+--     OpenPrompt on the counter (attribute Panel)
 --   Map.Market.Keepers               shopkeeper kaiju (Assets.Kaiju clones) idling on crates: VisualScale, RootOffset,
 --                                    WanderFrom = WanderTo = standing spot, MoveStart = MoveEnd = 0 (animated by KaijuFX)
---   FoodStall.Items.<FoodId>         Model, attribute FoodId; PrimaryPart.PromptAnchor has BuyPrompt (E, 1) + BuyTenPrompt (F, 10);
---                                    PrimaryPart.Tag billboard (Price, XP)
+--   FoodStall.Items.<FoodId>         display Model, attribute FoodId; PrimaryPart.Tag billboard (Price, XP). Food is
+--                                    bought in the UI's FoodShopPanel (pad / OpenPrompt), not off the counter.
 --   TrailStall.Wheel                 Center part + Orb parts (attributes TrailId, Index); clients spin them with trails
 --   OpenPrompt (any stall)           ProximityPrompt with attribute Panel; the client opens that UI panel
---   SpeedShop.Board                  SurfaceGui Title | Detail | PriceFrame.Price, BuyPrompt (SpeedService / SpeedFX)
+--   Market.Decor.KaijuStatue         golden Rumblerex on a plinth in the fourth corner (decor only)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
@@ -53,7 +54,7 @@ local UP = CFrame.Angles(0, 0, math.rad(90)) -- turns a cylinder's axis (X) upri
 -- Plaza: S x S square centred at (-S/2, 0, 0); stalls sit on its north and south edges facing the spawn.
 local THEMES = {
 	Food = {
-		Name = "FoodStall", Shop = "Food", Title = "KAIJU FOOD", SignWidth = 15,
+		Name = "FoodStall", Shop = "Food", Title = "KAIJU FOOD", Panel = "FoodShopPanel", SignWidth = 15,
 		Color = hex("43C93A"), Dark = hex("2A8A25"), Light = hex("E4FFD9"), Plate = hex("8CFF5A"),
 		Pad = hex("A8F28E"), PadGlow = hex("5CFF3B"), TitleTop = hex("D9FFB8"), TitleBottom = hex("5CE63B"),
 		Keeper = "Chompling", KeeperScale = 1.15, KeeperSide = -1,
@@ -69,12 +70,6 @@ local THEMES = {
 		Color = hex("FF3B3B"), Dark = hex("B81E1E"), Light = hex("FFE3E3"), Plate = hex("FF4D6D"),
 		Pad = hex("8CF5A8"), PadGlow = hex("2BEA6B"), TitleTop = hex("FF9C9C"), TitleBottom = hex("FF1F1F"),
 		Keeper = "Bonkey", KeeperScale = 1.0, KeeperSide = 1,
-	},
-	Speed = {
-		Name = "SpeedShop", Shop = "Speed", Title = "SPEED", SignWidth = 9,
-		Color = hex("3FA9FF"), Dark = hex("1F6FD0"), Light = hex("DDF0FF"), Plate = hex("4DD8FF"),
-		Pad = hex("9CD8FF"), PadGlow = hex("2FB8FF"), TitleTop = hex("C8EDFF"), TitleBottom = hex("2FA0FF"),
-		Keeper = "Thunderback", KeeperScale = 0.8, KeeperSide = -1,
 	},
 }
 
@@ -331,29 +326,6 @@ local function foodItems(m, at)
 			item:SetAttribute("FoodId", food.Id)
 			item:PivotTo(at(x, 3.97, -2.3) * CFrame.Angles(0, math.rad((i % 2 == 0) and 12 or -12), 0))
 			local root = item.PrimaryPart
-			local anchor = Instance.new("Attachment")
-			anchor.Name = "PromptAnchor"
-			anchor.Position = Vector3.new(0, 0.6, 0)
-			anchor.Parent = root
-			local buy = Instance.new("ProximityPrompt")
-			buy.Name = "BuyPrompt"
-			buy.ActionText = "Buy " .. Format.Money(food.Price)
-			buy.ObjectText = food.DisplayName .. "  +" .. Format.Short(food.XP) .. " XP"
-			buy.HoldDuration = 0
-			buy.MaxActivationDistance = 6.5
-			buy.RequiresLineOfSight = false
-			buy.Parent = anchor
-			local ten = Instance.new("ProximityPrompt")
-			ten.Name = "BuyTenPrompt"
-			ten.ActionText = "Buy 10 " .. Format.Money(food.Price * 10)
-			ten.ObjectText = ""
-			ten.KeyboardKeyCode = Enum.KeyCode.F
-			ten.GamepadKeyCode = Enum.KeyCode.ButtonY
-			ten.HoldDuration = 0.3
-			ten.MaxActivationDistance = 6.5
-			ten.RequiresLineOfSight = false
-			ten.UIOffset = Vector2.new(0, 84)
-			ten.Parent = anchor
 			local tag = Instance.new("BillboardGui")
 			tag.Name = "Tag"
 			tag.Size = UDim2.new(1.8, 0, 0.95, 0)
@@ -463,55 +435,70 @@ local function sellDecor(m, at)
 	end
 end
 
-local function speedBoard(m, at)
-	local board = part(m, "Board", Vector3.new(7.2, 4.4, 0.4), at(0, 6.4, 3.35), hex("1F2A44"), { studs = SIDES })
+-- A golden Rumblerex on a studded plinth, facing the spawn (fills the corner where the Speed stall stood).
+local function kaijuStatue(parent, pos, facePos)
+	local m = Instance.new("Model")
+	m.Name = "KaijuStatue"
+	local STONE, STONE_LIGHT, STONE_DARK = hex("6E5A4A"), hex("8A7460"), hex("54443A")
+	local look = CFrame.lookAt(pos, Vector3.new(facePos.X, pos.Y, facePos.Z))
+	part(m, "PlinthBase", Vector3.new(10.4, 0.5, 10.4), look * CFrame.new(0, 0.55, 0), STONE_DARK, { studs = TOP })
+	part(m, "Plinth", Vector3.new(8.8, 2.2, 8.8), look * CFrame.new(0, 1.9, 0), STONE, { studs = ALL })
+	part(m, "PlinthTop", Vector3.new(9.4, 0.5, 9.4), look * CFrame.new(0, 3.25, 0), STONE_LIGHT, { studs = TOP })
+	for _, y in { 1.05, 2.75 } do
+		part(m, "Trim", Vector3.new(9.0, 0.22, 9.0), look * CFrame.new(0, y, 0), GOLD, { neon = true, collide = false })
+	end
+	-- plaque on the front
+	local plaque = part(m, "Plaque", Vector3.new(5.2, 1.2, 0.2), look * CFrame.new(0, 1.9, -4.5), hex("2B1B4D"), { collide = false })
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 40
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0.05, 0)
-	pad.PaddingRight = UDim.new(0.05, 0)
-	pad.PaddingTop = UDim.new(0.06, 0)
-	pad.PaddingBottom = UDim.new(0.08, 0)
-	pad.Parent = gui
-	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.Padding = UDim.new(0.03, 0)
-	list.Parent = gui
-	textLabel(gui, "Title", "Speed Shop", WHITE, Enum.Font.FredokaOne, 0.3).LayoutOrder = 1
-	textLabel(gui, "Detail", "+2 Speed", hex("6BE04A"), Enum.Font.FredokaOne, 0.22).LayoutOrder = 2
-	local priceFrame = Instance.new("Frame")
-	priceFrame.Name = "PriceFrame"
-	priceFrame.Size = UDim2.new(1, 0, 0.36, 0)
-	priceFrame.LayoutOrder = 3
-	priceFrame.BackgroundColor3 = hex("E02B2B")
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.15, 0)
-	corner.Parent = priceFrame
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 4
-	stroke.Color = INK
-	stroke.Parent = priceFrame
-	textLabel(priceFrame, "Price", "Buy", WHITE, Enum.Font.FredokaOne, 1)
-	priceFrame.Parent = gui
-	gui.Parent = board
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "BuyPrompt"
-	prompt.ActionText = "Buy Speed"
-	prompt.ObjectText = "Speed Shop"
-	prompt.HoldDuration = 0.4
-	prompt.MaxActivationDistance = 12
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = board
-	-- lightning bolts either side of the board
-	for _, sx in { -1, 1 } do
-		local x = sx * 4.6
-		part(m, "Bolt", Vector3.new(0.4, 1.3, 0.12), at(x + 0.2, 7.4, 3.45) * CFrame.Angles(0, 0, math.rad(-25)), GOLD, { neon = true, collide = false })
-		part(m, "Bolt", Vector3.new(0.9, 0.35, 0.12), at(x, 6.75, 3.45), GOLD, { neon = true, collide = false })
-		part(m, "Bolt", Vector3.new(0.4, 1.3, 0.12), at(x - 0.2, 6.1, 3.45) * CFrame.Angles(0, 0, math.rad(-25)), GOLD, { neon = true, collide = false })
+	local l = textLabel(gui, "Label", "RUMBLEREX", WHITE, Enum.Font.LuckiestGuy, 1, 3)
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Color = ColorSequence.new(hex("FFF3A8"), hex("FFB21F"))
+	g.Parent = l
+	gui.Parent = plaque
+
+	local assets = ServerStorage:FindFirstChild("Assets")
+	local art = assets and assets:FindFirstChild("Kaiju") and assets.Kaiju:FindFirstChild("Rumblerex")
+	if art then
+		local statue = art:Clone()
+		statue.Name = "Statue"
+		statue:ScaleTo(1.9)
+		statue:PivotTo(look + Vector3.new(0, 3.5, 0))
+		-- gold by brightness: dark details (eyes, mouth) stay deep bronze so the face still reads
+		local dark, mid, bright = hex("3D2600"), hex("C98A12"), hex("FFD64A")
+		for _, d in statue:GetDescendants() do
+			if d:IsA("BasePart") then
+				local c = d.Color
+				local lum = math.clamp(0.3 * c.R + 0.59 * c.G + 0.11 * c.B, 0, 1)
+				d.Color = lum < 0.5 and dark:Lerp(mid, lum * 2) or mid:Lerp(bright, (lum - 0.5) * 2)
+				if d.Material ~= Enum.Material.Neon then
+					d.Material = Enum.Material.SmoothPlastic
+					d.Reflectance = 0.05
+				end
+				d.Anchored = true
+				d.CanTouch = false
+			end
+		end
+		for name in statue:GetAttributes() do
+			statue:SetAttribute(name, nil)
+		end
+		statue.Parent = m
+	else
+		warn("[MarketBuilder] no Assets.Kaiju.Rumblerex for the statue")
 	end
+	for _, corner in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		local glow = part(m, "Spot", Vector3.new(0.6, 0.3, 0.6), look * CFrame.new(corner[1] * 4.1, 3.55, corner[2] * 4.1), GOLD, { neon = true, collide = false })
+		local light = Instance.new("PointLight")
+		light.Color = GOLD
+		light.Range = 10
+		light.Brightness = 0.9
+		light.Parent = glow
+	end
+	m.Parent = parent
+	return m
 end
 
 -- ---------- plaza dressing ----------
@@ -658,6 +645,7 @@ function MarketBuilder.Build(map)
 
 	local food, foodAt = buildStall(market, keepers, facing(Vector3.new(left, 0, north), -1), THEMES.Food)
 	foodItems(food, foodAt)
+	openPrompt(food, foodAt, "Open Food Shop", "FoodShopPanel")
 	task.wait()
 	local trails, trailsAt = buildStall(market, keepers, facing(Vector3.new(right, 0, north), -1), THEMES.Trails)
 	trailWheel(trails, trailsAt)
@@ -667,9 +655,6 @@ function MarketBuilder.Build(map)
 	sellDecor(sell, sellAt)
 	openPrompt(sell, sellAt, "Sell Kaiju", "SellPanel")
 	task.wait()
-	local speed, speedAt = buildStall(map, keepers, facing(Vector3.new(right, 0, south), 1), THEMES.Speed)
-	speedBoard(speed, speedAt)
-	task.wait()
 
 	local spot = part(market, "ShopTeleport", Vector3.new(4, 0.2, 4), CFrame.lookAt(Vector3.new(cx, 0.4, 4), Vector3.new(cx, 0.4, north)), WHITE, { transparency = 1, collide = false, shadow = false })
 	spot.CanQuery = false
@@ -678,10 +663,10 @@ function MarketBuilder.Build(map)
 	decor.Name = "Decor"
 	decor.Parent = market
 	tuskArch(decor, 2)
-	local flagColors = { THEMES.Food.Color, THEMES.Trails.Color, THEMES.Sell.Color, THEMES.Speed.Color, WHITE }
-	for _, z in { north - 3, south + 3 } do
-		bunting(decor, Vector3.new(left + 5.8, 9.4, z), Vector3.new(right - 5.8, 9.4, z), flagColors)
-	end
+	kaijuStatue(decor, Vector3.new(right, 0, south + 2), Vector3.new(cx, 0, 0))
+	local flagColors = { THEMES.Food.Color, THEMES.Trails.Color, THEMES.Sell.Color, hex("3FA9FF"), WHITE }
+	bunting(decor, Vector3.new(left + 5.8, 9.4, north - 3), Vector3.new(right - 5.8, 9.4, north - 3), flagColors)
+	bunting(decor, Vector3.new(left + 5.8, 9.4, south + 3), Vector3.new(right - 9.5, 9.4, south + 3), flagColors)
 	local spawnEdge = 7
 	for _, target in { Vector3.new(left, 0, north - 9.4), Vector3.new(right, 0, north - 9.4), Vector3.new(left, 0, south + 9.4), Vector3.new(right, 0, south + 9.4) } do
 		local from = Vector3.new(cx, 0, (target.Z > 0) and spawnEdge or -spawnEdge)
@@ -694,11 +679,9 @@ function MarketBuilder.Build(map)
 	barrel(decor, Vector3.new(cx + 2.2, 0, south - 3), GOLD)
 
 	local count = 0
-	for _, inst in { market, speed } do
-		for _, d in inst:GetDescendants() do
-			if d:IsA("BasePart") then
-				count += 1
-			end
+	for _, d in market:GetDescendants() do
+		if d:IsA("BasePart") then
+			count += 1
 		end
 	end
 	return "Kaiju Market built: " .. count .. " parts"
