@@ -1,13 +1,15 @@
--- Nest spawns, rarity rolls, pickup, carry, drop, and delivery (hands off to HatchService for the pad).
--- An egg moves through states (model attribute "State"): Nest -> Carried -> (Ground -> Carried)* -> Pad.
+-- Nest spawns, rarity rolls, pickup, carry and dropping. Players drop a carried egg by clicking/tapping a spot
+-- (Remotes.DropEgg, sent by StarterPlayerScripts.Gameplay.KaijuInput): inside their own pen it's placed and starts
+-- incubating (HatchService), anywhere else it lands on the ground for anyone to grab.
+-- An egg moves through states (model attribute "State"): Nest -> Carried -> (Ground -> Carried)* -> Pen.
 -- Carried eggs are never saved: leaving mid-carry drops the egg in the world, so nothing can be duplicated.
 -- Player attributes: CarryingEgg (rarity), CarryingFromBiome, StunnedUntil (server time), BaseWalkSpeed.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 
 local Config = ReplicatedStorage.Shared.Config
 local EggConfig = require(Config.EggConfig)
+local BaseConfig = require(Config.BaseConfig)
 local BiomeConfig = require(Config.BiomeConfig)
 local MapConfig = require(Config.MapConfig)
 local DevConfig = require(Config.DevConfig)
@@ -26,7 +28,7 @@ local eggFolder
 local nests = {} -- [biomeId] = { slots = { { attachment, egg? } } }
 local carried = {} -- [player] = egg model
 local lastPickup = {} -- [player] = os.clock()
-local fullWarned = {} -- [player] = true once BaseFull was sent for the current carry
+local lastDrop = {} -- [player] = os.clock()
 
 local function log(...)
 	if DevConfig.VerboseLogging then
@@ -115,7 +117,6 @@ end
 
 local function clearCarry(player)
 	carried[player] = nil
-	fullWarned[player] = nil
 	player:SetAttribute("CarryingEgg", nil)
 	player:SetAttribute("CarryingFromBiome", nil)
 	applyWalkSpeed(player)
@@ -177,22 +178,11 @@ function EggService:Start()
 	Players.PlayerRemoving:Connect(function(player)
 		self:DropCarried(player, "Left")
 		lastPickup[player] = nil
+		lastDrop[player] = nil
 	end)
 
-	-- Delivery: a carrier standing inside their own plot puts the egg on the first empty pad.
-	local acc = 0
-	RunService.Heartbeat:Connect(function(dt)
-		acc += dt
-		if acc < EggConfig.DeliveryCheckInterval then
-			return
-		end
-		acc = 0
-		for player, egg in carried do
-			local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-			if hrp and BaseService:IsInOwnPlot(player, hrp.Position) then
-				self:Deliver(player, egg)
-			end
-		end
+	ReplicatedStorage.Remotes.DropEgg.OnServerEvent:Connect(function(player, target)
+		self:TryDropAt(player, target)
 	end)
 end
 
@@ -259,15 +249,19 @@ function EggService:TryPickup(player, egg)
 	return true
 end
 
-function EggService:DropCarried(player, reason)
+-- Drops the carried egg on the ground at `at` (defaults to the player's feet). Reasons: Dropped, Caught, Died, Left.
+function EggService:DropCarried(player, reason, at)
 	local egg = carried[player]
 	if not egg then
 		return
 	end
 	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	local pos = hrp and hrp.Position or egg.PrimaryPart.Position
+	local fromPos = egg.PrimaryPart.Position
+	local pos = at or (hrp and hrp.Position) or fromPos
 	clearCarry(player)
 	egg = rebuild(egg)
+	egg:SetAttribute("DropFrom", fromPos)
+	egg:SetAttribute("DroppedAt", workspace:GetServerTimeNow())
 	if reason == "Caught" then
 		player:SetAttribute("StunnedUntil", workspace:GetServerTimeNow() + EggConfig.StunSecondsAfterCatch)
 	end
@@ -293,21 +287,52 @@ function EggService:DropCarried(player, reason)
 	end)
 end
 
-function EggService:Deliver(player, egg)
-	local padIndex = BaseService:FindEmptyPad(player)
-	if not padIndex then
-		if not fullWarned[player] then
-			fullWarned[player] = true
-			gameEvent:FireClient(player, "BaseFull", {})
-		end
+local function validTarget(v)
+	return typeof(v) == "Vector3" and v.X == v.X and v.Z == v.Z and math.abs(v.X) < 1e5 and math.abs(v.Z) < 1e5
+end
+
+-- Client asked to drop the carried egg at `target` (a world point under the cursor/tap).
+function EggService:TryDropAt(player, target)
+	local egg = carried[player]
+	if not egg or not validTarget(target) then
 		return
 	end
-	clearCarry(player)
-	local fresh = EggModel.Build(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"))
-	egg:Destroy()
-	if HatchService:PlaceEgg(player, padIndex, fresh) then
-		gameEvent:FireClient(player, "EggDelivered", { Rarity = fresh:GetAttribute("Rarity"), PadIndex = padIndex })
-		log(player.Name, "delivered", fresh:GetAttribute("Rarity"), "to pad", padIndex)
+	local now = os.clock()
+	if lastDrop[player] and now - lastDrop[player] < BaseConfig.Drop.CooldownSeconds then
+		return
+	end
+	lastDrop[player] = now
+	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		return
+	end
+	-- clicks further than MaxDistance are pulled in towards the player
+	local flat = Vector3.new(target.X - hrp.Position.X, 0, target.Z - hrp.Position.Z)
+	if flat.Magnitude > BaseConfig.Drop.MaxDistance then
+		flat = flat.Unit * BaseConfig.Drop.MaxDistance
+	end
+	local spot = Vector3.new(hrp.Position.X + flat.X, 0, hrp.Position.Z + flat.Z)
+
+	if BaseService:IsInOwnPen(player, spot, 0) then
+		local x, d
+		if BaseService:HasRoom(player) then
+			x, d = BaseService:ToPenLocal(player, spot)
+			x, d = BaseService:FindFreeSpot(player, x, d)
+		end
+		if not x then
+			gameEvent:FireClient(player, "PenFull", {})
+			return
+		end
+		local fromPos = egg.PrimaryPart.Position
+		clearCarry(player)
+		local fresh = EggModel.Build(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"))
+		egg:Destroy()
+		if HatchService:PlaceEgg(player, fresh, x, d, fromPos) then
+			gameEvent:FireClient(player, "EggPlaced", { Rarity = fresh:GetAttribute("Rarity") })
+			log(player.Name, "placed", fresh:GetAttribute("Rarity"), "in pen")
+		end
+	else
+		self:DropCarried(player, "Dropped", spot)
 	end
 end
 

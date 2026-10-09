@@ -112,10 +112,14 @@ local function infoBillboard(model, top, cfg, cps)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, top + 1.6, 0)
 	bb.MaxDistance = 90
 	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.Parent = bb
+	local order = 0
 	local function line(name, text, color, h)
 		local l = Instance.new("TextLabel")
+		order += 1
+		l.LayoutOrder = order
 		l.Name = name
 		l.Size = UDim2.new(1, 0, h, 0)
 		l.BackgroundTransparency = 1

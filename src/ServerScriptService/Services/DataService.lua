@@ -4,8 +4,9 @@
 --
 -- Data shape (string keys only - ProfileStore can't store gappy arrays):
 --   Cash, PendingCash, TotalEarned, LastOnline (os.time)
---   Pads["1".."N"] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt }
---                   | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt }
+--   Pen = { Level, Items = { [id] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt, X, D }
+--                                | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt } } }
+--     (X, D are pen-local, see Shared.Util.PenGeometry; kaiju wander so their position isn't saved)
 --   Stats = { EggsDelivered, EggsHatched }
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -22,7 +23,10 @@ local TEMPLATE = {
 	PendingCash = 0,
 	TotalEarned = 0,
 	LastOnline = 0,
-	Pads = {},
+	Pen = {
+		Level = 1,
+		Items = {},
+	},
 	Stats = {
 		EggsDelivered = 0,
 		EggsHatched = 0,
@@ -51,6 +55,7 @@ local function load(player)
 	end
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
+	profile.Data.Pads = nil -- pre-pen format (pads were removed)
 	profile.OnSessionEnd:Connect(function()
 		profiles[player] = nil
 		if player.Parent == Players then

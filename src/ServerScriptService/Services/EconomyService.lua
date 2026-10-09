@@ -1,4 +1,4 @@
--- Cash per second from kaiju on pads -> PendingCash -> stepping on the plot's CollectPad moves it into Cash.
+-- Cash per second from kaiju in the pen -> PendingCash -> stepping on the plot's CollectPad moves it into Cash.
 -- Offline earnings are added to PendingCash on join (capped, reduced rate).
 -- Player attributes: Cash, PendingCash, CashPerSecond. Also leaderstats.Cash.
 local Players = game:GetService("Players")
@@ -27,7 +27,7 @@ end
 
 function EconomyService:GetCashPerSecond(player)
 	local total = 0
-	BaseService:ForEachPad(player, function(_, entry)
+	BaseService:ForEachItem(player, function(_, entry)
 		if entry.Kind == "Kaiju" then
 			local cfg = KaijuConfig[entry.Species]
 			total += cfg and cfg.CashPerSecond or 0
@@ -83,7 +83,7 @@ local function setupCollectBillboard(player)
 end
 
 -- Offline earnings: each kaiju earns from max(LastOnline, when it hatched) until now, capped.
--- Eggs whose timer ran out while offline count as hatched at their HatchAt.
+-- Eggs don't earn until the player hatches them.
 local function offlineEarnings(data)
 	if (data.LastOnline or 0) <= 0 then
 		return 0, 0
@@ -95,9 +95,9 @@ local function offlineEarnings(data)
 	end
 	local cap = EconomyConfig.Offline.CapSeconds
 	local total = 0
-	for _, entry in data.Pads do
+	for _, entry in data.Pen.Items do
 		local cfg = KaijuConfig[entry.Species]
-		local from = entry.Kind == "Kaiju" and entry.HatchedAt or entry.HatchAt
+		local from = entry.Kind == "Kaiju" and entry.HatchedAt
 		if cfg and from and from <= now then
 			local start = math.max(data.LastOnline, from)
 			local seconds = math.min(now - start, cap)
@@ -154,6 +154,18 @@ function EconomyService:Collect(player)
 	gameEvent:FireClient(player, "CashCollected", { Amount = amount })
 	DataService:Save(player)
 	return amount
+end
+
+function EconomyService:AddCash(player, amount)
+	local data = DataService:Get(player)
+	if not data or amount <= 0 then
+		return false
+	end
+	data.Cash += amount
+	data.TotalEarned += amount
+	publish(player, data)
+	DataService:Save(player)
+	return true
 end
 
 -- For later phases (shop, rebirth): returns false if the player can't afford it.
