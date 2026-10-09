@@ -1,6 +1,8 @@
 -- Speed visuals, client-only:
 --   personal treadmills: run animation for the local runner, chevrons scrolling while anyone runs, jump to get off,
 --   "+Speed" popups while training, pulsing hologram when locked, burst on unlock/upgrade
+--   running VFX (any runner, scales with tier): belt sparks, pulsing ground rings, glowing trim + belt light,
+--   wind streaks (2+), sparkle shower (3+), roaring fire jets (Blaze), light pillar (5), "SPEED UP!" every +1 Speed
 --   Speed Shop kiosk showing this viewer's own price; biome signs showing the viewer's speed vs recommended
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,6 +34,12 @@ local DEFAULT_RUN = "rbxassetid://913376220" -- Roblox's default R15 run
 local BELT_HALF = 4.3
 
 local rng = Random.new()
+local SPARK = "rbxasset://textures/particles/sparkles_main.dds"
+local FX_RANGE = 200
+
+local localFx = Instance.new("Folder")
+localFx.Name = "TreadmillFXLocal"
+localFx.Parent = workspace
 
 local function fmtSpeed(n)
 	return (string.format("%.1f", n):gsub("%.0$", ""))
@@ -159,12 +167,19 @@ local function burstOnCharacter(color)
 	end
 end
 
--- treadmill gains: one popup per server tick while running, scattered like a combo counter
+-- treadmill gains: one popup per server tick while running, scattered like a combo counter;
+-- a bigger "SPEED UP!" burst every time the treadmill bonus crosses a whole number
 local lastTrained = player:GetAttribute("TrainedSpeed")
 player:GetAttributeChangedSignal("TrainedSpeed"):Connect(function()
 	local now = player:GetAttribute("TrainedSpeed") or 0
 	if lastTrained and now > lastTrained and player:GetAttribute("OnTreadmill") then
 		popup("+" .. string.format("%.2f", now - lastTrained):gsub("0+$", ""):gsub("%.$", "") .. " Speed", ORANGE, true, 150)
+		if math.floor(now) > math.floor(lastTrained) then
+			local level = TreadmillConfig.Levels[player:GetAttribute("TreadmillLevel") or 1]
+			local color = level and level.Theme.Chevron or GOLD
+			popup("SPEED UP!", GOLD, false, 230)
+			burstOnCharacter(color)
+		end
 	end
 	lastTrained = now
 end)
@@ -187,6 +202,202 @@ gameEvent.OnClientEvent:Connect(function(name, data)
 		popup("Drop your egg first!", RED, false, 180)
 	end
 end)
+
+-- ---------- running VFX ----------
+
+local function fxPart(parent, cf, size)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Transparency = 1
+	p.Size = size
+	p.CFrame = cf
+	p.Parent = parent
+	return p
+end
+
+local function emitter(parent, props)
+	local pe = Instance.new("ParticleEmitter")
+	for k, v in props do
+		pe[k] = v
+	end
+	pe.Parent = parent
+	return pe
+end
+
+local function fade(seq0, seq1)
+	return NumberSequence.new({ NumberSequenceKeypoint.new(0, seq0), NumberSequenceKeypoint.new(1, seq1) })
+end
+
+local GLOW_NAMES = { Arm = true, Strip = true, ConsoleTrim = true, Screen = true, Plate = true }
+
+local function startFX(model, st)
+	local levelIndex = model:GetAttribute("Level") or 1
+	local level = TreadmillConfig.Levels[levelIndex]
+	if not level then
+		return
+	end
+	local th = level.Theme
+	local pivot = st.pivot
+	local folder = Instance.new("Folder")
+	folder.Name = "FX"
+	folder.Parent = localFx
+	local fx = { folder = folder, level = levelIndex, theme = th, nextRing = 0, saved = {}, glow = {} }
+
+	-- sparks flying off the back of the belt (box emitter across the belt, aimed back and up)
+	local rear = fxPart(folder, pivot * CFrame.new(0, 1.7, 4.7) * CFrame.Angles(math.rad(70), 0, 0), Vector3.new(3.6, 0.2, 0.2))
+	emitter(rear, {
+		Texture = SPARK,
+		Color = ColorSequence.new(th.Chevron, Color3.new(1, 1, 1)),
+		LightEmission = 1,
+		Size = fade(0.35, 0),
+		Speed = NumberRange.new(8, 15),
+		SpreadAngle = Vector2.new(20, 35),
+		Lifetime = NumberRange.new(0.3, 0.6),
+		Acceleration = Vector3.new(0, -40, 0),
+		Rate = 18 + levelIndex * 8,
+		EmissionDirection = Enum.NormalId.Top,
+		Shape = Enum.ParticleEmitterShape.Box,
+	})
+
+	-- wind streaks rushing past the runner, front to back
+	if levelIndex >= 2 then
+		local front = fxPart(folder, pivot * CFrame.new(0, 4, -2.5), Vector3.new(6.5, 4.5, 0.5))
+		emitter(front, {
+			Color = ColorSequence.new(Color3.new(1, 1, 1), th.Trim),
+			LightEmission = 0.6,
+			Size = NumberSequence.new(0.09),
+			Squash = NumberSequence.new(2.8),
+			Transparency = fade(0.25, 1),
+			Speed = NumberRange.new(28, 40),
+			Lifetime = NumberRange.new(0.18, 0.3),
+			Rate = 22 + levelIndex * 6,
+			EmissionDirection = Enum.NormalId.Back,
+			Shape = Enum.ParticleEmitterShape.Box,
+			ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+			Orientation = Enum.ParticleOrientation.VelocityParallel,
+		})
+	end
+
+	-- sparkle shower around the runner
+	if levelIndex >= 3 then
+		local around = fxPart(folder, pivot * CFrame.new(0, 3.6, 1), Vector3.new(5.5, 5, 4))
+		emitter(around, {
+			Texture = SPARK,
+			Color = ColorSequence.new(th.Trim, Color3.new(1, 1, 1)),
+			LightEmission = 1,
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.45), NumberSequenceKeypoint.new(1, 0) }),
+			Speed = NumberRange.new(1, 3),
+			Lifetime = NumberRange.new(0.6, 1.1),
+			Rate = 10 + levelIndex * 4,
+			Shape = Enum.ParticleEmitterShape.Box,
+			ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+			Rotation = NumberRange.new(0, 360),
+			RotSpeed = NumberRange.new(-120, 120),
+			Acceleration = Vector3.new(0, 3, 0),
+		})
+	end
+
+	-- fire jets roar while running (Blaze)
+	if th.Fire then
+		for _, jet in model:GetChildren() do
+			local fire = jet.Name == "Jet" and jet:FindFirstChildOfClass("Fire")
+			if fire then
+				table.insert(fx.saved, { fire, fire.Size, fire.Heat })
+				fire.Size = 6
+				fire.Heat = 15
+			end
+		end
+	end
+
+	-- light pillar (Kaiju)
+	if levelIndex >= 5 then
+		local beam = fxPart(folder, pivot * CFrame.new(0, 16, 1) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(30, 3, 3))
+		beam.Shape = Enum.PartType.Cylinder
+		beam.Material = Enum.Material.Neon
+		beam.Color = th.Chevron
+		beam.Transparency = 0.6
+		fx.beam = beam
+	end
+
+	-- glow under the belt
+	local light = Instance.new("PointLight")
+	light.Color = th.Chevron
+	light.Range = 16
+	light.Brightness = 2
+	light.Parent = fxPart(folder, pivot * CFrame.new(0, 2.6, 0), Vector3.one)
+	fx.light = light
+
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and GLOW_NAMES[d.Name] then
+			table.insert(fx.glow, { d, d.Color })
+		end
+	end
+	st.fx = fx
+end
+
+local function stopFX(st)
+	local fx = st.fx
+	if not fx then
+		return
+	end
+	st.fx = nil
+	for _, s in fx.saved do
+		if s[1].Parent then
+			s[1].Size = s[2]
+			s[1].Heat = s[3]
+		end
+	end
+	for _, g in fx.glow do
+		if g[1].Parent then
+			g[1].Color = g[2]
+		end
+	end
+	for _, d in fx.folder:GetDescendants() do
+		if d:IsA("ParticleEmitter") then
+			d.Enabled = false -- let live particles finish
+		elseif d:IsA("PointLight") then
+			d.Enabled = false
+		end
+	end
+	if fx.beam then
+		fx.beam:Destroy()
+	end
+	Debris:AddItem(fx.folder, 1.2)
+end
+
+local function ringPulse(st)
+	local fx = st.fx
+	fx.ringToggle = not fx.ringToggle
+	local ring = fxPart(fx.folder, st.pivot * CFrame.new(0, 0.45, 0) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.15, 7, 7))
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Material = Enum.Material.Neon
+	ring.Color = fx.ringToggle and fx.theme.Chevron or fx.theme.Trim
+	ring.Transparency = 0.2
+	TweenService:Create(ring, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.15, 20 + fx.level * 2, 20 + fx.level * 2), Transparency = 1 }):Play()
+	Debris:AddItem(ring, 1)
+end
+
+local function updateFX(st, t)
+	local fx = st.fx
+	local k = (math.sin(t * (8 + fx.level * 1.5)) + 1) / 2
+	for _, g in fx.glow do
+		g[1].Color = g[2]:Lerp(Color3.new(1, 1, 1), k * 0.45)
+	end
+	fx.light.Brightness = 1.5 + k * 2.5
+	if t >= fx.nextRing then
+		fx.nextRing = t + math.max(0.4, 1.1 - fx.level * 0.14)
+		ringPulse(st)
+	end
+	if fx.beam then
+		fx.beam.Transparency = 0.5 + (1 - k) * 0.35
+		local w = 2.4 + k * 1
+		fx.beam.Size = Vector3.new(30, w, w)
+	end
+end
 
 -- ---------- treadmills ----------
 
@@ -234,6 +445,10 @@ local function watchPlot(plot)
 		end
 	end)
 	plot.ChildRemoved:Connect(function(child)
+		local st = treadmills[child]
+		if st then
+			stopFX(st)
+		end
 		treadmills[child] = nil
 	end)
 	local existing = plot:FindFirstChild("Treadmill")
@@ -297,10 +512,24 @@ end)
 
 RunService.RenderStepped:Connect(function(dt)
 	local t = os.clock()
+	local camPos = workspace.CurrentCamera.CFrame.Position
 	for model, st in treadmills do
 		if not model.Parent then
+			stopFX(st)
 			treadmills[model] = nil
 			continue
+		end
+		local running = model:GetAttribute("Runner") ~= nil and not st.ghost
+		local near = (st.pivot.Position - camPos).Magnitude < FX_RANGE
+		if running and near then
+			if not st.fx then
+				startFX(model, st)
+			end
+			if st.fx then
+				updateFX(st, t)
+			end
+		elseif st.fx then
+			stopFX(st)
 		end
 		if st.ghost then
 			local a = 0.25 + (math.sin(t * 2.5) + 1) * 0.2
