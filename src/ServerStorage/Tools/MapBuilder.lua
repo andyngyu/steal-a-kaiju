@@ -4,15 +4,17 @@
 --
 -- Runtime contract (attributes are the API):
 --   Map                          attribute SafeZoneX (bases side is x < SafeZoneX)
---   Map.Plots.Plot<n>            Model, PlotId=n, Side=-1|1. Children: Zone (invisible volume, PlotId), EntranceMat (Attachment "Entrance"), CollectPad (PlotId),
---                                NestPads/Pad<i> (PadIndex, PlotId), Arch/Board/SurfaceGui/OwnerLabel
+--   Map.Plots.Plot<n>            Model, PlotId, Side (-1|1), Color, PenOrigin (front-centre of the pen, see Shared.Util.PenGeometry).
+--                                Children: Zone (invisible, whole lot), EntranceMat (Attachment "Entrance"), CollectPad (PlotId),
+--                                Arch/Board (owner TextLabels), UpgradeSign (Board/SurfaceGui Title|Levels|PriceFrame.Price, Board.UpgradePrompt).
+--                                The pen fence ("Pen") is built at runtime by BaseService for the owner's level.
 --   Map.Lane.<BiomeId>           Model, BiomeId, Order, RecommendedSpeed. Children: Zone (invisible volume, BiomeId),
 --                                NestSite (Model; Center part has GuardianSpawn + EggSpawn<i> attachments)
 --   Map.Spawn.SpawnLocation, Map.Treadmill (Model, Treadmill=true, Belt)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 
-local Config = ReplicatedStorage.Shared.Config
+local Shared = ReplicatedStorage.Shared
 
 local function fresh(module)
 	local copy = module:Clone()
@@ -21,8 +23,9 @@ local function fresh(module)
 	return result
 end
 
-local MapConfig = fresh(Config.MapConfig)
-local BiomeConfig = fresh(Config.BiomeConfig)
+local MapConfig = fresh(Shared.Config.MapConfig)
+local BiomeConfig = fresh(Shared.Config.BiomeConfig)
+local PenGeometry = fresh(Shared.Util.PenGeometry)
 local C = MapConfig.Palette
 
 local MapBuilder = {}
@@ -79,26 +82,30 @@ local function invisible(name, parent, size, cframe, collide)
 	return p
 end
 
+local function label(parent, name, text, color, sizeY)
+	local l = Instance.new("TextLabel")
+	l.Name = name
+	l.Size = UDim2.new(1, 0, sizeY, 0)
+	l.BackgroundTransparency = 1
+	l.TextScaled = true
+	l.Font = Enum.Font.FredokaOne
+	l.TextColor3 = color or Color3.new(1, 1, 1)
+	l.TextStrokeTransparency = 0.2
+	l.Text = text
+	l.Parent = parent
+	return l
+end
+
 local function textGui(part, face, text, color, ppu)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = ppu or 40
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.TextScaled = true
-	label.Font = Enum.Font.FredokaOne
-	label.TextColor3 = color or Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.2
-	label.Text = text
-	label.Parent = gui
+	local l = label(gui, "Label", text, color, 1)
 	gui.Parent = part
-	return label
+	return l
 end
 
--- Checkerboard ground over a rectangle, tiles aligned to a global grid so neighbouring areas line up.
 local function checker(parent, x0, x1, z0, z1, colorA, colorB)
 	local T = MapConfig.TileSize
 	local ix0, ix1 = math.floor(x0 / T), math.ceil(x1 / T) - 1
@@ -115,7 +122,6 @@ local function checker(parent, x0, x1, z0, z1, colorA, colorB)
 	end
 end
 
--- Dirt cliff wall with a grass cap, like the reference lanes.
 local function cliff(name, parent, size, center, wallColor, capColor)
 	local m = Instance.new("Model")
 	m.Name = name
@@ -233,8 +239,7 @@ local function decorateBiome(parent, b, x0, x1, nestX, rng)
 	local decor = Instance.new("Folder")
 	decor.Name = "Decor"
 	decor.Parent = parent
-	local n = math.floor((x1 - x0) / 9)
-	for _ = 1, n do
+	for _ = 1, math.floor((x1 - x0) / 9) do
 		local p = spot()
 		if not p then
 			continue
@@ -268,117 +273,106 @@ end
 
 -- ---------- plots ----------
 
-local function fenceLine(parent, a, b, y, color)
-	-- rails between two ground points
-	local len = (b - a).Magnitude
-	if len < 0.5 then
-		return
+local function upgradeSign(model, frame, x, d)
+	local sign = Instance.new("Model")
+	sign.Name = "UpgradeSign"
+	local base = frame * CFrame.new(x, 0, -d)
+	local facePath = base * CFrame.Angles(0, math.rad(180), 0) -- Front face looks at the path
+	local navy = Color3.fromHex("1F2A44")
+	for _, sx in { -3.5, 3.5 } do
+		block("Post", sign, Vector3.new(1, 5, 1), facePath * CFrame.new(sx, 2.5, 0.3), navy)
 	end
-	local mid = (a + b) / 2
-	local cf = CFrame.lookAt(mid, b)
-	for _, h in { 1.2, 2.6 } do
-		block("Rail", parent, Vector3.new(0.35, 0.45, len), cf + Vector3.new(0, y + h, 0), color)
-	end
+	local board = block("Board", sign, Vector3.new(10, 6, 0.8), facePath * CFrame.new(0, 7, 0), navy, SIDES)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0.05, 0)
+	pad.PaddingRight = UDim.new(0.05, 0)
+	pad.PaddingTop = UDim.new(0.06, 0)
+	pad.PaddingBottom = UDim.new(0.08, 0)
+	pad.Parent = gui
+	local list = Instance.new("UIListLayout")
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.Padding = UDim.new(0.03, 0)
+	list.Parent = gui
+	label(gui, "Title", "Upgrade Pen", Color3.new(1, 1, 1), 0.3).LayoutOrder = 1
+	label(gui, "Levels", "Level 1 > Level 2", Color3.fromHex("6BE04A"), 0.22).LayoutOrder = 2
+	local priceFrame = Instance.new("Frame")
+	priceFrame.Name = "PriceFrame"
+	priceFrame.Size = UDim2.new(1, 0, 0.36, 0)
+	priceFrame.LayoutOrder = 3
+	priceFrame.BackgroundColor3 = Color3.fromHex("E02B2B")
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.15, 0)
+	corner.Parent = priceFrame
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 4
+	stroke.Color = Color3.fromHex("1A1033")
+	stroke.Parent = priceFrame
+	label(priceFrame, "Price", "$0", Color3.new(1, 1, 1), 1)
+	priceFrame.Parent = gui
+	gui.Parent = board
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "UpgradePrompt"
+	prompt.ActionText = "Upgrade Pen"
+	prompt.ObjectText = "Pen"
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = board
+	sign.PrimaryPart = board
+	sign.Parent = model
 end
 
-local function buildPlot(plots, id, side, cx, cz)
+local function buildPlot(plots, id, side, cx, frontZ)
 	local P = MapConfig.Plots
 	local color = P.Colors[id] or Color3.fromHex("CCCCCC")
 	local model = Instance.new("Model")
 	model.Name = "Plot" .. id
 	model:SetAttribute("PlotId", id)
 	model:SetAttribute("Side", side)
-
-	local W, D = P.Width, P.Depth
-	local frontZ = cz - side * D / 2 -- edge facing the path
-	local backZ = cz + side * D / 2
-	local x0, x1 = cx - W / 2, cx + W / 2
+	model:SetAttribute("Color", color)
+	model:SetAttribute("PenOrigin", Vector3.new(cx, 0, frontZ))
+	local frame = PenGeometry.Frame(model)
+	local function at(x, d, y)
+		return frame * CFrame.new(x, y or 0, -d)
+	end
 	local eh = P.EntranceWidth / 2
 
-	-- fence posts along the perimeter, skipping the entrance
-	local fence = Instance.new("Folder")
-	fence.Name = "Fence"
-	fence.Parent = model
-	local function post(x, z)
-		block("Post", fence, Vector3.new(0.9, P.FenceHeight + 0.4, 0.9), CFrame.new(x, (P.FenceHeight + 0.4) / 2, z), C.WoodDark)
-		block("Cap", fence, Vector3.new(1.2, 0.5, 1.2), CFrame.new(x, P.FenceHeight + 0.65, z), color)
-	end
-	local nx = math.max(1, math.round(W / P.PostSpacing))
-	local nz = math.max(1, math.round(D / P.PostSpacing))
-	for i = 0, nx do
-		local x = x0 + W * i / nx
-		post(x, backZ)
-		if math.abs(x - cx) > eh + 0.1 then
-			post(x, frontZ)
-		end
-	end
-	for j = 1, nz - 1 do
-		local z = frontZ + (backZ - frontZ) * j / nz
-		post(x0, z)
-		post(x1, z)
-	end
-	post(cx - eh, frontZ)
-	post(cx + eh, frontZ)
-	fenceLine(fence, Vector3.new(x0, 0, backZ), Vector3.new(x1, 0, backZ), 0, C.Wood)
-	fenceLine(fence, Vector3.new(x0, 0, frontZ), Vector3.new(x0, 0, backZ), 0, C.Wood)
-	fenceLine(fence, Vector3.new(x1, 0, frontZ), Vector3.new(x1, 0, backZ), 0, C.Wood)
-	fenceLine(fence, Vector3.new(x0, 0, frontZ), Vector3.new(cx - eh, 0, frontZ), 0, C.Wood)
-	fenceLine(fence, Vector3.new(cx + eh, 0, frontZ), Vector3.new(x1, 0, frontZ), 0, C.Wood)
+	local zone = invisible("Zone", model, Vector3.new(P.LotWidth, 24, P.LotDepth), at(0, P.LotDepth / 2, 12), false)
+	zone:SetAttribute("PlotId", id)
+	model.PrimaryPart = zone
 
-	-- entrance mat + arch with owner board
-	local mat = block("EntranceMat", model, Vector3.new(P.EntranceWidth, 0.2, 6), CFrame.new(cx, 0.1, frontZ + side * 3), color, TOP)
+	local mat = block("EntranceMat", model, Vector3.new(P.EntranceWidth, 0.2, 6), at(0, 3, 0.1), color, TOP)
 	local entrance = Instance.new("Attachment")
 	entrance.Name = "Entrance"
 	entrance.Position = Vector3.new(0, 0.1, 0)
 	entrance.Parent = mat
-	-- collect pad just inside the entrance (EconomyService moves pending cash into Cash when you stand on it)
-	local collect = block("CollectPad", model, Vector3.new(7, 0.5, 7), CFrame.new(cx - eh - 6, 0.25, frontZ + side * 7), Color3.fromHex("6BE04A"), TOP)
-	collect:SetAttribute("PlotId", id)
-	block("CollectRim", model, Vector3.new(8.2, 0.3, 8.2), CFrame.new(cx - eh - 6, 0.15, frontZ + side * 7), Color3.fromHex("FFD23F"))
-	local collectLabel = textGui(collect, Enum.NormalId.Top, "COLLECT", Color3.new(1, 1, 1), 30)
-	collectLabel.Rotation = side < 0 and 180 or 0
 
+	-- arch with owner board + coloured flags
 	local arch = Instance.new("Model")
 	arch.Name = "Arch"
 	for _, sx in { -1, 1 } do
-		block("Pillar", arch, Vector3.new(1.4, 10, 1.4), CFrame.new(cx + sx * (eh + 0.2), 5, frontZ), C.WoodDark)
+		block("Pillar", arch, Vector3.new(1.4, 11, 1.4), at(sx * (eh + 0.2), 0, 5.5), C.WoodDark)
+		block("Flag", arch, Vector3.new(0.2, 2.2, 3), at(sx * (eh + 0.2), 0, 12.1) * CFrame.new(0, 0, 1.6), color)
 	end
-	local board = block("Board", arch, Vector3.new(P.EntranceWidth + 2, 3, 0.8), CFrame.new(cx, 9, frontZ), color, SIDES)
-	local label = textGui(board, side < 0 and Enum.NormalId.Back or Enum.NormalId.Front, "PLOT " .. id)
-	label.Name = "OwnerLabel"
-	label.Parent.Name = "OwnerGui"
-	local inner = textGui(board, side < 0 and Enum.NormalId.Front or Enum.NormalId.Back, "PLOT " .. id)
-	inner.Name = "OwnerLabelInner"
+	local board = block("Board", arch, Vector3.new(P.EntranceWidth + 2, 3, 0.8), at(0, 0, 9), color, SIDES)
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		textGui(board, face, "PLOT " .. id)
+	end
 	arch.Parent = model
 
-	-- banner at the back corner
-	local bx = x1 - 2
-	block("BannerPole", model, Vector3.new(0.8, 18, 0.8), CFrame.new(bx, 9, backZ - side * 2), C.WoodDark)
-	block("Banner", model, Vector3.new(0.3, 5, 7), CFrame.new(bx, 15, backZ - side * 2 - side * 3.8), color)
+	-- collect pad just inside the entrance
+	local collect = block("CollectPad", model, Vector3.new(7, 0.5, 7), at(-(eh + 6), 7, 0.25), Color3.fromHex("6BE04A"), TOP)
+	collect:SetAttribute("PlotId", id)
+	block("CollectRim", model, Vector3.new(8.2, 0.3, 8.2), at(-(eh + 6), 7, 0.15), Color3.fromHex("FFD23F"))
+	local collectLabel = textGui(collect, Enum.NormalId.Top, "COLLECT", Color3.new(1, 1, 1), 30)
+	collectLabel.Rotation = 180
 
-	-- zone for delivery / ownership checks
-	local zone = invisible("Zone", model, Vector3.new(W, 24, D), CFrame.new(cx, 12, cz), false)
-	zone:SetAttribute("PlotId", id)
-
-	-- nest pads
-	local pads = Instance.new("Folder")
-	pads.Name = "NestPads"
-	pads.Parent = model
-	local np = P.NestPads
-	local padIndex = 0
-	for r = 0, np.Rows - 1 do
-		for c = 0, np.Columns - 1 do
-			padIndex += 1
-			local px = cx + (c - (np.Columns - 1) / 2) * np.Spacing
-			local pz = cz + side * (D / 2 - np.BackInset - r * np.Spacing)
-			block("PadRim", model, Vector3.new(np.Size + 1.2, 0.4, np.Size + 1.2), CFrame.new(px, 0.2, pz), color)
-			local pad = block("Pad" .. padIndex, pads, Vector3.new(np.Size, 0.6, np.Size), CFrame.new(px, 0.3, pz), C.Cream, TOP)
-			pad:SetAttribute("PadIndex", padIndex)
-			pad:SetAttribute("PlotId", id)
-		end
-	end
-
-	model.PrimaryPart = zone
+	upgradeSign(model, frame, eh + 9, -4)
 	model.Parent = plots
 end
 
@@ -392,14 +386,14 @@ function MapBuilder.Build()
 	local pathW = MapConfig.Path.Width
 	local rng = Random.new(MapConfig.DecorSeed)
 
-	local plotsEnd = P.FirstOffset + P.PerSide * P.Width + (P.PerSide - 1) * P.Gap
+	local plotsEnd = P.FirstOffset + P.PerSide * P.LotWidth + (P.PerSide - 1) * P.Gap
 	local laneStart = plotsEnd + L.GapAfterPlots
 	local laneLength = 0
 	for _, b in BiomeConfig.List do
 		laneLength += b.Length
 	end
 	local laneEnd = laneStart + laneLength
-	local plotFarZ = pathW / 2 + P.Setback + P.Depth
+	local plotFarZ = pathW / 2 + P.Setback + P.LotDepth
 	local hubHalfZ = math.max(plotFarZ, S / 2) + H.Margin
 	local westX = -S - H.Margin
 	local laneHalf = L.Width / 2
@@ -419,7 +413,6 @@ function MapBuilder.Build()
 
 	setupLighting()
 
-	-- ground
 	local ground = Instance.new("Folder")
 	ground.Name = "Ground"
 	ground.Parent = map
@@ -428,7 +421,6 @@ function MapBuilder.Build()
 	checker(ground, westX, laneStart, pathW / 2, hubHalfZ, C.GrassA, C.GrassB)
 	task.wait()
 
-	-- hub cliffs
 	local walls = Instance.new("Folder")
 	walls.Name = "Walls"
 	walls.Parent = map
@@ -440,30 +432,31 @@ function MapBuilder.Build()
 		cliff(s < 0 and "HubEastS" or "HubEastN", walls, Vector3.new(wt, wh, span + wt), Vector3.new(laneStart + wt / 2, wh / 2, s * (laneHalf + (span + wt) / 2)), C.Dirt, C.GrassCap)
 	end
 
-	-- bushes along the hub cliffs
 	local hubDecor = Instance.new("Folder")
 	hubDecor.Name = "HubDecor"
 	hubDecor.Parent = map
-	for i = 0, 7 do
-		local x = westX + 20 + i * ((laneStart - westX - 40) / 7)
+	for i = 0, 9 do
+		local x = westX + 20 + i * ((laneStart - westX - 40) / 9)
 		for _, s in { -1, 1 } do
-			bush(hubDecor, rng, Vector3.new(x + rng:NextNumber(-6, 6), 0, s * (hubHalfZ - 6)), Color3.fromHex("3FB52A"))
+			bush(hubDecor, rng, Vector3.new(x + rng:NextNumber(-6, 6), 0, s * (hubHalfZ - 7)), Color3.fromHex("3FB52A"))
 		end
 	end
 
-	-- spawn plaza + treadmill
 	local spawnFolder = Instance.new("Folder")
 	spawnFolder.Name = "Spawn"
 	spawnFolder.Parent = map
 	block("Plaza", spawnFolder, Vector3.new(S, 0.3, S), CFrame.new(-S / 2, 0.15, 0), MapConfig.SpawnPlaza.Color, TOP)
-	local spawn = workspace:FindFirstChild("SpawnLocation") or Instance.new("SpawnLocation")
+	local spawn = Instance.new("SpawnLocation")
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Size = Vector3.new(12, 1, 12)
-	spawn.Transparency = 0
 	local spawnPos = Vector3.new(-S / 2, 0.8, 0)
 	spawn.CFrame = CFrame.lookAt(spawnPos, spawnPos + Vector3.xAxis)
 	spawn.Parent = spawnFolder
+	local stray = workspace:FindFirstChild("SpawnLocation")
+	if stray then
+		stray:Destroy()
+	end
 
 	local tm = Instance.new("Model")
 	tm.Name = "Treadmill"
@@ -477,7 +470,6 @@ function MapBuilder.Build()
 	tm.Parent = map
 	task.wait()
 
-	-- plots
 	local plots = Instance.new("Folder")
 	plots.Name = "Plots"
 	plots.Parent = map
@@ -486,20 +478,18 @@ function MapBuilder.Build()
 	for _, side in { -1, 1 } do
 		for i = 0, P.PerSide - 1 do
 			id += 1
-			local cx = P.FirstOffset + P.Width / 2 + i * (P.Width + P.Gap)
-			local cz = side * (pathW / 2 + P.Setback + P.Depth / 2)
-			buildPlot(plots, id, side, cx, cz)
-			entrances[id] = Vector3.new(cx, 0, cz - side * P.Depth / 2)
+			local cx = P.FirstOffset + P.LotWidth / 2 + i * (P.LotWidth + P.Gap)
+			local frontZ = side * (pathW / 2 + P.Setback)
+			buildPlot(plots, id, side, cx, frontZ)
+			entrances[id] = Vector3.new(cx, 0, frontZ)
 		end
 		task.wait()
 	end
 
-	-- safe zone line
-	local safe = block("SafeZoneLine", map, Vector3.new(4, 0.3, L.Width), CFrame.new(laneStart - 2, 0.15, 0), MapConfig.Palette.Cream)
+	local safe = block("SafeZoneLine", map, Vector3.new(4, 0.3, L.Width), CFrame.new(laneStart - 2, 0.15, 0), C.Cream)
 	local safeLabel = textGui(safe, Enum.NormalId.Top, "SAFE ZONE", Color3.fromHex("3FA9FF"), 20)
 	safeLabel.Rotation = -90
 
-	-- biome lane
 	local lane = Instance.new("Folder")
 	lane.Name = "Lane"
 	lane.Parent = map
@@ -563,8 +553,7 @@ function MapBuilder.Build()
 	local speed = MapConfig.StartingWalkSpeed
 	local timings = {}
 	for pid, e in entrances do
-		local d = math.abs(e.Z) + (firstNestX - e.X)
-		timings["Plot" .. pid] = math.round(d / speed * 10) / 10
+		timings["Plot" .. pid] = math.round((math.abs(e.Z) + (firstNestX - e.X)) / speed * 10) / 10
 	end
 	local count = 0
 	for _, d in map:GetDescendants() do
@@ -572,13 +561,7 @@ function MapBuilder.Build()
 			count += 1
 		end
 	end
-	return {
-		laneStart = laneStart,
-		laneEnd = laneEnd,
-		firstNestX = firstNestX,
-		secondsToFirstNest = timings,
-		partCount = count,
-	}
+	return { laneStart = laneStart, firstNestX = firstNestX, secondsToFirstNest = timings, partCount = count }
 end
 
 return MapBuilder
