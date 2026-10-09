@@ -4,6 +4,7 @@
 -- Model = name under ServerStorage.Assets.Kaiju; until it exists a blocky placeholder is built from Archetype/Color/Accent.
 -- Species is rolled when an egg lands in a pen (from eggs of the same biome + rarity), so HatchSeconds is per species.
 -- Scale is a per-species art tweak only; rarity (EggConfig KaijuScale) and the size roll handle how big a kaiju looks.
+-- How each kaiju moves (gait/emotes) lives on the brick models (Tools.KaijuSpecs -> Gameplay.KaijuMotion).
 local hex = Color3.fromHex
 
 export type Kaiju = {
