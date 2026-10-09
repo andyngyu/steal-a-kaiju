@@ -278,6 +278,18 @@ function HatchService:GiveEgg(player, biomeId, rarityId, size)
 	return id
 end
 
+-- Builds the pen model for a saved entry and registers it: an egg at its X/D (tossed in from dropFrom if given), a
+-- kaiju at `position` or a random spot. Used on join and when a stolen item comes home or is delivered (StealService).
+function HatchService:SpawnItem(player, id, entry, position, dropFrom)
+	if entry.Kind == "Egg" then
+		local egg = EggModel.Build(entry.BiomeId, entry.Rarity, id, entry.Size)
+		showEgg(player, id, egg, entry, dropFrom)
+		return BaseService:SetItem(player, id, egg, entry)
+	end
+	local spot = position or BaseService:RandomSpot(player, BaseConfig.Wander.Inset)
+	return BaseService:SetItem(player, id, KaijuService:Spawn(player, id, entry, spot, false), entry)
+end
+
 local function restore(player, data)
 	if not BaseService:GetPlot(player) then
 		return
@@ -288,14 +300,7 @@ local function restore(player, data)
 			data.Pen.Items[id] = nil
 			continue
 		end
-		if entry.Kind == "Egg" then
-			local egg = EggModel.Build(entry.BiomeId, entry.Rarity, id, entry.Size)
-			showEgg(player, id, egg, entry, nil)
-			BaseService:SetItem(player, id, egg, entry)
-		else
-			local spot = BaseService:RandomSpot(player, BaseConfig.Wander.Inset)
-			BaseService:SetItem(player, id, KaijuService:Spawn(player, id, entry, spot, false), entry)
-		end
+		HatchService:SpawnItem(player, id, entry)
 	end
 	log("restored pen for", player.Name)
 end

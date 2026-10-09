@@ -41,7 +41,7 @@ end
 function EconomyService:GetCashPerSecond(player)
 	local total = 0
 	BaseService:ForEachItem(player, function(_, entry)
-		if entry.Kind == "Kaiju" then
+		if entry.Kind == "Kaiju" and not entry.StolenBy then -- a kaiju being carried off earns nothing
 			total += KaijuStats.EntryCashPerSecond(entry)
 		end
 	end)

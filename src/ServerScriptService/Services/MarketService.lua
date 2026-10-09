@@ -2,7 +2,8 @@
 --   Remotes.SellKaiju (kaijuId): sells one of your kaiju for KaijuStats.SellPrice (income x EconomyConfig.SellMultiplier).
 --     Used by the UI's Sell panel; the Sell stall's pad/prompt opens that panel (Gameplay.MarketFX).
 --   Remotes.TeleportToShop (): to the market (the UI's BUY button). Remotes.TeleportToBase (): to your pen's entrance,
---     only from the bases side of Map.SafeZoneX (the UI's BASE button). Neither works while carrying an egg.
+--     only from the bases side of Map.SafeZoneX (the UI's BASE button). Neither works while carrying an egg or stolen
+--     goods (StealService: no teleporting home with loot).
 -- GameEvent: KaijuSold {KaijuId, OwnerUserId, Species, Price, Position} (to every client, for the coin burst),
 --   CantTeleport {Reason = "Carrying" | "SafeZone"}.
 local Players = game:GetService("Players")
@@ -31,7 +32,7 @@ end
 function MarketService:Sell(player, kaijuId)
 	local data = DataService:Get(player)
 	local entry, model = BaseService:GetItem(player, kaijuId)
-	if not (data and entry and entry.Kind == "Kaiju") then
+	if not (data and entry and entry.Kind == "Kaiju") or entry.StolenBy then
 		return false
 	end
 	local price = KaijuStats.SellPrice(entry.Species, entry.Size, entry.Level)
@@ -60,7 +61,7 @@ local function canTeleport(player)
 	if lastTeleport[player] and now - lastTeleport[player] < TELEPORT_COOLDOWN then
 		return false
 	end
-	if player:GetAttribute("CarryingEgg") then
+	if player:GetAttribute("CarryingEgg") or player:GetAttribute("CarryingStolen") then
 		gameEvent:FireClient(player, "CantTeleport", { Reason = "Carrying" })
 		return false
 	end

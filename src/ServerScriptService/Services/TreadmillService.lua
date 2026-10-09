@@ -98,7 +98,7 @@ function TreadmillService:BeginRun(player, plot)
 	if model:GetAttribute("Runner") then
 		return
 	end
-	if player:GetAttribute("CarryingEgg") then
+	if player:GetAttribute("CarryingEgg") or player:GetAttribute("CarryingStolen") then
 		gameEvent:FireClient(player, "TreadmillCarrying", {})
 		return
 	end

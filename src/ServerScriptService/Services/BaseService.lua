@@ -1,7 +1,8 @@
 -- Plots and pens: assigns a plot per player, builds the pen fence for the owner's level, handles Upgrade Pen,
 -- and keeps the registry of what's in each pen (saved in data.Pen.Items, models kept in sync here).
 -- Player attributes: PlotId, PenLevel, PenCount, PenCapacity (level capacity + BonusPenCapacity, a perk set by
--- GamePassService). Plot attributes: OwnerUserId, PenLevel.
+-- GamePassService). Plot attributes: OwnerUserId, PenLevel (+ StealService's LockedUntil, LockCooldownUntil,
+-- ProtectedUntil, cleared when the plot is released).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -132,6 +133,9 @@ local function release(player)
 	ownerOf[plot] = nil
 	plotOf[player] = nil
 	plot:SetAttribute("OwnerUserId", nil)
+	for _, attr in { "LockedUntil", "LockCooldownUntil", "ProtectedUntil" } do
+		plot:SetAttribute(attr, nil)
+	end
 	setOwnerLabels(plot, "PLOT " .. plot:GetAttribute("PlotId"))
 	buildPen(plot, 1)
 	updateSign(plot, nil)
@@ -339,6 +343,15 @@ function BaseService:SetItem(player, id, model, entry)
 	data.Pen.Items[id] = entry
 	publishCounts(player)
 	return true
+end
+
+-- Takes an item's model out of the world but keeps it in the save (StealService: it's being carried off).
+function BaseService:DetachModel(player, id)
+	local models = itemModels[player]
+	if models and models[id] then
+		models[id]:Destroy()
+		models[id] = nil
+	end
 end
 
 function BaseService:RemoveItem(player, id)

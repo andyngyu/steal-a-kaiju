@@ -276,7 +276,7 @@ end
 function FoodService:Feed(player, kaijuId, foodId, count)
 	local data = DataService:Get(player)
 	local entry, model = BaseService:GetItem(player, kaijuId)
-	if not (data and entry and entry.Kind == "Kaiju") then
+	if not (data and entry and entry.Kind == "Kaiju") or entry.StolenBy then
 		return false
 	end
 	entry.Level = entry.Level or 1

@@ -17,6 +17,7 @@ local BaseConfig = require(Config.BaseConfig)
 local BiomeConfig = require(Config.BiomeConfig)
 local MapConfig = require(Config.MapConfig)
 local DevConfig = require(Config.DevConfig)
+local StealConfig = require(Config.StealConfig)
 
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 
@@ -116,7 +117,12 @@ local function applyWalkSpeed(player)
 		return
 	end
 	local base = player:GetAttribute("BaseWalkSpeed") or MapConfig.StartingWalkSpeed
-	hum.WalkSpeed = carried[player] and base * EggConfig.Carry.SpeedMultiplier or base
+	if carried[player] then
+		base *= EggConfig.Carry.SpeedMultiplier
+	elseif player:GetAttribute("CarryingStolen") then -- StealService: running home with stolen goods
+		base *= StealConfig.CarrySpeedMultiplier
+	end
+	hum.WalkSpeed = base
 end
 
 local function clearCarry(player)
@@ -168,6 +174,9 @@ function EggService:Start()
 		player:GetAttributeChangedSignal("BaseWalkSpeed"):Connect(function()
 			applyWalkSpeed(player)
 		end)
+		player:GetAttributeChangedSignal("CarryingStolen"):Connect(function()
+			applyWalkSpeed(player)
+		end)
 		player.CharacterAdded:Connect(function(char)
 			local hum = char:WaitForChild("Humanoid")
 			applyWalkSpeed(player)
@@ -199,7 +208,7 @@ function EggService:TryPickup(player, egg)
 	if state ~= "Nest" and state ~= "Ground" then
 		return false
 	end
-	if carried[player] then
+	if carried[player] or player:GetAttribute("CarryingStolen") then
 		return false
 	end
 	local now = os.clock()
