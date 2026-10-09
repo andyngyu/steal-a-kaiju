@@ -761,6 +761,10 @@ local function updateKaiju(model, st, dt, t, camPos)
 		st.nextPopup = os.clock() + BaseConfig.IncomePopupSeconds
 		local cps = model:GetAttribute("CashPerSecond")
 		if cps and dist < POPUP_RANGE and model.PrimaryPart then
+			-- the owner's x2 Cash pass (CashMultiplier) multiplies what the kaiju really earns
+			local owner = Players:GetPlayerByUserId(model:GetAttribute("OwnerUserId") or 0)
+			local mult = owner and owner:GetAttribute("CashMultiplier")
+			cps *= type(mult) == "number" and mult > 0 and mult or 1
 			cashPopup(model.PrimaryPart, st.rig.size.Y + 2.4, cps * BaseConfig.IncomePopupSeconds)
 		end
 	end

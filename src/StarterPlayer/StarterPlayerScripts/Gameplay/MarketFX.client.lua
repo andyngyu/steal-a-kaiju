@@ -8,7 +8,10 @@
 --             EatAt on the kaiju (KaijuFX plays its Eat emote), "+XP" popup; level-ups get a burst + "LEVEL n!" banner
 --             on the rebuilt model (attribute LeveledAt)
 --   selling:  GameEvent KaijuSold -> coin burst + "+$" popup where the kaiju stood
---   toasts:   market events become toasts through the UI's UIApi.Toast (until the UI handles GameEvent itself)
+--   perks:    GameEvent EggLucky -> gold burst + "LUCKY!" and what changed on the upgraded egg; EggGiven -> a store egg
+--             falls into the pen and lands in a light pillar with "BONUS EGG!"
+--   toasts:   GameEvent toasts belong to the UI (KaijuUI NotificationsController); only FoodBought, which it doesn't
+--             cover, toasts from here
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -18,7 +21,7 @@ local Debris = game:GetService("Debris")
 local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local FoodConfig = require(Config.FoodConfig)
 local TrailConfig = require(Config.TrailConfig)
-local KaijuConfig = require(Config.KaijuConfig)
+local EggConfig = require(Config.EggConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameEvent = remotes:WaitForChild("GameEvent")
@@ -477,7 +480,95 @@ local function coins(pos, price)
 	popup(pos, Vector3.new(0, 3, 0), "+" .. Format.Money(price), Color3.fromHex("6BE04A"), 1.8, 1.6)
 end
 
--- Market toasts (shown through the UI's toast system).
+-- ---------- store perks: lucky and gifted eggs ----------
+
+local function findEgg(itemId)
+	local t0 = os.clock()
+	while os.clock() - t0 < 4 do
+		for _, m in eggFolder:GetChildren() do
+			if m:GetAttribute("ItemId") == itemId and m.PrimaryPart then
+				return m
+			end
+		end
+		task.wait(0.1)
+	end
+	return nil
+end
+
+local function rarityColor(id)
+	local r = EggConfig.RarityById[id or ""]
+	return r and r.Color or Color3.new(1, 1, 1)
+end
+
+local function lightPillar(ground, color, width, height, duration)
+	local p = Instance.new("Part")
+	p.Shape = Enum.PartType.Cylinder
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Material = Enum.Material.Neon
+	p.Color = color
+	p.Transparency = 0.25
+	p.Size = Vector3.new(height, width, width)
+	p.CFrame = CFrame.new(ground + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	p.Parent = fxFolder
+	TweenService:Create(p, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = Vector3.new(height, 0.1, 0.1), Transparency = 1 }):Play()
+	Debris:AddItem(p, duration + 0.1)
+end
+
+-- Egg luck upgraded an egg as it landed in the pen.
+local function onEggLucky(data)
+	local egg = findEgg(data.ItemId)
+	if not egg then
+		return
+	end
+	task.wait(0.55) -- KaijuFX's toss arc lands first
+	local shell = egg.PrimaryPart
+	if not (egg.Parent and shell) then
+		return
+	end
+	local h = shell.Size.Y
+	local ground = shell.Position - Vector3.new(0, h / 2 - 0.15, 0)
+	local gold = Color3.fromHex("FFD84A")
+	local color = rarityColor(data.ToRarity)
+	ring(ground, gold, 8 + h * 2, 0.6)
+	task.delay(0.12, ring, ground, color, 12 + h * 3, 0.75)
+	burst(shell.Position, gold, 40, 14, 0.8)
+	burst(shell.Position, color, 30, 10, 0.6)
+	popup(shell, Vector3.new(0, h / 2 + 4.2, 0), "LUCKY!", gold, 3, 3)
+	local detail
+	if data.ToRarity ~= data.FromRarity then
+		detail = string.upper(tostring(data.FromRarity)) .. " > " .. string.upper(tostring(data.ToRarity))
+	else
+		detail = string.format("SIZE %.2fx > %.2fx", tonumber(data.FromSize) or 1, tonumber(data.ToSize) or 1)
+	end
+	task.delay(0.2, popup, shell, Vector3.new(0, h / 2 + 1.8, 0), detail, color, 1.9, 3)
+end
+
+-- A store egg (HatchService:GiveEgg) fell into the pen.
+local function onEggGiven(data)
+	local egg = findEgg(data.ItemId)
+	if not egg then
+		return
+	end
+	task.wait(0.5) -- KaijuFX drops it from the sky first
+	local shell = egg.PrimaryPart
+	if not (egg.Parent and shell) then
+		return
+	end
+	local h = shell.Size.Y
+	local ground = shell.Position - Vector3.new(0, h / 2 - 0.15, 0)
+	local color = rarityColor(data.Rarity)
+	lightPillar(ground, color, h * 1.3, 60, 2.4)
+	ring(ground, color, 10 + h * 2, 0.6)
+	task.delay(0.12, ring, ground, Color3.new(1, 1, 1), 16 + h * 3, 0.75)
+	burst(shell.Position, color, 50, 16, 0.9)
+	popup(shell, Vector3.new(0, h / 2 + 3.6, 0), "BONUS EGG!", Color3.fromHex("FFD84A"), 3.2, 3.2)
+end
+
+-- Gameplay moments. Their toasts are the UI's (NotificationsController); FoodBought has no UI toast, so it's shown here.
 local function onEvent(kind, data)
 	data = type(data) == "table" and data or {}
 	if kind == "KaijuFed" then
@@ -486,10 +577,10 @@ local function onEvent(kind, data)
 		if data.Position and (data.Position - workspace.CurrentCamera.CFrame.Position).Magnitude < FX_RANGE then
 			coins(data.Position, data.Price or 0)
 		end
-		if data.OwnerUserId == player.UserId then
-			local cfg = KaijuConfig[data.Species or ""]
-			toast("Sold " .. (cfg and cfg.DisplayName or "kaiju") .. " for " .. Format.Money(data.Price or 0) .. "!", "info")
-		end
+	elseif kind == "EggLucky" then
+		task.spawn(onEggLucky, data)
+	elseif kind == "EggGiven" then
+		task.spawn(onEggGiven, data)
 	elseif kind == "FoodBought" then
 		local food = FoodConfig.ById[data.FoodId or ""]
 		if food then
@@ -500,17 +591,6 @@ local function onEvent(kind, data)
 				burst(item.PrimaryPart.Position + Vector3.new(0, 0.6, 0), food.Color, 14, 6, 0.4)
 			end
 		end
-	elseif kind == "NoFood" then
-		toast("No food! Buy some at the Kaiju Food stall in the market.", "warn")
-	elseif kind == "KaijuMaxLevel" then
-		toast("This kaiju is already max level!", "warn")
-	elseif kind == "NotEnoughCash" then
-		toast("Not enough cash! You need " .. Format.Money(data.Cost or 0) .. ".", "error")
-	elseif kind == "TrailBought" then
-		local trail = TrailConfig.ById[data.Id or ""]
-		toast("Unlocked the " .. (trail and trail.DisplayName or "new") .. " trail!", "info")
-	elseif kind == "CantTeleport" then
-		toast(data.Reason == "Carrying" and "Drop your egg in your pen first!" or "You can only do that from the bases side!", "error")
 	end
 end
 gameEvent.OnClientEvent:Connect(onEvent)
