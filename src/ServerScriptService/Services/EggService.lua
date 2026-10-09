@@ -121,6 +121,8 @@ local function applyWalkSpeed(player)
 		base *= EggConfig.Carry.SpeedMultiplier
 	elseif player:GetAttribute("CarryingStolen") then -- StealService: running home with stolen goods
 		base *= StealConfig.CarrySpeedMultiplier
+	elseif player:GetAttribute("Stealing") then -- StealService: holding a steal
+		base *= StealConfig.HoldSpeedMultiplier
 	end
 	hum.WalkSpeed = base
 end
@@ -175,6 +177,9 @@ function EggService:Start()
 			applyWalkSpeed(player)
 		end)
 		player:GetAttributeChangedSignal("CarryingStolen"):Connect(function()
+			applyWalkSpeed(player)
+		end)
+		player:GetAttributeChangedSignal("Stealing"):Connect(function()
 			applyWalkSpeed(player)
 		end)
 		player.CharacterAdded:Connect(function(char)

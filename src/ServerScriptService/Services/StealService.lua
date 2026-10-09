@@ -1,29 +1,40 @@
 -- Player stealing and base defense (numbers in Shared.Config.StealConfig).
---   Stealing: every pen egg and kaiju has a StealPrompt (hold E) that only other players see. Gameplay.StealFX shows
---             it and sends Remotes.Steal (ownerUserId, itemId) - kaiju move only on clients, so the trigger is
---             client-side. The server checks that the thief stands inside the owner's pen within Reach of the item
---             (kaiju: its logical position), isn't carrying anything or stunned, has room at home, the base isn't
---             locked or protected, the item isn't hatching, already being stolen or freshly hatched, and the cooldown.
+--   Stealing: every pen egg and kaiju has a StealPrompt (hold E) that only other players see. Its HoldDuration is
+--             StealConfig.HoldTime(rarity, size, level): 2.5 s for a plain Common up to 10 s for a big Secret.
+--             Gameplay.StealFX sends Remotes.Steal (ownerUserId, itemId, "Begin") when the hold starts,
+--             (ownerUserId, itemId, "Cancel") if it's let go and (ownerUserId, itemId) when it completes. The server
+--             times the hold itself (a completion that comes too early is refused) and checks at the start, every
+--             0.2 s and at the end that the thief stays inside the owner's pen within reach of the item (kaiju: its
+--             logical position), isn't carrying anything or stunned and has room at home, that the base isn't locked
+--             or protected, the item isn't hatching, freshly hatched or being stolen by someone else, and the
+--             cooldown. The owner is warned the moment a hold starts; a thief holding a steal barely moves
+--             (HoldSpeedMultiplier, EggService) and can be tackled; a kaiju being grabbed stands still and struggles.
 --   Carrying: the item stays in the owner's save marked StolenBy (cleared on load) while the thief carries a copy over
---             their head (an egg as itself, a kaiju shrunk to CarriedKaijuHeight) and runs slower. It only moves to the
---             thief when they walk into their own pen, so dying, being tackled, leaving or the owner leaving can never
---             duplicate or lose it: the item just goes home. A delivery faster than MaxDeliverySpeed counts as a
---             teleport and the item goes home too.
---   Defense:  anyone can tackle a carrier (client prompt on the thief -> Remotes.Tackle (userId)): the item goes home,
---             the thief is stunned and knocked back. Owners lock their base with the LockButton in the pen (or
---             Remotes.LockBase) for Lock.Seconds: no steals, other players inside are pushed out; then a cooldown.
---             After a theft the victim's base is protected for ProtectAfterTheftSeconds.
+--             their head (an egg as itself, a kaiju shrunk to CarriedKaijuHeight; Gameplay.CarryPose holds it up)
+--             and runs slower (CarrySpeedMultiplier). It only moves to the thief when they walk into their own pen,
+--             so dying, being tackled, leaving or the owner leaving can never duplicate or lose it: the item just goes
+--             home. A carrier who covers more ground than their server-side WalkSpeed allows (a teleport or speed
+--             hack; SpeedTolerance, SpeedSlackStuds) loses it too.
+--   Defense:  anyone can tackle a thief who is holding a steal or carrying (client prompt on the thief ->
+--             Remotes.Tackle (userId)): the steal stops or the item goes home, and the thief is ragdolled
+--             (Lib.Ragdoll), knocked back and stunned for Tackle.StunSeconds. Owners lock their base with the
+--             LockButton in the pen (or Remotes.LockBase) for Lock.Seconds: no steals, other players inside are pushed
+--             out; then a cooldown. After a theft the victim's base is protected for ProtectAfterTheftSeconds.
 -- Plot attributes: LockedUntil, LockCooldownUntil, ProtectedUntil (server time). Plot child LockButton (Model, Button
 --   part with LockPrompt).
--- Player attributes: CarryingStolen (item name), CarryingStolenFrom (owner's display name), StunnedUntil.
--- GameEvent (item events all carry Kind "Egg" | "Kaiju", Name and Rarity): StealStarted {Owner} / BeingStolen {Thief},
---   StealDelivered {Owner} / Stolen {Thief, ProtectedSeconds}, StealReturned {Reason, By, ByUserId} (thief) /
---   ItemRecovered {Reason, By, ByUserId} (owner) with Reason "Tackled" | "Died" | "Left" | "OwnerLeft" | "TooFast";
---   TackleLanded {Thief}, StealDenied {Reason = "Busy" | "Locked" | "Protected" | "NotInPen" | "JustHatched" | "TooFar"
---   | "PenFull"}, BaseLocked {Seconds}, BaseUnlocked {}, LockDenied {Reason = "Locked" | "Cooldown", Seconds},
---   PushedOut {Owner}, Intruder {Name}.
+-- Player attributes: Stealing (name of the item being held), CarryingStolen (item name), CarryingStolenFrom (owner's
+--   display name), StunnedUntil. Character attribute RagdollUntil (Lib.Ragdoll).
+-- Item model attributes while a steal is held: StealBy (thief's UserId), StealStart (server time), StealSeconds.
+-- GameEvent (item events all carry Kind "Egg" | "Kaiju", Name and Rarity): StealBegan {Thief, Seconds} (owner),
+--   StealCancelled {Reason = "Moved" | "Locked" | "Tackled", By} (thief), StealStarted {Owner} / BeingStolen {Thief}
+--   (carry begins), StealDelivered {Owner} / Stolen {Thief, ProtectedSeconds}, StealReturned {Reason, By, ByUserId}
+--   (thief) / ItemRecovered {Reason, By, ByUserId} (owner) with Reason "Tackled" | "Died" | "Left" | "OwnerLeft" |
+--   "TooFast" | "Stopped" (a hold was tackled); TackleLanded {Thief, Stopped}, StealDenied {Reason = "Busy" | "Locked"
+--   | "Protected" | "NotInPen" | "JustHatched" | "TooFar" | "PenFull" | "Contested"}, BaseLocked {Seconds},
+--   BaseUnlocked {}, LockDenied {Reason = "Locked" | "Cooldown", Seconds}, PushedOut {Owner}, Intruder {Name}.
 -- Studio only: DevConfig.AllowSelfSteal lets a solo tester steal from their own pen (delivered after leaving and coming
---   back in); StealService:ReturnForTesting(player) simulates a tackle.
+--   back in); StealForTesting(thief, owner, id) holds and completes a steal; ReturnForTesting(player) and
+--   RagdollForTesting(player) stand in for a tackle.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -39,6 +50,7 @@ local DevConfig = require(Config.DevConfig)
 local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
 local EggModel = require(ServerScriptService.Lib.EggModel)
 local KaijuModel = require(ServerScriptService.Lib.KaijuModel)
+local Ragdoll = require(ServerScriptService.Lib.Ragdoll)
 
 local DataService = require(script.Parent.DataService)
 local BaseService = require(script.Parent.BaseService)
@@ -50,7 +62,8 @@ local IndexService = require(script.Parent.IndexService)
 local StealService = {}
 
 local gameEvent
-local carrying = {} -- [thief] = { owner, id, kind, name, model, startedAt, startPos, leftHome }
+local holding = {} -- [thief] = { owner, id, kind, name, rarity, model, need, startedAt }
+local carrying = {} -- [thief] = { owner, id, kind, name, rarity, model, startedAt, lastPos, travelled, topSpeed, leftHome }
 local lastSteal, lastTackle, lastPush = {}, {}, {}
 local lastAlert = {} -- [owner] = { [intruder] = os.clock() }
 
@@ -138,7 +151,7 @@ local function unanchor(model, weldTo)
 	end
 end
 
--- A copy of the pen egg, carried like a nest egg (Gameplay.KaijuFX bobs a character's "Egg" with a CarryWeld).
+-- A copy of the pen egg, carried like a nest egg (Gameplay.CarryPose bobs a character's "Egg" by its CarryWeld).
 local function carryEgg(entry, id, hrp)
 	local egg = EggModel.Build(entry.BiomeId, entry.Rarity, id, entry.Size)
 	egg.Name = "Egg"
@@ -160,7 +173,7 @@ local function carryEgg(entry, id, hrp)
 	return egg
 end
 
--- The kaiju shrunk to about CarriedKaijuHeight, held over the head (Gameplay.StealFX bobs it).
+-- The kaiju shrunk to about CarriedKaijuHeight, held over the head (Gameplay.CarryPose bobs it by its CarryWeld).
 local function carryKaiju(entry, hrp)
 	local m = KaijuModel.Build(entry.Species, entry.Size or 1, entry.Level, entry.XP)
 	m.Name = "StolenKaiju"
@@ -222,76 +235,167 @@ function StealService:Return(thief, reason, by)
 	return true
 end
 
--- Studio testing: as if the carrier was tackled.
-function StealService:ReturnForTesting(player)
-	if DevConfig.InStudio then
-		return self:Return(player, "Tackled")
-	end
-	return false
-end
-
 function StealService:IsCarrying(player)
 	return carrying[player] ~= nil
 end
 
-function StealService:TrySteal(thief, owner, id)
-	local function deny(reason)
-		gameEvent:FireClient(thief, "StealDenied", { Reason = reason })
-		return false
-	end
+-- ---------- holding a steal ----------
+
+-- Every rule a steal must pass, when the hold starts, while it runs and when it completes. Returns entry, model, hrp,
+-- or nil, nil, nil and the reason to tell the thief ("" = say nothing). `slack` widens the reach while holding.
+local function check(thief, owner, id, slack)
 	if not (owner and owner.Parent == Players and DataService:Get(owner) and DataService:Get(thief)) then
-		return false
+		return nil, nil, nil, ""
 	end
-	if owner == thief and not DevConfig.AllowSelfSteal then
-		return false
-	end
-	local t = os.clock()
-	if lastSteal[thief] and t - lastSteal[thief] < StealConfig.CooldownSeconds then
-		return false
+	if (owner == thief and not DevConfig.AllowSelfSteal) or not BaseService:GetPlot(thief) then
+		return nil, nil, nil, ""
 	end
 	if carrying[thief] or thief:GetAttribute("CarryingEgg") then
-		return deny("Busy")
+		return nil, nil, nil, "Busy"
 	end
 	if (thief:GetAttribute("StunnedUntil") or 0) > serverNow() then
-		return false
+		return nil, nil, nil, ""
 	end
 	local hrp = hrpOf(thief)
 	local entry, model = BaseService:GetItem(owner, id)
 	if not (hrp and entry and model) or entry.StolenBy then
-		return false
+		return nil, nil, nil, ""
 	end
 	if isLocked(owner) then
-		return deny("Locked")
+		return nil, nil, nil, "Locked"
 	end
 	if plotUntil(owner, "ProtectedUntil") > serverNow() then
-		return deny("Protected")
+		return nil, nil, nil, "Protected"
 	end
 	if not inPen(owner, hrp.Position, 2) then
-		return deny("NotInPen")
+		return nil, nil, nil, "NotInPen"
 	end
 	local itemPos, radius
 	if entry.Kind == "Kaiju" then
 		if entry.HatchedAt and os.time() - entry.HatchedAt < StealConfig.NewHatchProtectionSeconds then
-			return deny("JustHatched")
+			return nil, nil, nil, "JustHatched"
 		end
 		itemPos = KaijuService:GetPosition(model)
 		local _, ext = model:GetBoundingBox()
 		radius = math.max(ext.X, ext.Z) / 2
 	else
 		if model:GetAttribute("HatchStartedAt") then
-			return false
+			return nil, nil, nil, ""
 		end
 		itemPos = model.PrimaryPart.Position
 		radius = model.PrimaryPart.Size.X / 2
 	end
 	local gap = Vector3.new(hrp.Position.X - itemPos.X, 0, hrp.Position.Z - itemPos.Z).Magnitude - radius
-	if gap > StealConfig.Reach then
-		return deny("TooFar")
+	if gap > StealConfig.Reach + (slack or 0) then
+		return nil, nil, nil, "TooFar"
 	end
 	if owner ~= thief and not BaseService:HasRoom(thief) then
-		return deny("PenFull")
+		return nil, nil, nil, "PenFull"
 	end
-	lastSteal[thief] = t
+	return entry, model, hrp, nil
+end
+
+local function clearHold(thief)
+	local h = holding[thief]
+	holding[thief] = nil
+	if not h then
+		return nil
+	end
+	if h.model.Parent and h.model:GetAttribute("StealBy") == thief.UserId then
+		h.model:SetAttribute("StealBy", nil)
+		h.model:SetAttribute("StealStart", nil)
+		h.model:SetAttribute("StealSeconds", nil)
+	end
+	if thief.Parent then
+		thief:SetAttribute("Stealing", nil)
+	end
+	return h
+end
+
+-- A hold that didn't finish. reason: "Released" | "Moved" | "Locked" | "Tackled" | "Left".
+function StealService:CancelSteal(thief, reason, by)
+	local h = clearHold(thief)
+	if not h then
+		return false
+	end
+	if h.kind == "Kaiju" and h.model.Parent then
+		KaijuService:Resume(h.model)
+	end
+	if thief.Parent == Players and reason ~= "Released" and reason ~= "Left" then
+		gameEvent:FireClient(thief, "StealCancelled", { Kind = h.kind, Name = h.name, Rarity = h.rarity, Reason = reason, By = by and by.DisplayName })
+	end
+	if reason == "Tackled" and h.owner ~= thief and h.owner.Parent == Players then
+		gameEvent:FireClient(h.owner, "ItemRecovered", { Kind = h.kind, Name = h.name, Rarity = h.rarity, Reason = "Stopped", By = by and by.DisplayName, ByUserId = by and by.UserId })
+	end
+	log(thief.Name, "stopped stealing", h.name, "(" .. reason .. ")")
+	return true
+end
+
+function StealService:BeginSteal(thief, owner, id)
+	local h = holding[thief]
+	if h then
+		if h.owner == owner and h.id == id then
+			return true
+		end
+		self:CancelSteal(thief, "Released")
+	end
+	if lastSteal[thief] and os.clock() - lastSteal[thief] < StealConfig.CooldownSeconds then
+		return false
+	end
+	local entry, model, _, reason = check(thief, owner, id, 0)
+	if not entry then
+		if reason ~= "" then
+			gameEvent:FireClient(thief, "StealDenied", { Reason = reason })
+		end
+		return false
+	end
+	local by = model:GetAttribute("StealBy")
+	if by and by ~= thief.UserId then
+		gameEvent:FireClient(thief, "StealDenied", { Reason = "Contested" })
+		return false
+	end
+	local need = StealConfig.HoldTime(entry.Rarity, entry.Size, entry.Level)
+	local name = itemName(entry)
+	holding[thief] = { owner = owner, id = id, kind = entry.Kind, name = name, rarity = entry.Rarity, model = model, need = need, startedAt = os.clock() }
+	model:SetAttribute("StealBy", thief.UserId)
+	model:SetAttribute("StealStart", serverNow())
+	model:SetAttribute("StealSeconds", need)
+	thief:SetAttribute("Stealing", name)
+	if entry.Kind == "Kaiju" then
+		KaijuService:Pause(model, need + 1.5)
+	end
+	if owner ~= thief then
+		gameEvent:FireClient(owner, "StealBegan", { Kind = entry.Kind, Name = name, Rarity = entry.Rarity, Thief = thief.DisplayName, Seconds = need })
+	end
+	log(thief.Name, "is holding a steal on", name, "from", owner.Name, "(" .. need .. " s)")
+	return true
+end
+
+-- The hold finished: the thief picks the item up and starts carrying it.
+function StealService:CompleteSteal(thief, owner, id)
+	local h = holding[thief]
+	if not (h and h.owner == owner and h.id == id) then
+		return false
+	end
+	local early = h.need - StealConfig.HoldGraceSeconds - (os.clock() - h.startedAt)
+	if early > 0 then
+		if early <= 1 then
+			-- a little early (network timing): finish once the hold really is up
+			task.delay(early, function()
+				if holding[thief] == h then
+					self:CompleteSteal(thief, owner, id)
+				end
+			end)
+		end
+		return false -- far too early isn't a real hold; the server timer cancels it
+	end
+	local entry, model, hrp, reason = check(thief, owner, id, StealConfig.HoldReachSlack)
+	if not entry or model ~= h.model then
+		self:CancelSteal(thief, (reason == "Locked" or reason == "Protected") and "Locked" or "Moved")
+		return false
+	end
+	clearHold(thief)
+	lastSteal[thief] = os.clock()
 
 	entry.StolenBy = thief.UserId
 	BaseService:DetachModel(owner, id)
@@ -305,8 +409,10 @@ function StealService:TrySteal(thief, owner, id)
 		name = name,
 		rarity = entry.Rarity,
 		model = carried,
-		startedAt = t,
-		startPos = hrp.Position,
+		startedAt = os.clock(),
+		lastPos = hrp.Position,
+		travelled = 0,
+		topSpeed = thief.Character:FindFirstChildOfClass("Humanoid").WalkSpeed,
 		leftHome = not BaseService:IsInOwnPen(thief, hrp.Position, 0),
 	}
 	thief:SetAttribute("CarryingStolen", name)
@@ -316,7 +422,7 @@ function StealService:TrySteal(thief, owner, id)
 	if owner ~= thief then
 		gameEvent:FireClient(owner, "BeingStolen", { Kind = entry.Kind, Name = name, Rarity = entry.Rarity, Thief = thief.DisplayName })
 	end
-	log(thief.Name, "is stealing", name, "from", owner.Name)
+	log(thief.Name, "is carrying", name, "from", owner.Name)
 	return true
 end
 
@@ -330,11 +436,6 @@ local function deliver(thief, c, hrp)
 		gameEvent:FireClient(thief, "StealReturned", { Kind = c.kind, Name = c.name, Rarity = c.rarity, Reason = "OwnerLeft" })
 		return
 	end
-	local straight = (hrp.Position - c.startPos).Magnitude
-	if straight / math.max(os.clock() - c.startedAt, 0.05) > StealConfig.MaxDeliverySpeed then
-		StealService:Return(thief, "TooFast")
-		return
-	end
 	clearCarry(thief)
 	entry.StolenBy = nil
 	BaseService:RemoveItem(owner, c.id)
@@ -344,10 +445,12 @@ local function deliver(thief, c, hrp)
 		BaseService:SetItem(thief, c.id, model, entry)
 		IndexService:Record(thief, entry.Species, entry.Size or 1) -- a stolen species counts as discovered
 	else
+		-- a few steps in from where they walked in, towards the middle (not in the doorway)
+		local depth = PenGeometry.Level(BaseService:GetLevel(thief)).Depth
 		local x, d = BaseService:ToPenLocal(thief, hrp.Position)
-		x, d = BaseService:FindFreeSpot(thief, x, d + 4, entry.Size, entry.Rarity)
+		x, d = BaseService:FindFreeSpot(thief, x * 0.6, math.max(d + 6, depth * 0.35), entry.Size, entry.Rarity)
 		if not x then
-			x, d = 0, PenGeometry.Level(BaseService:GetLevel(thief)).Depth / 2
+			x, d = 0, depth / 2
 		end
 		entry.X, entry.D = x, d
 		HatchService:SpawnItem(thief, c.id, entry, nil, hrp.Position + Vector3.new(0, 4, 0))
@@ -376,8 +479,17 @@ end
 
 -- ---------- defense ----------
 
+local function stun(target, from)
+	target:SetAttribute("StunnedUntil", serverNow() + StealConfig.Tackle.StunSeconds)
+	local hrp = hrpOf(target)
+	if hrp then
+		Ragdoll.Start(target.Character, StealConfig.Tackle.StunSeconds)
+		knockback(hrp, from, StealConfig.Tackle.Knockback)
+	end
+end
+
 function StealService:Tackle(attacker, target)
-	if not (target and target ~= attacker and carrying[target]) then
+	if not (target and target ~= attacker and (carrying[target] or holding[target])) then
 		return false
 	end
 	local t = os.clock()
@@ -389,10 +501,14 @@ function StealService:Tackle(attacker, target)
 		return false
 	end
 	lastTackle[attacker] = t
-	self:Return(target, "Tackled", attacker)
-	target:SetAttribute("StunnedUntil", serverNow() + StealConfig.Tackle.StunSeconds)
-	knockback(b, a.Position, StealConfig.Tackle.Knockback)
-	gameEvent:FireClient(attacker, "TackleLanded", { Thief = target.DisplayName })
+	local stopped = carrying[target] == nil
+	if stopped then
+		self:CancelSteal(target, "Tackled", attacker)
+	else
+		self:Return(target, "Tackled", attacker)
+	end
+	stun(target, a.Position)
+	gameEvent:FireClient(attacker, "TackleLanded", { Thief = target.DisplayName, Stopped = stopped })
 	return true
 end
 
@@ -473,7 +589,10 @@ local function buildLockButton(plot)
 	m.Parent = plot
 end
 
--- Pushes other players out of locked pens, alerts owners about intruders, delivers or drops stolen goods.
+-- ---------- per tick ----------
+
+-- Pushes other players out of locked pens, alerts owners about intruders, keeps holds honest, delivers or drops
+-- stolen goods.
 local function tick()
 	local now = serverNow()
 	for _, owner in Players:GetPlayers() do
@@ -493,6 +612,9 @@ local function tick()
 				local lx = PenGeometry.ToLocal(plot, hrp.Position)
 				local outside = (frame * CFrame.new(math.clamp(lx, -4, 4), 3.5, 7)).Position
 				other.Character:PivotTo(CFrame.lookAt(outside, outside - frame.LookVector))
+				if carrying[other] then
+					carrying[other].lastPos = outside -- our own move doesn't count as their travel
+				end
 				if not lastPush[other] or os.clock() - lastPush[other] > 2 then
 					lastPush[other] = os.clock()
 					gameEvent:FireClient(other, "PushedOut", { Owner = owner.DisplayName })
@@ -507,6 +629,18 @@ local function tick()
 			end
 		end
 	end
+	for thief, h in holding do
+		if thief.Parent ~= Players or h.owner.Parent ~= Players then
+			StealService:CancelSteal(thief, "Left")
+		elseif os.clock() - h.startedAt > h.need + 4 then
+			StealService:CancelSteal(thief, "Released") -- the client never finished it
+		else
+			local entry, model, _, reason = check(thief, h.owner, h.id, StealConfig.HoldReachSlack)
+			if not entry or model ~= h.model then
+				StealService:CancelSteal(thief, (reason == "Locked" or reason == "Protected") and "Locked" or "Moved")
+			end
+		end
+	end
 	for thief, c in carrying do
 		if c.owner.Parent ~= Players then
 			clearCarry(thief)
@@ -518,6 +652,16 @@ local function tick()
 			StealService:Return(thief, "Died")
 			continue
 		end
+		-- a carrier can't cover more ground than they could have walked (flat path length, so falls don't count)
+		local pos = hrp.Position
+		c.travelled += Vector3.new(pos.X - c.lastPos.X, 0, pos.Z - c.lastPos.Z).Magnitude
+		c.lastPos = pos
+		c.topSpeed = math.max(c.topSpeed, thief.Character:FindFirstChildOfClass("Humanoid").WalkSpeed)
+		if c.travelled > c.topSpeed * StealConfig.SpeedTolerance * (os.clock() - c.startedAt) + StealConfig.SpeedSlackStuds then
+			log(thief.Name, "moved too fast:", math.floor(c.travelled), "studs in", string.format("%.1f", os.clock() - c.startedAt), "s")
+			StealService:Return(thief, "TooFast")
+			continue
+		end
 		local home = BaseService:IsInOwnPen(thief, hrp.Position, 0)
 		if not home then
 			c.leftHome = true
@@ -527,12 +671,60 @@ local function tick()
 	end
 end
 
+-- ---------- Studio test helpers ----------
+
+-- Holds a steal for its full time and completes it (yields).
+function StealService:StealForTesting(thief, owner, id)
+	if not DevConfig.InStudio or not self:BeginSteal(thief, owner, id) then
+		return false
+	end
+	task.wait(holding[thief] and holding[thief].need or 0)
+	return self:CompleteSteal(thief, owner, id)
+end
+
+-- As if the carrier was tackled (no ragdoll).
+function StealService:ReturnForTesting(player)
+	if DevConfig.InStudio then
+		return self:Return(player, "Tackled")
+	end
+	return false
+end
+
+-- The tackle's effect on a solo player: whatever they hold or carry goes home, then ragdoll + knockback + stun.
+function StealService:RagdollForTesting(player)
+	local hrp = DevConfig.InStudio and hrpOf(player)
+	if not hrp then
+		return false
+	end
+	if holding[player] then
+		self:CancelSteal(player, "Tackled")
+	end
+	if carrying[player] then
+		self:Return(player, "Tackled")
+	end
+	stun(player, hrp.Position + hrp.CFrame.LookVector * 4)
+	return true
+end
+
+-- ---------- wiring ----------
+
 function StealService:Init()
 	gameEvent = ReplicatedStorage.Remotes:WaitForChild("GameEvent")
 	local remotes = ReplicatedStorage.Remotes
-	remotes:WaitForChild("Steal").OnServerEvent:Connect(function(thief, ownerUserId, id)
-		if type(ownerUserId) == "number" and type(id) == "string" then
-			self:TrySteal(thief, Players:GetPlayerByUserId(ownerUserId), id)
+	remotes:WaitForChild("Steal").OnServerEvent:Connect(function(thief, ownerUserId, id, phase)
+		if type(ownerUserId) ~= "number" or type(id) ~= "string" then
+			return
+		end
+		local owner = Players:GetPlayerByUserId(ownerUserId)
+		if phase == "Begin" then
+			self:BeginSteal(thief, owner, id)
+		elseif phase == "Cancel" then
+			local h = holding[thief]
+			if h and h.id == id then
+				self:CancelSteal(thief, "Released")
+			end
+		elseif phase == nil then
+			self:CompleteSteal(thief, owner, id)
 		end
 	end)
 	remotes:WaitForChild("Tackle").OnServerEvent:Connect(function(attacker, userId)
@@ -558,13 +750,16 @@ local function addPrompt(model, isKaiju)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
 	prompt.ActionText = "Steal"
+	local rarity, size = model:GetAttribute("Rarity") or "Common", model:GetAttribute("Size") or 1
 	if isKaiju then
 		local cfg = KaijuConfig[model:GetAttribute("Species") or ""]
-		prompt.ObjectText = (cfg and cfg.DisplayName or "Kaiju") .. "  Lv " .. (model:GetAttribute("Level") or 1)
+		local level = model:GetAttribute("Level") or 1
+		prompt.ObjectText = (cfg and cfg.DisplayName or "Kaiju") .. "  Lv " .. level
+		prompt.HoldDuration = StealConfig.HoldTime(rarity, size, level)
 	else
-		prompt.ObjectText = EggModel.Label(model:GetAttribute("Rarity") or "Common", model:GetAttribute("Size"))
+		prompt.ObjectText = EggModel.Label(rarity, size)
+		prompt.HoldDuration = StealConfig.HoldTime(rarity, size)
 	end
-	prompt.HoldDuration = StealConfig.HoldSeconds
 	prompt.MaxActivationDistance = StealConfig.Reach + math.max(ext.X, ext.Z) / 2
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = att
@@ -605,6 +800,9 @@ function StealService:Start()
 
 	local function onPlayer(player)
 		player.CharacterRemoving:Connect(function()
+			if holding[player] then
+				StealService:CancelSteal(player, "Released")
+			end
 			if carrying[player] then
 				StealService:Return(player, "Died")
 			end
@@ -615,6 +813,9 @@ function StealService:Start()
 		onPlayer(player)
 	end
 	Players.PlayerRemoving:Connect(function(player)
+		if holding[player] then
+			StealService:CancelSteal(player, "Left")
+		end
 		if carrying[player] then
 			StealService:Return(player, "Left")
 		end

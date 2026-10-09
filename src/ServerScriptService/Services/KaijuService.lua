@@ -102,6 +102,30 @@ function KaijuService:GetPosition(model)
 	return from:Lerp(to, math.clamp((now - s) / (e - s), 0, 1))
 end
 
+-- Holds a kaiju still where it stands for `seconds` (StealService: someone is trying to grab it). It wanders again
+-- afterwards, or soon after Resume.
+function KaijuService:Pause(model, seconds)
+	local w = wanderers[model]
+	if not w then
+		return
+	end
+	local now = workspace:GetServerTimeNow()
+	local here = self:GetPosition(model)
+	here = Vector3.new(here.X, 0, here.Z)
+	model:SetAttribute("WanderFrom", here)
+	model:SetAttribute("WanderTo", here)
+	model:SetAttribute("MoveStart", now)
+	model:SetAttribute("MoveEnd", now)
+	w.nextAt = now + seconds
+end
+
+function KaijuService:Resume(model)
+	local w = wanderers[model]
+	if w then
+		w.nextAt = math.min(w.nextAt, workspace:GetServerTimeNow() + 0.5)
+	end
+end
+
 function KaijuService:Start()
 	local W = BaseConfig.Wander
 	local acc = 0
