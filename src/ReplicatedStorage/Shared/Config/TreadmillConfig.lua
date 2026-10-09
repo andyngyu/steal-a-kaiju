@@ -57,4 +57,8 @@ return table.freeze({
 	Levels = table.freeze(levels),
 	CheckInterval = 0.5, -- training tick
 	RunPromptDistance = 9,
+
+	-- client VFX pacing
+	PopupEveryTicks = 4, -- one "+Speed" popup (and ground ring) per this many training ticks, showing the total
+	MilestoneEvery = 5, -- "SPEED UP!" burst each time the treadmill bonus passes a multiple of this
 })
