@@ -201,8 +201,8 @@ local function ownerOf(inst, folder)
 end
 
 local function filterPrompt(prompt, folder)
-	if not prompt:IsA("ProximityPrompt") then
-		return
+	if not prompt:IsA("ProximityPrompt") or prompt.Name == "StealPrompt" then
+		return -- steal prompts are for other players (Gameplay.StealFX)
 	end
 	local ownerId, model = ownerOf(prompt, folder)
 	if not model then

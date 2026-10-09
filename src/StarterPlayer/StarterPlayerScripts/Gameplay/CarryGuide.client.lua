@@ -1,7 +1,7 @@
--- While the local player carries an egg:
+-- While the local player carries an egg (CarryingEgg) or stolen goods (CarryingStolen, StealService):
 --   a glowing arrow floats ahead of them pointing to their pen (entrance first, then the middle) with the distance,
 --     hidden once they're inside the pen or when the Path Home setting (CarryGuide) is off;
---   the screen edges pulse red as the guardian of that egg's biome closes in during a chase.
+--   while carrying a nest egg, the screen edges pulse red as the guardian of that egg's biome closes in.
 -- Client-only and cosmetic.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -150,10 +150,11 @@ RunService.RenderStepped:Connect(function(dt)
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local carrying = hrp and player:GetAttribute("CarryingEgg") ~= nil
+	local stealing = hrp and player:GetAttribute("CarryingStolen") ~= nil
 	local t = os.clock()
 
 	-- arrow
-	local target = carrying and Settings.Get("CarryGuide") and guideTarget(hrp.Position)
+	local target = (carrying or stealing) and Settings.Get("CarryGuide") and guideTarget(hrp.Position)
 	if target then
 		local flat = Vector3.new(target.X - hrp.Position.X, 0, target.Z - hrp.Position.Z)
 		local dir = flat.Magnitude > 0.1 and flat.Unit or Vector3.new(0, 0, -1)
