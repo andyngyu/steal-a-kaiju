@@ -6,10 +6,13 @@
 --   Cash, TotalEarned, LastOnline (os.time)
 --   Speed = { Trained (treadmill bonus), Level (bought upgrades) }
 --   Treadmill = { Level } (0 = locked)
---   Pen = { Level, Items = { [id] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt, X, D }
---                                | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt } } }
---     (X, D are pen-local, see Shared.Util.PenGeometry; kaiju wander so their position isn't saved)
---   Stats = { EggsDelivered, EggsHatched }
+--   Pen = { Level, Items = { [id] = { Kind = "Egg", EggId, BiomeId, Rarity, Species, PlacedAt, HatchAt, X, D, Size }
+--                                | { Kind = "Kaiju", KaijuId, Species, Rarity, BiomeId, HatchedAt, Size, Level, XP } } }
+--     (X, D are pen-local, see Shared.Util.PenGeometry; kaiju wander so their position isn't saved;
+--      Level/XP are missing on kaiju from before levels existed = level 1, 0 XP)
+--   Food = { [foodId] = count }, SelectedFood = foodId or "" (auto)
+--   Trails = { Owned = { [trailId] = true }, Equipped = trailId or "" }
+--   Stats = { EggsDelivered, EggsHatched, KaijuSold, FoodFed }
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,9 +38,17 @@ local TEMPLATE = {
 		Level = 1,
 		Items = {},
 	},
+	Food = {},
+	SelectedFood = "",
+	Trails = {
+		Owned = {},
+		Equipped = "",
+	},
 	Stats = {
 		EggsDelivered = 0,
 		EggsHatched = 0,
+		KaijuSold = 0,
+		FoodFed = 0,
 	},
 }
 
@@ -136,10 +147,16 @@ function DataService:ResetForTesting(player)
 	for k in data do
 		data[k] = nil
 	end
-	for k, v in table.clone(TEMPLATE) do
-		data[k] = type(v) == "table" and table.clone(v) or v
+	local function deepCopy(t)
+		local c = {}
+		for k, v in t do
+			c[k] = type(v) == "table" and deepCopy(v) or v
+		end
+		return c
 	end
-	data.Pen.Items = {}
+	for k, v in deepCopy(TEMPLATE) do
+		data[k] = v
+	end
 	profile:Save()
 	player:Kick("Test data reset. Start the playtest again for a fresh save.")
 	return true

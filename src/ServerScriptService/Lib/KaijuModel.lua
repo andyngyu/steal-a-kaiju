@@ -1,6 +1,8 @@
 -- Builds a kaiju display model. Uses ServerStorage.Assets.Kaiju.<Model> when it exists (art pass), otherwise a blocky
 -- placeholder per archetype. Origin = centre of the feet, facing -Z. Adds an "Info" billboard with TextLabels
--- [SizeTier] / Rarity / Title / Cash. Size: model is scaled by species Scale x rarity KaijuScale x size roll; income = CPS x size.
+-- [SizeTier] / Rarity / Title / LevelRow (Label "Lv 12" + Bar.Fill XP bar) / Cash.
+-- Size and income come from Shared.Util.KaijuStats (species, size roll, level). Model attributes: Species, Rarity, Size,
+-- SizeTier, VisualScale, Level, XP, XPToNext (nil at max level), PartCount.
 -- Epic+ get a sparkle "Aura" part, Legendary+ also a light and coloured mist (Secret = rainbow).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -8,7 +10,9 @@ local ServerStorage = game:GetService("ServerStorage")
 local Config = ReplicatedStorage.Shared.Config
 local KaijuConfig = require(Config.KaijuConfig)
 local EggConfig = require(Config.EggConfig)
+local FoodConfig = require(Config.FoodConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
 
 local KaijuModel = {}
 
@@ -117,13 +121,70 @@ function BUILDERS.CrabBug(m, c, a)
 	end
 end
 
-local function infoBillboard(model, top, cfg, size, scale)
+local XP_BLUE = Color3.fromHex("5AD1FF")
+
+local function levelRow(bb, order, h)
+	local row = Instance.new("Frame")
+	row.Name = "LevelRow"
+	row.LayoutOrder = order
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(0.86, 0, h, 0)
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(0.36, 1)
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = XP_BLUE
+	label.TextStrokeTransparency = 0.2
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = row
+	local bar = Instance.new("Frame")
+	bar.Name = "Bar"
+	bar.AnchorPoint = Vector2.new(0, 0.5)
+	bar.Position = UDim2.fromScale(0.38, 0.5)
+	bar.Size = UDim2.fromScale(0.62, 0.5)
+	bar.BackgroundColor3 = Color3.fromHex("1A1033")
+	bar.BackgroundTransparency = 0.25
+	bar.BorderSizePixel = 0
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = bar
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.BackgroundColor3 = XP_BLUE
+	fill.BorderSizePixel = 0
+	fill.Size = UDim2.fromScale(0, 1)
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0.5, 0)
+	fillCorner.Parent = fill
+	fill.Parent = bar
+	bar.Parent = row
+	row.Parent = bb
+end
+
+-- Updates the billboard's level text and XP bar (FoodService calls this after feeding).
+function KaijuModel.SetProgress(model, level, xp, xpToNext)
+	model:SetAttribute("Level", level)
+	model:SetAttribute("XP", xp)
+	model:SetAttribute("XPToNext", xpToNext)
+	local info = model.PrimaryPart and model.PrimaryPart:FindFirstChild("Info")
+	local row = info and info:FindFirstChild("LevelRow")
+	if not row then
+		return
+	end
+	row.Label.Text = level >= FoodConfig.MaxLevel and "MAX" or ("Lv " .. level)
+	row.Bar.Fill.Size = UDim2.fromScale(xpToNext and math.clamp(xp / xpToNext, 0, 1) or 1, 1)
+	row.Bar.Fill.BackgroundColor3 = xpToNext and XP_BLUE or GOLD
+end
+
+local function infoBillboard(model, top, cfg, size, scale, level)
 	local rarity = EggConfig.RarityById[cfg.Rarity]
 	local tier = EggConfig.SizeTierName(size)
 	local k = math.clamp(0.85 + scale * 0.15, 1, 1.5)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Info"
-	bb.Size = UDim2.fromOffset(180 * k, (tier ~= "" and 92 or 70) * k)
+	bb.Size = UDim2.fromOffset(180 * k, (tier ~= "" and 110 or 88) * k)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, top + 1.6, 0)
 	bb.MaxDistance = 90 + (scale - 1) * 35
 	local layout = Instance.new("UIListLayout")
@@ -145,13 +206,15 @@ local function infoBillboard(model, top, cfg, size, scale)
 		l.Text = text
 		l.Parent = bb
 	end
-	local f = tier ~= "" and 0.78 or 1
+	local f = tier ~= "" and 0.82 or 1
 	if tier ~= "" then
-		line("SizeTier", string.format("%s  %.2fx", string.upper(tier), size), GOLD, 0.22)
+		line("SizeTier", string.format("%s  %.2fx", string.upper(tier), size), GOLD, 0.18)
 	end
-	line("Rarity", cfg.Rarity, rarity and rarity.Color or WHITE, 0.3 * f)
-	line("Title", cfg.DisplayName, WHITE, 0.36 * f)
-	line("Cash", Format.PerSecond(cfg.CashPerSecond * size), Color3.fromHex("6BE04A"), 0.34 * f)
+	line("Rarity", cfg.Rarity, rarity and rarity.Color or WHITE, 0.24 * f)
+	line("Title", cfg.DisplayName, WHITE, 0.3 * f)
+	order += 1
+	levelRow(bb, order, 0.2 * f)
+	line("Cash", Format.PerSecond(KaijuStats.CashPerSecond(model.Name, size, level)), Color3.fromHex("6BE04A"), 0.26 * f)
 	bb.Parent = model.PrimaryPart
 end
 
@@ -227,16 +290,15 @@ local function aura(model, rarity, scale)
 	})
 end
 
--- How much bigger than its art this kaiju looks: species tweak x rarity (visual only) x size roll (also income).
-function KaijuModel.VisualScale(speciesId, size)
-	local cfg = KaijuConfig[speciesId]
-	local rarity = EggConfig.RarityById[cfg.Rarity]
-	return (cfg.Scale or 1) * (rarity and rarity.KaijuScale or 1) * (size or 1)
+-- How much bigger than its art this kaiju looks (see Shared.Util.KaijuStats).
+function KaijuModel.VisualScale(speciesId, size, level)
+	return KaijuStats.VisualScale(speciesId, size, level)
 end
 
 -- Returns a model whose pivot is the centre of its feet. Call :PivotTo() to place it.
-function KaijuModel.Build(speciesId, size)
+function KaijuModel.Build(speciesId, size, level, xp)
 	size = size or 1
+	level = math.clamp(level or 1, 1, FoodConfig.MaxLevel)
 	local cfg = KaijuConfig[speciesId]
 	assert(cfg, "unknown kaiju " .. tostring(speciesId))
 	local assets = ServerStorage:FindFirstChild("Assets")
@@ -257,13 +319,14 @@ function KaijuModel.Build(speciesId, size)
 	model:SetAttribute("Rarity", cfg.Rarity)
 	model:SetAttribute("Size", size)
 	model:SetAttribute("SizeTier", EggConfig.SizeTierName(size))
-	local scale = KaijuModel.VisualScale(speciesId, size)
+	local scale = KaijuStats.VisualScale(speciesId, size, level)
 	model:SetAttribute("VisualScale", scale)
 	if math.abs(scale - 1) > 0.001 then
 		model:ScaleTo(scale)
 	end
 	local _, ext = model:GetBoundingBox()
-	infoBillboard(model, ext.Y, cfg, size, scale)
+	infoBillboard(model, ext.Y, cfg, size, scale, level)
+	KaijuModel.SetProgress(model, level, xp or 0, FoodConfig.XPToNext(level))
 	aura(model, EggConfig.RarityById[cfg.Rarity], scale)
 	-- clients wait until this many parts have arrived before animating the model (big models replicate over several frames)
 	local parts = 0

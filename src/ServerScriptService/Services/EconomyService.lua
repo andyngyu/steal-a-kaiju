@@ -1,4 +1,5 @@
--- Passive income: every tick, each kaiju in the player's pen adds its CashPerSecond straight into Cash.
+-- Passive income: every tick, each kaiju in the player's pen adds its CashPerSecond straight into Cash
+-- (species x size roll x level, see Shared.Util.KaijuStats).
 -- Offline earnings are added to Cash on join (capped, reduced rate).
 -- Player attributes: Cash, CashPerSecond. Also leaderstats.Cash.
 local Players = game:GetService("Players")
@@ -9,6 +10,7 @@ local Config = ReplicatedStorage.Shared.Config
 local EconomyConfig = require(Config.EconomyConfig)
 local KaijuConfig = require(Config.KaijuConfig)
 local DevConfig = require(Config.DevConfig)
+local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
 
 local DataService = require(script.Parent.DataService)
 local BaseService = require(script.Parent.BaseService)
@@ -29,8 +31,7 @@ function EconomyService:GetCashPerSecond(player)
 	local total = 0
 	BaseService:ForEachItem(player, function(_, entry)
 		if entry.Kind == "Kaiju" then
-			local cfg = KaijuConfig[entry.Species]
-			total += cfg and cfg.CashPerSecond * (entry.Size or 1) or 0
+			total += KaijuStats.EntryCashPerSecond(entry)
 		end
 	end)
 	return total
@@ -61,7 +62,7 @@ local function offlineEarnings(data)
 		local cfg = KaijuConfig[entry.Species]
 		local from = entry.Kind == "Kaiju" and entry.HatchedAt
 		if cfg and from and from <= now then
-			total += cfg.CashPerSecond * (entry.Size or 1) * math.min(now - math.max(data.LastOnline, from), cap)
+			total += KaijuStats.EntryCashPerSecond(entry) * math.min(now - math.max(data.LastOnline, from), cap)
 		end
 	end
 	return math.floor(total * EconomyConfig.Offline.Rate), math.min(away, cap)
@@ -98,6 +99,14 @@ function EconomyService:AddCash(player, amount)
 	publish(player, data)
 	DataService:Save(player)
 	return true
+end
+
+-- Re-sends Cash / CashPerSecond right away (after selling or levelling a kaiju).
+function EconomyService:Publish(player)
+	local data = DataService:Get(player)
+	if data then
+		publish(player, data)
+	end
 end
 
 -- Returns false if the player can't afford it.

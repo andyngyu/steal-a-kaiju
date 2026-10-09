@@ -1,6 +1,8 @@
--- Builds an egg model at its rolled size. Uses ServerStorage.Assets.Eggs.<BiomeId> when it exists (art pass), otherwise
--- a placeholder shell with a rarity-coloured crack band. Always has PrimaryPart "Shell" with a ProximityPrompt "Prompt"
--- (disabled by default). Attributes: EggId, BiomeId, Rarity, Size (multiplier), SizeTier ("" | Big | Huge | Giant).
+-- Builds an egg model at its rolled size. Uses ServerStorage.Assets.Eggs.<BiomeId> when it exists (brick art from
+-- Tools.BiomeArtBuilder: invisible "Shell" hit box + welded bricks; parts named "Band" form the zigzag crack band and are
+-- tinted with the rarity colour here, glowing for Epic and up, rainbow for Secret), otherwise a placeholder shell with a
+-- rarity-coloured band. Always has PrimaryPart "Shell" with a ProximityPrompt "Prompt" (disabled by default).
+-- Attributes: EggId, BiomeId, Rarity, Size (multiplier), SizeTier ("" | Big | Huge | Giant).
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -90,6 +92,19 @@ function EggModel.Build(biomeId, rarityId, eggId, size)
 	if art then
 		egg = art:Clone()
 		egg:ScaleTo(scale)
+		local centre = egg.PrimaryPart.Position
+		for _, p in egg:GetDescendants() do
+			if p:IsA("BasePart") and p.Name == "Band" then
+				if rarityId == "Secret" then
+					-- rainbow: hue follows the angle around the egg
+					local offset = p.Position - centre
+					p.Color = Color3.fromHSV((math.atan2(offset.Z, offset.X) / (math.pi * 2)) % 1, 0.75, 1)
+				else
+					p.Color = rarity.Color
+				end
+				p.Material = rarity.Glow and Enum.Material.Neon or Enum.Material.SmoothPlastic
+			end
+		end
 	else
 		egg = placeholder(biomeId, rarity, scale)
 	end

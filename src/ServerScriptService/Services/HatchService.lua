@@ -16,6 +16,7 @@ local EggConfig = require(Config.EggConfig)
 local BaseConfig = require(Config.BaseConfig)
 local DevConfig = require(Config.DevConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
 
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 
@@ -89,7 +90,8 @@ local function countdown(egg, entry)
 	bb.Parent = egg.PrimaryPart
 end
 
-local function tryHatch(owner, id, player)
+-- fromMenu: the UI's Eggs panel (Remotes.HatchEgg) hatches from any distance; the prompt needs the owner nearby.
+local function tryHatch(owner, id, player, fromMenu)
 	if player ~= owner then
 		gameEvent:FireClient(player, "NotYourEgg", {})
 		return
@@ -99,7 +101,7 @@ local function tryHatch(owner, id, player)
 		return
 	end
 	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not hrp or (hrp.Position - egg.PrimaryPart.Position).Magnitude - egg.PrimaryPart.Size.X / 2 > BaseConfig.Hatch.PromptDistance + 4 then
+	if not fromMenu and (not hrp or (hrp.Position - egg.PrimaryPart.Position).Magnitude - egg.PrimaryPart.Size.X / 2 > BaseConfig.Hatch.PromptDistance + 4) then
 		return
 	end
 	local jitter = EggConfig.KaijuSizeJitter
@@ -124,6 +126,8 @@ local function tryHatch(owner, id, player)
 			BiomeId = entry.BiomeId,
 			HatchedAt = os.time(),
 			Size = size,
+			Level = 1,
+			XP = 0,
 		}
 		local kaiju = KaijuService:Spawn(owner, id, kaijuEntry, spot, true)
 		BaseService:SetItem(owner, id, kaiju, kaijuEntry)
@@ -137,7 +141,7 @@ local function tryHatch(owner, id, player)
 			Rarity = kaijuEntry.Rarity,
 			Size = size,
 			SizeTier = tier,
-			CashPerSecond = KaijuConfig[entry.Species].CashPerSecond * size,
+			CashPerSecond = KaijuStats.EntryCashPerSecond(kaijuEntry),
 			Grand = grand,
 		}
 		gameEvent:FireClient(owner, "EggHatched", payload)
@@ -249,6 +253,11 @@ end
 
 function HatchService:Init()
 	gameEvent = ReplicatedStorage.Remotes:WaitForChild("GameEvent")
+	ReplicatedStorage.Remotes:WaitForChild("HatchEgg").OnServerEvent:Connect(function(player, id)
+		if type(id) == "string" then
+			tryHatch(player, id, player, true)
+		end
+	end)
 	local runtime = workspace:FindFirstChild("Runtime") or Instance.new("Folder")
 	runtime.Name = "Runtime"
 	runtime.Parent = workspace

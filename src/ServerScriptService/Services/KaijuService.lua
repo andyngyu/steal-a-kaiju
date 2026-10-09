@@ -1,14 +1,15 @@
 -- Kaiju living in pens: spawns display models and decides where they wander. The server only sets the route
 -- (attributes); clients animate it smoothly (StarterPlayerScripts.Gameplay.KaijuFX), so the server never moves the model.
--- Kaiju model attributes: OwnerUserId, KaijuId, Species, Rarity, Size, SizeTier, VisualScale, CashPerSecond (= species CPS x Size),
---   SpawnedAt (server time, only when it just hatched),
+-- Kaiju model attributes: OwnerUserId, KaijuId, Species, Rarity, Size, SizeTier, VisualScale, Level, XP, XPToNext,
+--   CashPerSecond (see Shared.Util.KaijuStats), SpawnedAt (server time, only when it just hatched),
+--   LeveledAt (server time, the model was rebuilt bigger after a level-up),
 --   WanderFrom, WanderTo (Vector3, ground level), MoveStart, MoveEnd (workspace:GetServerTimeNow() seconds).
 -- Current logical position = WanderFrom:Lerp(WanderTo, progress) - use KaijuService:GetPosition for gameplay checks.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
-local KaijuConfig = require(ReplicatedStorage.Shared.Config.KaijuConfig)
+local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
 local KaijuModel = require(game:GetService("ServerScriptService").Lib.KaijuModel)
 
 local BaseService = require(script.Parent.BaseService)
@@ -28,10 +29,12 @@ function KaijuService:Init()
 	folder.Parent = runtime
 end
 
-function KaijuService:Spawn(player, id, entry, position, justHatched)
+-- yaw (optional) keeps the facing of a model being replaced; otherwise it faces a random way.
+-- attrs (optional) are set on the model before it is parented, so clients see them on arrival.
+function KaijuService:Spawn(player, id, entry, position, justHatched, yaw, attrs)
 	local W = BaseConfig.Wander
 	local size = entry.Size or 1
-	local model = KaijuModel.Build(entry.Species, size)
+	local model = KaijuModel.Build(entry.Species, size, entry.Level, entry.XP)
 	local scale = model:GetAttribute("VisualScale") or 1
 	local _, ext = model:GetBoundingBox()
 	-- Big kaiju keep their body inside the fence (tails may overlap a little) and take longer strides.
@@ -39,16 +42,19 @@ function KaijuService:Spawn(player, id, entry, position, justHatched)
 	local now = workspace:GetServerTimeNow()
 	local ground = BaseService:ClampToPen(player, position, inset)
 	ground = Vector3.new(ground.X, 0, ground.Z)
-	model:PivotTo(CFrame.new(ground) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
+	model:PivotTo(CFrame.new(ground) * CFrame.Angles(0, yaw or rng:NextNumber(0, math.pi * 2), 0))
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("KaijuId", id)
-	model:SetAttribute("CashPerSecond", KaijuConfig[entry.Species].CashPerSecond * size)
+	model:SetAttribute("CashPerSecond", KaijuStats.EntryCashPerSecond(entry))
 	model:SetAttribute("WanderFrom", ground)
 	model:SetAttribute("WanderTo", ground)
 	model:SetAttribute("MoveStart", now)
 	model:SetAttribute("MoveEnd", now)
 	if justHatched then
 		model:SetAttribute("SpawnedAt", now)
+	end
+	for key, value in attrs or {} do
+		model:SetAttribute(key, value)
 	end
 	model.Parent = folder
 	wanderers[model] = {
@@ -60,6 +66,29 @@ function KaijuService:Spawn(player, id, entry, position, justHatched)
 	model.Destroying:Connect(function()
 		wanderers[model] = nil
 	end)
+	return model
+end
+
+-- Rebuilds a kaiju's model where it currently stands (after a level-up it gets bigger and earns more).
+-- The old model is destroyed by BaseService:SetItem. Returns the new model.
+function KaijuService:Refresh(player, id, entry)
+	local _, old = BaseService:GetItem(player, id)
+	local position, yaw
+	if old then
+		position = self:GetPosition(old)
+		local from, to = old:GetAttribute("WanderFrom"), old:GetAttribute("WanderTo")
+		local dir = from and to and (to - from) or Vector3.zero
+		if dir.Magnitude > 0.05 then
+			yaw = math.atan2(-dir.X, -dir.Z)
+		else
+			local _, y = old:GetPivot():ToEulerAnglesYXZ()
+			yaw = y
+		end
+	else
+		position = BaseService:RandomSpot(player, BaseConfig.Wander.Inset)
+	end
+	local model = self:Spawn(player, id, entry, position, false, yaw, { LeveledAt = workspace:GetServerTimeNow() })
+	BaseService:SetItem(player, id, model, entry)
 	return model
 end
 

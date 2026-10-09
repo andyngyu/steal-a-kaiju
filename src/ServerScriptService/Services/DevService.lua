@@ -8,8 +8,12 @@
 --               game.ServerStorage.DevHooks.SpawnEgg:Invoke(userId, "Epic", 2.1)  -> item id
 --               game.ServerStorage.DevHooks.HatchEgg:Invoke(userId, itemId)  -- as if the owner held Hatch
 --               game.ServerStorage.DevHooks.Showcase:Invoke(userId, { "Rumblerex", "2" })   or (userId, "clear")
---               game.ServerStorage.DevHooks.PatchData:Invoke(userId, { Cash = 1000, PenLevel = 2, RemoveItems = { id } })
---                 (edits the live save; the pen fence rebuilds for a new level on the next join)
+--               game.ServerStorage.DevHooks.Snapshot:Invoke(userId) / Restore:Invoke(userId)
+--                 (copy the save before a test and put it back after; stop the playtest right after Restore)
+--               game.ServerStorage.DevHooks.PatchData:Invoke(userId, { Cash = 1000, CashDelta = -50, PenLevel = 2,
+--                 RemoveItems = { id }, AddItems = { [id] = entry }, Food = {...}, SelectedFood = "", Trails = {...},
+--                 StatDeltas = { KaijuSold = -1 } })
+--                 (edits the live save; pen changes show on the next join)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -176,8 +180,23 @@ function DevService:Start()
 		for _, id in patch.RemoveItems or {} do
 			BaseService:RemoveItem(player, id)
 		end
+		for id, entry in patch.AddItems or {} do
+			data.Pen.Items[id] = entry
+		end
 		if patch.Cash then
 			data.Cash = patch.Cash
+		end
+		if patch.CashDelta then
+			data.Cash = math.max(0, data.Cash + patch.CashDelta)
+		end
+		if patch.Food then
+			data.Food = patch.Food
+		end
+		if patch.SelectedFood then
+			data.SelectedFood = patch.SelectedFood
+		end
+		if patch.Trails then
+			data.Trails = patch.Trails
 		end
 		if patch.PenLevel then
 			data.Pen.Level = patch.PenLevel
@@ -204,6 +223,46 @@ function DevService:Start()
 		return true
 	end
 	showcaseHook.Parent = hooks
+	local snapshots = {}
+	local function deepCopy(t)
+		local c = {}
+		for k, v in t do
+			c[k] = type(v) == "table" and deepCopy(v) or v
+		end
+		return c
+	end
+	local snapshotHook = Instance.new("BindableFunction")
+	snapshotHook.Name = "Snapshot"
+	snapshotHook.OnInvoke = function(userId)
+		local player = Players:GetPlayerByUserId(userId)
+		local data = player and DataService:Get(player)
+		if not data then
+			return false
+		end
+		snapshots[userId] = deepCopy(data)
+		return true
+	end
+	snapshotHook.Parent = hooks
+	local restoreHook = Instance.new("BindableFunction")
+	restoreHook.Name = "Restore"
+	restoreHook.OnInvoke = function(userId)
+		local player = Players:GetPlayerByUserId(userId)
+		local data = player and DataService:Get(player)
+		local snap = snapshots[userId]
+		if not (data and snap) then
+			return false
+		end
+		for k in data do
+			data[k] = nil
+		end
+		for k, v in deepCopy(snap) do
+			data[k] = v
+		end
+		DataService:Save(player)
+		print("[Dev] restored the snapshot for", player.Name)
+		return true
+	end
+	restoreHook.Parent = hooks
 	hooks.Parent = ServerStorage
 
 	local function onPlayer(player)

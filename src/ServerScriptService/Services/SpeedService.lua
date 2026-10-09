@@ -1,13 +1,15 @@
--- Player Speed = SpeedConfig.BaseSpeed + treadmill training + bought upgrades (saved in data.Speed).
+-- Player Speed = (SpeedConfig.BaseSpeed + treadmill training + bought upgrades) x equipped trail's SpeedMultiplier,
+-- capped at SpeedConfig.MaxSpeed (training/upgrades saved in data.Speed, trail in data.Trails, see TrailService).
 -- Publishes the BaseWalkSpeed attribute; EggService applies it to the Humanoid (with the carry slowdown).
 -- Training comes from TreadmillService (personal treadmills) via :AddTrained.
--- Buying: the Speed Shop kiosk prompt, or Remotes.BuySpeed (no arguments) for the UI's Shop button.
--- Player attributes: Speed, SpeedLevel, TrainedSpeed, NextSpeedCost (nil when maxed), BaseWalkSpeed.
+-- Buying: the Speed stall prompt in the Kaiju Market, or Remotes.BuySpeed (no arguments) for the UI.
+-- Player attributes: Speed, SpeedLevel, TrainedSpeed, TrailSpeedMultiplier, NextSpeedCost (nil when maxed), BaseWalkSpeed.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SpeedConfig = require(ReplicatedStorage.Shared.Config.SpeedConfig)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local TrailConfig = require(ReplicatedStorage.Shared.Config.TrailConfig)
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
 
 local DataService = require(script.Parent.DataService)
@@ -28,19 +30,38 @@ local function round1(n)
 	return math.floor(n * 10 + 0.5) / 10
 end
 
+local function trailMultiplier(data)
+	local trail = TrailConfig.ById[data.Trails and data.Trails.Equipped or ""]
+	return trail and trail.SpeedMultiplier or 1
+end
+
+local function totalSpeed(data)
+	local s = data.Speed
+	return math.min(SpeedConfig.MaxSpeed, SpeedConfig.Total(s.Trained, s.Level) * trailMultiplier(data))
+end
+
 local function publish(player, data)
 	local s = data.Speed
-	local speed = SpeedConfig.Total(s.Trained, s.Level)
+	local speed = totalSpeed(data)
 	player:SetAttribute("Speed", round1(speed))
 	player:SetAttribute("SpeedLevel", s.Level)
 	player:SetAttribute("TrainedSpeed", round1(s.Trained))
+	player:SetAttribute("TrailSpeedMultiplier", trailMultiplier(data))
 	player:SetAttribute("NextSpeedCost", SpeedConfig.UpgradeCost(s.Level))
 	player:SetAttribute("BaseWalkSpeed", speed)
 end
 
 function SpeedService:GetSpeed(player)
 	local data = DataService:Get(player)
-	return data and SpeedConfig.Total(data.Speed.Trained, data.Speed.Level) or SpeedConfig.BaseSpeed
+	return data and totalSpeed(data) or SpeedConfig.BaseSpeed
+end
+
+-- Re-publishes Speed (TrailService calls this after a trail is equipped).
+function SpeedService:Refresh(player)
+	local data = DataService:Get(player)
+	if data then
+		publish(player, data)
+	end
 end
 
 function SpeedService:TryBuy(player)
@@ -66,7 +87,7 @@ function SpeedService:TryBuy(player)
 	s.Level += 1
 	publish(player, data)
 	DataService:Save(player)
-	local speed = SpeedConfig.Total(s.Trained, s.Level)
+	local speed = totalSpeed(data)
 	gameEvent:FireClient(player, "SpeedBought", { Speed = speed, Level = s.Level })
 	log(player.Name, "bought speed level", s.Level, "->", speed)
 	return true
