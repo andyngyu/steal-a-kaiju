@@ -10,6 +10,7 @@ local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local StoreConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("StoreConfig"))
+local Settings = require(script.Parent:WaitForChild("Settings"))
 
 local player = Players.LocalPlayer
 local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
@@ -74,7 +75,7 @@ local function burst()
 	pe.Drag = 2
 	pe.Rate = 0
 	pe.Parent = att
-	pe:Emit(80)
+	pe:Emit(Settings.Get("ReducedEffects") and 28 or 80)
 	local light = Instance.new("PointLight")
 	light.Color = GOLD
 	light.Range = 18
@@ -127,7 +128,7 @@ local function setLuckAura(other, on)
 		aura.Speed = NumberRange.new(0.5, 1.5)
 		aura.SpreadAngle = Vector2.new(180, 180)
 		aura.Acceleration = Vector3.new(0, 2.5, 0)
-		aura.Rate = 12
+		aura.Rate = Settings.Get("ReducedEffects") and 4 or 12
 		aura.Parent = hrp
 	elseif not on and aura then
 		aura:Destroy()

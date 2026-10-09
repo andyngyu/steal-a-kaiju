@@ -1,7 +1,9 @@
 -- Kaiju Market + feeding visuals, client-only (the server owns every purchase, sale and level):
 --   pads:     standing on a stall's Pad opens that shop's UI panel (Food Shop / Trail Shop / Sell) via the UI's UIApi;
 --             OpenPrompts on the counters open the same panels.
---   stalls:   pad rings pulse and sparkle, food on the counter bobs, the trail wheel spins its orbs with real trails
+--   stalls:   pad rings pulse and sparkle, food on the counter bobs, the trail wheel spins its orbs with real trails;
+--             the food counter tags show SOLD OUT from this player's stock (FoodStock_<FoodId>) and a "Restock in 3:12"
+--             line hangs under the KAIJU FOOD sign (workspace attribute FoodRestockAt)
 --   prompts:  Feed (E) / Feed x10 (F) prompts on kaiju and Hatch prompts on pen eggs only show for their owner. Kaiju move
 --             only on clients, so the owner's Feed triggers are sent as Remotes.FeedKaiju (kaijuId, nil, 1 | 10)
 --   feeding:  GameEvent KaijuFed -> the food arcs from the owner into the kaiju's mouth, sets the client-only attribute
@@ -11,6 +13,8 @@
 --   perks:    GameEvent EggLucky -> gold burst + "LUCKY!" and what changed on the upgraded egg; EggGiven -> a store egg
 --             falls into the pen and lands in a light pillar with "BONUS EGG!"
 --   toasts:   GameEvent toasts belong to the UI (KaijuUI NotificationsController)
+--   settings: Reduced Effects (Gameplay.Settings "ReducedEffects") cuts bursts to a third, shrinks coin showers and
+--             turns the pad sparkles off
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -22,6 +26,7 @@ local FoodConfig = require(Config.FoodConfig)
 local TrailConfig = require(Config.TrailConfig)
 local EggConfig = require(Config.EggConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local Settings = require(script.Parent:WaitForChild("Settings"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameEvent = remotes:WaitForChild("GameEvent")
 local feedRemote = remotes:WaitForChild("FeedKaiju")
@@ -36,6 +41,7 @@ local eggFolder = runtime:WaitForChild("Eggs")
 local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 local FX_RANGE = 160
 local rng = Random.new()
+local reduced = false -- Reduced Effects setting
 
 local fxFolder = Instance.new("Folder")
 fxFolder.Name = "MarketFXLocal"
@@ -93,6 +99,9 @@ local function anchorAt(pos)
 end
 
 local function burst(pos, color, count, speed, size)
+	if reduced then
+		count = math.max(1, math.floor(count * 0.3))
+	end
 	local holder = anchorAt(pos)
 	local pe = Instance.new("ParticleEmitter")
 	pe.Texture = SPARKLE
@@ -248,7 +257,9 @@ local function addPad(pad)
 	pe.EmissionDirection = Enum.NormalId.Right -- the pad cylinder's axis points up
 	pe.SpreadAngle = Vector2.new(10, 10)
 	pe.Rate = 7
+	pe.Enabled = not reduced
 	pe.Parent = pad
+	entry.emitter = pe
 	table.insert(pads, entry)
 end
 
@@ -268,8 +279,53 @@ local function setupStalls()
 		for _, item in items:GetChildren() do
 			if item:IsA("Model") then
 				table.insert(foodItems, { model = item, base = item:GetPivot(), seed = rng:NextNumber(0, 10) })
+				local food = FoodConfig.ById[item:GetAttribute("FoodId") or ""]
+				local tag = item.PrimaryPart and item.PrimaryPart:FindFirstChild("Tag")
+				local price = tag and tag:FindFirstChild("Price")
+				if food and price then
+					local function showStock()
+						local left = player:GetAttribute("FoodStock_" .. food.Id)
+						local soldOut = left ~= nil and left <= 0
+						price.Text = soldOut and "SOLD OUT" or Format.Money(food.Price)
+						price.TextColor3 = soldOut and Color3.fromHex("FF4D5E") or Color3.fromHex("6BE04A")
+					end
+					player:GetAttributeChangedSignal("FoodStock_" .. food.Id):Connect(showStock)
+					showStock()
+				end
 			end
 		end
+	end
+	local signAnchor = foodStall and foodStall:FindFirstChild("SignAnchor")
+	if signAnchor then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "Restock"
+		bb.Size = UDim2.new(9, 0, 1.3, 0)
+		bb.StudsOffsetWorldSpace = Vector3.new(0, -2.5, 0)
+		bb.LightInfluence = 0
+		bb.MaxDistance = 160
+		local l = Instance.new("TextLabel")
+		l.BackgroundTransparency = 1
+		l.Size = UDim2.fromScale(1, 1)
+		l.Font = Enum.Font.FredokaOne
+		l.TextScaled = true
+		l.TextColor3 = Color3.new(1, 1, 1)
+		l.Text = ""
+		local s = Instance.new("UIStroke")
+		s.Thickness = 3
+		s.Color = Color3.fromHex("1A1033")
+		s.Parent = l
+		l.Parent = bb
+		bb.Parent = signAnchor
+		task.spawn(function()
+			while bb.Parent do
+				local at = workspace:GetAttribute("FoodRestockAt")
+				if at then
+					local left = math.max(0, math.ceil(at - workspace:GetServerTimeNow()))
+					l.Text = string.format("Restock in %d:%02d", left // 60, left % 60)
+				end
+				task.wait(1)
+			end
+		end)
 	end
 	local trailStall = market:FindFirstChild("TrailStall")
 	local wheel = trailStall and trailStall:FindFirstChild("Wheel")
@@ -306,6 +362,12 @@ local function setupStalls()
 	end
 end
 setupStalls()
+Settings.Changed("ReducedEffects", function(on)
+	reduced = on == true
+	for _, entry in pads do
+		entry.emitter.Enabled = not reduced
+	end
+end)
 
 local currentPad = nil
 local function checkPads()
@@ -429,7 +491,7 @@ end)
 
 local function coins(pos, price)
 	local gold = Color3.fromHex("FFD23F")
-	for i = 1, 14 do
+	for _ = 1, reduced and 4 or 14 do
 		local c = Instance.new("Part")
 		c.Shape = Enum.PartType.Cylinder
 		c.Size = Vector3.new(0.15, 0.7, 0.7)

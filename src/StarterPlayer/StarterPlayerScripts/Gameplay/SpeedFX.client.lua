@@ -15,6 +15,7 @@ local Debris = game:GetService("Debris")
 local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local SpeedConfig = require(Config.SpeedConfig)
 local TreadmillConfig = require(Config.TreadmillConfig)
+local Settings = require(script.Parent:WaitForChild("Settings"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameEvent = remotes:WaitForChild("GameEvent")
 local treadmillRemote = remotes:WaitForChild("Treadmill")
@@ -124,7 +125,7 @@ local function burstAt(pos, color, count)
 	pe.Rate = 0
 	pe.Parent = holder
 	holder.Parent = workspace
-	pe:Emit(count)
+	pe:Emit(Settings.Get("ReducedEffects") and math.ceil(count * 0.35) or count)
 	Debris:AddItem(holder, 1.5)
 end
 
@@ -200,6 +201,9 @@ local function emitter(parent, props)
 	local pe = Instance.new("ParticleEmitter")
 	for k, v in props do
 		pe[k] = v
+	end
+	if Settings.Get("ReducedEffects") then
+		pe.Rate *= 0.35
 	end
 	pe.Parent = parent
 	return pe

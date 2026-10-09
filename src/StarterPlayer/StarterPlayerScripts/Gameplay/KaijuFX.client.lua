@@ -22,6 +22,7 @@ local BaseConfig = require(Config.BaseConfig)
 local KaijuConfig = require(Config.KaijuConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
 local KaijuMotion = require(script.Parent:WaitForChild("KaijuMotion"))
+local Settings = require(script.Parent:WaitForChild("Settings"))
 local gameEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameEvent")
 
 local player = Players.LocalPlayer
@@ -193,6 +194,11 @@ end
 
 -- ---------- one-shot effects ----------
 
+-- Particle counts / rates, cut to about a third with the Reduced Effects setting.
+local function fxCount(n)
+	return Settings.Get("ReducedEffects") and math.ceil(n * 0.35) or n
+end
+
 local function burstParticles(pos, color, count, speed, size)
 	local holder = Instance.new("Part")
 	holder.Anchored = true
@@ -214,7 +220,7 @@ local function burstParticles(pos, color, count, speed, size)
 	pe.Rate = 0
 	pe.Parent = holder
 	holder.Parent = fxFolder
-	pe:Emit(count)
+	pe:Emit(fxCount(count))
 	Debris:AddItem(holder, 2)
 end
 
@@ -323,6 +329,9 @@ local shakeAmp = 0
 local shakeOffset = CFrame.identity
 
 local function addShake(amount, at)
+	if not Settings.Get("CameraShake") then
+		return
+	end
 	if at then
 		local d = (workspace.CurrentCamera.CFrame.Position - at).Magnitude
 		amount *= math.clamp(1.2 - d / 120, 0, 1)
@@ -414,7 +423,7 @@ local function updateCharge(ch, k, t, color)
 		p.Color = color
 	end
 	ch.emitter.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
-	ch.emitter.Rate = 20 + 120 * k
+	ch.emitter.Rate = fxCount(20 + 120 * k)
 	ch.light.Color = color
 	ch.light.Range = math.min(8 + 14 * k * s, 40)
 	ch.light.Brightness = 0.5 + 2.5 * k
@@ -483,6 +492,9 @@ local function shellBurst(model, color, grand)
 end
 
 local function cashPopup(part, height, amount)
+	if not Settings.Get("IncomePopups") then
+		return
+	end
 	local bb = Instance.new("BillboardGui")
 	bb.Size = UDim2.fromOffset(110, 36)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, height, 0)
@@ -811,7 +823,7 @@ local function setGlow(model, st, on)
 		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
 		pe.Speed = NumberRange.new(1, 3)
 		pe.Lifetime = NumberRange.new(0.6, 1)
-		pe.Rate = 8
+		pe.Rate = fxCount(8)
 		pe.SpreadAngle = Vector2.new(180, 180)
 		pe.Parent = model.PrimaryPart
 		st.sparkles = pe
