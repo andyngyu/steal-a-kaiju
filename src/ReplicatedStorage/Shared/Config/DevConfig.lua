@@ -14,6 +14,7 @@ local studio = {
 
 	AdminCommands = true, -- give-cash / give-egg chat commands
 	VerboseLogging = true,
+	AllowSelfSteal = true, -- solo testing: steal from your own pen (delivered once you've left it and come back)
 }
 
 return table.freeze({
@@ -27,4 +28,5 @@ return table.freeze({
 
 	AdminCommands = IN_STUDIO and studio.AdminCommands,
 	VerboseLogging = IN_STUDIO and studio.VerboseLogging,
+	AllowSelfSteal = IN_STUDIO and studio.AllowSelfSteal,
 })

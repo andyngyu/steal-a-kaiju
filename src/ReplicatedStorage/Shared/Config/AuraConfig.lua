@@ -1,21 +1,33 @@
--- Player auras (StarterPlayerScripts.Gameplay.AuraFX): every trail (TrailConfig id) gives its wearer a matching aura in
--- the Sung Jin-Woo / Shadow Monarch style - dark smoky flames behind the body rimmed with glowing flames in the trail's
--- colour, crackling energy, rising energy lines, glowing eyes. It idles quietly while you move and powers up when you
--- stand still ("aura farming").
--- Layers by tier: glowing flames (all), shadow flames + rising lines + glowing eyes (2+), outline + crackle + ground
--- swirl + smoke pool (3+), spinning crescents (4+), shockwave rings (5+).
--- Style fields (anything missing comes from the trail itself):
---   Tier           1-7 (default: the trail's rarity order)
---   Colors         glowing flame colours from the hot core outwards (default: the trail's Colors)
---   Glow           outline, energy and light colour (default: the trail's Color); the shadow flames are a very dark
---                  shade of it
---   Flames         { moving, farming }: glowing flames per second over the whole body; FlameSize scales them
---   Shadow         { moving, farming }: dark shadow flames per second
---   Smoke          soft smoke wisps instead of fire
---   LightEmission  1 = glowing fire; lower keeps dark colours dark (void)
---   Ribbons        energy streaks spiralling round the body while farming; RibbonsMoving while moving
---   Extra          "Dust" | "Leaves" | "Snow" | "Void" | "Lightning" | "Embers" | "Sparkles"
---   Rainbow        every colour cycles through the rainbow
+-- Player auras (StarterPlayerScripts.Gameplay.AuraFX): every trail (TrailConfig id) gives its wearer an aura in that
+-- trail's own theme. It idles quietly while you move and powers up when you stand still ("aura farming"), with a burst
+-- when it reaches full power.
+--   PebbleDust     dust haze, pebbles levitating off the ground
+--   JungleLeaf     forest-green flames with lime tongues, leaves whirling round the body, fireflies
+--   FrostBreath    white-ice flame tongues, frost mist pooling at the feet, ice shards, snowfall, frost rings, a
+--                  frosted body
+--   VoidPlasma     a dark vortex underfoot, deep purple flames, plasma orbs, void motes pulled into the body,
+--                  crescents, stars
+--   ThunderGold    storm-cloud flames with gold tongues, rising energy lines, lightning bolts, sparks, crackle,
+--                  shockwaves
+--   MagmaRoar      dark red flames with roaring fire tongues, embers, a lava swirl underfoot, shockwaves, a charred body
+--   PrismRainbow   rainbow flame tongues, prism sparkles, light rays, crescents, shockwaves (every colour cycles)
+--   ShadowMonarch  Sung Jin-Woo: black shadow flames, blue flame tongues, glowing eyes, a dark silhouette, smoke pool,
+--                  ground swirl, energy lines, crackle, crescents, shockwaves
+-- Daylight rule: dark backdrop flames behind + bright additive tongues in front read on any background; pale additive
+-- colours on their own disappear against the bright grass.
+-- Style fields:
+--   Tier       1-8: scales the light; from 3 the outline also shows (faintly) while moving
+--   Glow       energy colour: outline, light, ribbons and the "Glow" layers
+--   Back       backdrop flame colours ("Dark" layers; default: a near-black shade of Glow)
+--   Tongue     flame tongue colours, hot core outwards ("Flame" layers; default: light / Glow / deep shades of Glow)
+--   Colors     colours for "Trail" layers (default: the trail's Colors)
+--   Layers     AuraFX recipe names, drawn in this order (see RECIPES in AuraFX)
+--   Rates      optional { [recipe] = { moving, farming } } overrides
+--   Outline    false, or { Fill = "Dark" | "Light" | nil, FillMax = body tint transparency at full power }
+--   Eyes       glowing eye slits while farming
+--   Ribbons    { moving, farming }: energy streaks spiralling round the body
+--   Rainbow    every colour cycles through the rainbow (the trail itself too)
+-- A trail with no entry here gets glowing flames + energy lines in its own colour.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
@@ -28,77 +40,129 @@ AuraConfig.Farm = {
 	Delay = 0.8, -- seconds still before the aura starts powering up
 	RampSeconds = 1.4, -- seconds to reach full power
 }
-AuraConfig.Range = 150 -- auras further than this from the camera go quiet
+AuraConfig.Range = 150 -- auras further than this from the camera go quiet (and fade out with distance before that)
 AuraConfig.MaxOutlines = 5 -- outlines are Highlights; Roblox draws at most 31 at once and kaiju use some too
 AuraConfig.ReducedScale = 0.35 -- particle rates with the Reduced Effects setting
 
--- White VFX textures (tinted per trail), from free Creator Store kits: Axoie's Auras (by louthebeast2019, "free to
--- use") and "Lighting aura vfx" (lightning flipbook). Swap any id here to restyle every aura.
+-- White VFX textures (tinted per aura), from free Creator Store kits: Axoie's Auras (by louthebeast2019, "free to
+-- use") and "Lighting aura vfx" (lightning flipbook). Swap any id here to restyle every aura that uses it.
 AuraConfig.Textures = {
-	Wisp = "rbxassetid://7216854921", -- smoky flame wisp: shadow flames
-	Flame = "rbxassetid://7216855238", -- flame tongue with a bright core: glowing flames
-	Smoke = "rbxassetid://1525327413", -- cloudy puff: smoke pool at the feet
+	Blob = "rbxassetid://1084962479", -- soft white disc: glowing flame tongues, plasma orbs
+	Wisp = "rbxassetid://7216854921", -- smoky wisp: icy vapour, nature wisps
+	Smoke = "rbxassetid://1525327413", -- cloudy puff: smoke pool, dust
 	Crackle = "rbxassetid://7216850580", -- electric crackle round the body
 	Streak = "rbxassetid://12363818232", -- thin rising energy line
 	Crescent = "rbxassetid://12402878232", -- crescent swirl round the body
 	Swirl = "rbxassetid://5726444189", -- spiral on the ground
-	Ring = "rbxassetid://8084911316", -- thin ring: shockwaves
-	Flare = "rbxassetid://1454292685", -- star flare: glowing eyes
+	Ring = "rbxassetid://8084911316", -- thin ring: shockwaves, frost rings
 	Lightning = "rbxassetid://11564576961", -- 4x4 lightning flipbook
 }
 
 AuraConfig.Styles = {
-	PebbleDust = { Tier = 1, Flames = { 0, 16 }, FlameSize = 0.9, Smoke = true, Extra = "Dust" },
-	JungleLeaf = { Tier = 2, Flames = { 6, 28 }, Ribbons = 1, Extra = "Leaves" },
-	FrostBreath = { Tier = 3, Flames = { 10, 36 }, Ribbons = 2, Extra = "Snow" },
+	PebbleDust = {
+		Tier = 1,
+		Glow = "D8D2C4",
+		Layers = { "Dust", "Pebbles" },
+		Outline = false,
+		Ribbons = { 0, 0 },
+	},
+	JungleLeaf = {
+		Tier = 2,
+		Glow = "5CFF52",
+		Back = { "2C6E1E", "0E2A0A" },
+		Tongue = { "E6FFB0", "7CFF4A", "2FC22A" },
+		Layers = { "Backdrop", "Tongues", "Leaves", "Fireflies" },
+		Rates = { Backdrop = { 2, 12 }, Tongues = { 4, 24 } },
+		Outline = {},
+		Ribbons = { 0, 1 },
+	},
+	FrostBreath = {
+		Tier = 3,
+		Glow = "7FD0FF",
+		Tongue = { "FFFFFF", "9FE6FF", "3DA8FF" },
+		Layers = { "FrostMist", "Tongues", "IceShards", "Snowfall", "FrostRing" },
+		Rates = { Tongues = { 6, 40 } },
+		Outline = { Fill = "Light", FillMax = 0.72 },
+		Ribbons = { 0, 2 },
+	},
 	VoidPlasma = {
 		Tier = 4,
-		Flames = { 12, 42 },
-		Ribbons = 2,
-		Extra = "Void",
-		Colors = { "F0C8FF", "B05CFF", "5A1FB8", "1A0638" },
-		LightEmission = 0.45,
+		Glow = "B05CFF",
+		Back = { "3A0F6E", "0E0320" },
+		Layers = { "VoidVortex", "Backdrop", "PlasmaOrbs", "VoidMotes", "Crescents", "Stars" },
+		Rates = { Backdrop = { 3, 18 } },
+		Outline = { Fill = "Dark", FillMax = 0.55 },
+		Ribbons = { 0, 2 },
 	},
-	ThunderGold = { Tier = 5, Flames = { 14, 46 }, Ribbons = 3, RibbonsMoving = 1, Extra = "Lightning" },
+	ThunderGold = {
+		Tier = 5,
+		Glow = "FFD23F",
+		Back = { "2A2F44", "0A0C14" },
+		Tongue = { "FFFFFF", "FFE24A", "FFA000" },
+		Layers = { "Backdrop", "Tongues", "EnergyLines", "Lightning", "Sparks", "Crackle", "Shockwave" },
+		Rates = { Backdrop = { 3, 16 }, Tongues = { 4, 22 } },
+		Outline = { Fill = "Light", FillMax = 0.8 },
+		Ribbons = { 1, 3 },
+	},
 	MagmaRoar = {
 		Tier = 6,
-		Flames = { 18, 58 },
-		FlameSize = 1.25,
-		Ribbons = 3,
-		RibbonsMoving = 1,
-		Extra = "Embers",
+		Glow = "FF6A1F",
+		Back = { "7A1408", "2A0602" },
+		Tongue = { "FFF2A0", "FFB21F", "FF5A1F" },
 		Colors = { "FFF2A0", "FFB21F", "FF5A1F", "B8200F" },
+		Layers = { "Backdrop", "Tongues", "Embers", "LavaSwirl", "Shockwave" },
+		Outline = { Fill = "Dark", FillMax = 0.62 },
+		Ribbons = { 1, 3 },
 	},
-	PrismRainbow = { Tier = 7, Flames = { 18, 62 }, FlameSize = 1.15, Ribbons = 4, RibbonsMoving = 2, Extra = "Sparkles", Rainbow = true },
+	PrismRainbow = {
+		Tier = 7,
+		Glow = "FF8AE0",
+		Layers = { "Tongues", "Prisms", "LightRays", "Crescents", "Shockwave" },
+		Outline = { Fill = "Light", FillMax = 0.75 },
+		Ribbons = { 2, 4 },
+		Rainbow = true,
+	},
+	ShadowMonarch = {
+		Tier = 8,
+		Glow = "3D8BFF",
+		Layers = { "Backdrop", "SmokePool", "Tongues", "GroundSwirl", "EnergyLines", "Crackle", "Crescents", "Shockwave" },
+		Outline = { Fill = "Dark", FillMax = 0.45 },
+		Eyes = true,
+		Ribbons = { 1, 3 },
+	},
 }
 
 local function color(c)
 	return typeof(c) == "Color3" and c or Color3.fromHex(c)
 end
 
--- The full style for a TrailConfig entry: its Styles entry with the gaps filled from the trail (colours, tier from
--- rarity), or one built from the trail alone for a trail that has no entry yet.
+-- The full style for a TrailConfig entry: its Styles entry with colours resolved, or a simple glowing aura in the
+-- trail's own colour for a trail that has no entry yet.
 function AuraConfig.ForTrail(trail)
-	local base = AuraConfig.Styles[trail.Id] or {}
+	local base = AuraConfig.Styles[trail.Id]
 	local rarity = EggConfig.RarityById[trail.Rarity or ""]
-	local tier = base.Tier or (rarity and rarity.Order) or 1
 	local style = {}
-	for k, v in base do
+	for k, v in base or { Layers = { "Tongues", "EnergyLines" }, Outline = {}, Ribbons = { 0, 2 } } do
 		style[k] = v
 	end
-	style.Tier = tier
-	style.Flames = base.Flames or { tier * 2, 12 + tier * 7 }
-	style.Shadow = base.Shadow or { tier * 1.5, 8 + tier * 4 }
-	style.Ribbons = base.Ribbons or (tier >= 2 and math.min(4, math.ceil(tier / 2)) or 0)
-	style.RibbonsMoving = base.RibbonsMoving or 0
-	style.FlameSize = base.FlameSize or 1
-	style.LightEmission = base.LightEmission or 1
+	style.Tier = style.Tier or (rarity and rarity.Order) or 1
+	style.Ribbons = style.Ribbons or { 0, 0 }
+	style.Rates = style.Rates or {}
 	local colors = {}
-	for _, c in base.Colors or trail.Colors or { trail.Color or "FFFFFF" } do
+	for _, c in style.Colors or trail.Colors or { trail.Color or "FFFFFF" } do
 		table.insert(colors, color(c))
 	end
 	style.Colors = colors
-	style.Glow = color(base.Glow or trail.Color or colors[math.min(2, #colors)])
+	style.Glow = color(style.Glow or trail.Color or colors[math.min(2, #colors)])
+	for _, key in { "Back", "Tongue" } do
+		if style[key] then
+			local list = {}
+			for _, c in style[key] do
+				table.insert(list, color(c))
+			end
+			style[key] = list
+		end
+	end
 	return style
 end
 
