@@ -15,30 +15,34 @@ do
 		{ Group = "Shell", Color = "Cream", Kind = "Ellipsoid", C = { 0, 1.55, 0 }, R = { 0.92, 1.25, 0.92 } },
 		{ Group = "Shell", Color = "CreamShade", Kind = "Box", C = { 0, 0.25, 0 }, S = { 3, 0.5, 3 }, Paint = true },
 	}
-	-- speckles on the surface
-	local spots = {
-		{ 0.4, 0.9, "Pebble" },
-		{ 2.0, 1.75, "Moss" },
-		{ 3.6, 0.7, "PebbleDark" },
-		{ 5.0, 1.45, "Pebble" },
-		{ 1.2, 2.25, "Moss" },
-		{ 4.2, 2.35, "Pebble" },
-		{ 2.8, 0.55, "Moss" },
-		{ 5.8, 0.85, "PebbleDark" },
-		{ 0.0, 2.55, "Pebble" },
-	}
-	for _, s in spots do
-		local a, y = s[1], s[2]
-		local r = y > 1.4 and 0.92 * math.sqrt(math.max(0, 1 - ((y - 1.55) / 1.25) ^ 2)) or 1.1 * math.sqrt(math.max(0, 1 - ((y - 1.3) / 1.3) ^ 2))
-		table.insert(shapes, { Group = "Shell", Color = s[3], Kind = "Ellipsoid", C = { math.cos(a) * r, y, math.sin(a) * r }, R = { 0.26, 0.26, 0.26 }, Paint = true })
+	-- radius of the shell (union of the two ellipsoids) at height y
+	local function surface(y)
+		local r1 = 1.1 * math.sqrt(math.max(0, 1 - ((y - 1.3) / 1.3) ^ 2))
+		local r2 = 0.92 * math.sqrt(math.max(0, 1 - ((y - 1.55) / 1.25) ^ 2))
+		return math.max(r1, r2)
 	end
-	-- zigzag crack band round the middle: a ring plus teeth up and down
-	table.insert(shapes, { Group = "Band", Color = "Band", Kind = "Box", C = { 0, 1.3, 0 }, S = { 3, 0.2, 3 }, Paint = true, Regroup = true })
-	for k = 0, 7 do
-		local up = k * math.pi / 4
-		local down = up + math.pi / 8
-		table.insert(shapes, { Group = "Band", Color = "Band", Kind = "Box", C = { math.cos(up) * 1.05, 1.5, math.sin(up) * 1.05 }, S = { 0.42, 0.2, 0.42 }, Rot = { 0, deg(-up), 0 }, Paint = true, Regroup = true })
-		table.insert(shapes, { Group = "Band", Color = "Band", Kind = "Box", C = { math.cos(down) * 1.08, 1.1, math.sin(down) * 1.08 }, S = { 0.42, 0.2, 0.42 }, Rot = { 0, deg(-down), 0 }, Paint = true, Regroup = true })
+	-- small moss and pebble speckles on the top cap and the base, clear of the crack band (golden-angle spread)
+	local spotColors = { "MossDark", "Moss", "Pebble", "MossDark", "Moss", "PebbleDark" }
+	local rng = Random.new(5)
+	for k = 0, 17 do
+		local a = k * 2.39996 + 0.3
+		local y = k % 3 == 2 and rng:NextNumber(0.3, 0.55) or rng:NextNumber(2.05, 2.62)
+		local r = surface(y) - 0.04
+		local size = rng:NextNumber(0.13, 0.17)
+		table.insert(shapes, { Group = "Shell", Color = spotColors[k % #spotColors + 1], Kind = "Ellipsoid", C = { math.cos(a) * r, y, math.sin(a) * r }, R = { size, size, size }, Paint = true })
+	end
+	-- zigzag crack ribbon round the middle: 5 peaks and 5 valleys, one column wide and two voxels tall
+	local POINTS, AMP = 10, 0.45
+	for k = 0, POINTS - 1 do
+		local a0, a1 = k / POINTS * math.pi * 2, (k + 1) / POINTS * math.pi * 2
+		local y0 = 1.3 + (k % 2 == 0 and AMP or -AMP)
+		local y1 = 1.3 + (k % 2 == 0 and -AMP or AMP)
+		for s = 0, 7 do
+			local f = s / 8
+			local a, y = a0 + (a1 - a0) * f, y0 + (y1 - y0) * f
+			local r = surface(y) - 0.08
+			table.insert(shapes, { Group = "Band", Color = "Band", Kind = "Ellipsoid", C = { math.cos(a) * r, y, math.sin(a) * r }, R = { 0.14, 0.2, 0.14 }, Paint = true, Regroup = true })
+		end
 	end
 	table.insert(shapes, { Group = "Shell", Color = "Shine", Kind = "Ellipsoid", C = { -0.45, 2.2, -0.62 }, R = { 0.17, 0.27, 0.17 }, Paint = true })
 
@@ -46,11 +50,12 @@ do
 		Voxel = 0.2,
 		StudScale = 0.8,
 		Palette = {
-			Cream = "F3EFD6",
-			CreamShade = "E0DABA",
-			Pebble = "AEB2BF",
-			PebbleDark = "8A8E9C",
-			Moss = "7DC24B",
+			Cream = "F7EBCB",
+			CreamShade = "E6D5A8",
+			Pebble = "A8957A",
+			PebbleDark = "7E6F5C",
+			Moss = "79BE47",
+			MossDark = "4F8F2E",
 			Band = "B8C0CC",
 			Shine = "FFFFFF",
 		},
