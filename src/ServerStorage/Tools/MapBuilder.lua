@@ -13,7 +13,8 @@
 --                                NestSite (Model; Center part has GuardianSpawn + EggSpawn<i> attachments),
 --                                Sign (Board/SurfaceGui Title|Rec|Status; clients fill Status with the viewer's speed)
 --   Map.Spawn.SpawnLocation
---   Map.SpeedShop (Model): Board/SurfaceGui Title|Detail|PriceFrame.Price, Board.BuyPrompt
+--   Map.Market + Map.SpeedShop: the Kaiju Market around the spawn plaza, built by Tools.MarketBuilder (see its header)
+--   Map.Lane decoration: Tools.BiomeArtBuilder runs after the rebuild when it exists
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 
@@ -504,10 +505,6 @@ function MapBuilder.Build()
 		stray:Destroy()
 	end
 
-	-- Speed Shop kiosk on the plaza's south side, facing the plaza centre
-	local shopPos = Vector3.new(-S / 2, 0, -S / 2 + 6)
-	shopSign(map, "SpeedShop", CFrame.lookAt(shopPos, shopPos + Vector3.zAxis), "Speed Shop", "Detail", "+2 Speed", "Buy", "BuyPrompt", "Buy Speed")
-	task.wait()
 
 	local plots = Instance.new("Folder")
 	plots.Name = "Plots"
@@ -594,6 +591,14 @@ function MapBuilder.Build()
 	for pid, e in entrances do
 		timings["Plot" .. pid] = math.round((math.abs(e.Z) + (firstNestX - e.X)) / speed * 10) / 10
 	end
+	-- Kaiju Market (stalls around the spawn plaza, incl. Map.SpeedShop) and the biome art pass
+	local tools = game:GetService("ServerStorage").Tools
+	require(tools.MarketBuilder:Clone()).Build(map)
+	local art = tools:FindFirstChild("BiomeArtBuilder")
+	if art then
+		require(art:Clone()).Build()
+	end
+
 	local count = 0
 	for _, d in map:GetDescendants() do
 		if d:IsA("BasePart") then

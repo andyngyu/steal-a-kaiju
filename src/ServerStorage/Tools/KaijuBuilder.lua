@@ -2,7 +2,9 @@
 -- Command bar:  require(game.ServerStorage.Tools.KaijuBuilder:Clone()).Build("Pebblesaur")   or   .BuildAll()
 --
 -- Shapes are filled with voxels (spec.Voxel studs), later shapes paint over earlier ones, Carve shapes remove voxels,
--- Paint shapes only recolour voxels that already exist (stripes, spots).
+-- Paint shapes only recolour voxels that already exist (stripes, spots); Paint + Regroup also moves them to the shape's
+-- Group (e.g. an egg's rarity band). spec.StudScale sets the stud tile size (default 2 x Voxel); spec.NoStuds skips the
+-- stud textures (small props, where they'd only cost draw calls); spec.StudFaces = "Top" studs only the top faces.
 -- Same-coloured voxels in a body group are merged into as few bricks as possible (3D greedy merge).
 -- Face details (eyes, mouths, teeth) are placed on the front surface of the bricks after voxelising.
 -- Bits are exact small parts (claws) placed as given.
@@ -10,6 +12,7 @@
 -- group (Body, Head, LegL, ...) with attribute Joint (Vector3, build space) for limb animation. spec.Parents nests a
 -- group inside another ({ Jaw = "Head" }) so it follows that group's motion. Model attribute RootOffset = Root's
 -- build-space position (joints relative to the pivot = Joint - RootOffset, times the model's scale).
+-- Motion attributes for Gameplay.KaijuMotion: Gait (spec.Gait), Emotes (spec.Emotes joined with commas), Wag (spec.Wag).
 local ServerStorage = game:GetService("ServerStorage")
 
 local KaijuBuilder = {}
@@ -108,7 +111,9 @@ local function expand(shapes)
 	return out
 end
 
-local function newPart(parent, name, size, cf, color, neon, studs, studScale)
+local TOP_ONLY = { Enum.NormalId.Top }
+
+local function newPart(parent, name, size, cf, color, neon, studs, studScale, faces)
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Size = size
@@ -121,7 +126,7 @@ local function newPart(parent, name, size, cf, color, neon, studs, studScale)
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	if studs and not neon then
-		for _, face in STUD_FACES do
+		for _, face in faces or STUD_FACES do
 			local t = Instance.new("Texture")
 			t.Texture = STUD_TEXTURE
 			t.Face = face
@@ -172,7 +177,7 @@ function KaijuBuilder.BuildModel(name, spec)
 							cell = nil
 						elseif c.spec.Paint then
 							if cell then
-								cell = { cell[1], c.spec.Color }
+								cell = { c.spec.Regroup and c.spec.Group or cell[1], c.spec.Color }
 							end
 						else
 							cell = { c.spec.Group, c.spec.Color }
@@ -202,6 +207,15 @@ function KaijuBuilder.BuildModel(name, spec)
 	root.CanQuery = false
 	model.PrimaryPart = root
 	model:SetAttribute("RootOffset", root.Position)
+	if spec.Gait then
+		model:SetAttribute("Gait", spec.Gait)
+	end
+	if spec.Emotes then
+		model:SetAttribute("Emotes", table.concat(spec.Emotes, ","))
+	end
+	if spec.Wag then
+		model:SetAttribute("Wag", true)
+	end
 	local groups = {}
 	local function group(gname)
 		if not groups[gname] then
@@ -281,7 +295,7 @@ function KaijuBuilder.BuildModel(name, spec)
 					local size = Vector3.new(x1 - ix + 1, y1 - iy + 1, z1 - iz + 1) * v
 					local center = Vector3.new((ix + x1) / 2 * v, (iy + y1) / 2 * v + v / 2, (iz + z1) / 2 * v)
 					local pal = palette[col] or { color = Color3.new(1, 0, 1), neon = false }
-					newPart(group(g), col, size, CFrame.new(center), pal.color, pal.neon, true, v * 2)
+					newPart(group(g), col, size, CFrame.new(center), pal.color, pal.neon, not spec.NoStuds, spec.StudScale or v * 2, spec.StudFaces == "Top" and TOP_ONLY or nil)
 					bricks += 1
 				end
 			end
