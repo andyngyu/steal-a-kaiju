@@ -61,5 +61,4 @@ return table.freeze({
 	}),
 
 	StunSecondsAfterCatch = 1.0, -- can't grab eggs right after being caught
-	DeliveryCheckInterval = 0.2,
 })

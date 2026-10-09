@@ -23,25 +23,24 @@ return table.freeze({
 	}),
 
 	SpawnPlaza = table.freeze({
-		Size = 48,
+		Size = 64,
 		Color = hex("E8E2D0"),
 	}),
 
 	Path = table.freeze({
-		Width = 32,
+		Width = 40,
 	}),
 
 	Plots = table.freeze({
 		PerSide = 3, -- 2 sides, so 6 plots
-		Width = 56, -- along the path
-		Depth = 64, -- away from the path
-		Gap = 22, -- between neighbouring plots
-		FirstOffset = 16, -- from the plaza edge to the first plot
-		Setback = 8, -- from the path edge to the plot front
+		LotWidth = 70, -- space reserved per plot along the path (max pen width, see BaseConfig)
+		LotDepth = 80, -- space reserved away from the path (max pen depth)
+		Gap = 26, -- between neighbouring lots
+		FirstOffset = 26, -- from the plaza edge to the first lot
+		Setback = 14, -- from the path edge to the pen front
 		EntranceWidth = 16, -- opening in the front fence
 		FenceHeight = 3.5,
 		PostSpacing = 8,
-		NestPads = table.freeze({ Columns = 4, Rows = 2, Size = 8, Spacing = 12, BackInset = 10 }),
 		Colors = table.freeze({
 			hex("FF4D5E"),
 			hex("3FA9FF"),
@@ -57,7 +56,7 @@ return table.freeze({
 	}),
 
 	Hub = table.freeze({
-		Margin = 28, -- open ground between plots and the cliff wall
+		Margin = 36, -- open ground between lots and the cliff wall
 		WallHeight = 28,
 		WallThickness = 8,
 	}),
