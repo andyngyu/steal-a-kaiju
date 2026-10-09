@@ -7,7 +7,9 @@
 -- Face details (eyes, mouths, teeth) are placed on the front surface of the bricks after voxelising.
 -- Bits are exact small parts (claws) placed as given.
 -- Output: Model facing -Z, PrimaryPart "Root" at the centre of the feet, parts grouped into sub-Models per body
--- group (Body, Head, LegL, ...) with attribute Joint (Vector3, model space) for limb animation.
+-- group (Body, Head, LegL, ...) with attribute Joint (Vector3, build space) for limb animation. spec.Parents nests a
+-- group inside another ({ Jaw = "Head" }) so it follows that group's motion. Model attribute RootOffset = Root's
+-- build-space position (joints relative to the pivot = Joint - RootOffset, times the model's scale).
 local ServerStorage = game:GetService("ServerStorage")
 
 local KaijuBuilder = {}
@@ -199,6 +201,7 @@ function KaijuBuilder.BuildModel(name, spec)
 	root.Transparency = 1
 	root.CanQuery = false
 	model.PrimaryPart = root
+	model:SetAttribute("RootOffset", root.Position)
 	local groups = {}
 	local function group(gname)
 		if not groups[gname] then
@@ -208,8 +211,9 @@ function KaijuBuilder.BuildModel(name, spec)
 			if joint then
 				g:SetAttribute("Joint", v3(joint))
 			end
-			g.Parent = model
 			groups[gname] = g
+			local parentName = spec.Parents and spec.Parents[gname]
+			g.Parent = parentName and group(parentName) or model
 		end
 		return groups[gname]
 	end
