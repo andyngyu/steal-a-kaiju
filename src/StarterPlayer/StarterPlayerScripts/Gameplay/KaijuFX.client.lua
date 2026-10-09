@@ -1,7 +1,8 @@
 -- World animations, client-only and purely visual (reads server attributes, never changes gameplay):
 --   kaiju: walk with bob + waddle, smooth turning, idle bob, random emotes (hop-spin, look around, wiggle), hatch pop-out, "+$" popups
---   limbs: brick kaiju body groups swing about their joints (legs walk in pairs / diagonals / crab tripods, arms counter-swing,
---          tails wag, heads bob and look around, jaws chomp, ears flick, trunks sway, serpent necks weave, clouds float)
+--   limbs: brick kaiju body groups swing about their joints; gaits and emotes per real animal live in Gameplay.KaijuMotion
+--          (rex stomp, ape knuckle-walk, dog trot, mammoth amble, croc crawl, toad hops, sideways crabs, slithering serpents)
+--   keepers: display kaiju in workspace.Map.Market.Keepers (shopkeepers) idle and emote the same way
 --   eggs:  toss arc + landing squash, nest bob, incubating wobble (faster near the end), ready bounce + glow, hatch shake + shell burst
 --   misc:  carried egg hover/spin, pen fence rising after an upgrade, guardian Z Z float
 --   grand hatches (EggConfig.IsGrand: Epic+ or Huge+): egg levitates + spins inside a rarity light pillar with inward sparkles
@@ -20,6 +21,7 @@ local EggConfig = require(Config.EggConfig)
 local BaseConfig = require(Config.BaseConfig)
 local KaijuConfig = require(Config.KaijuConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local KaijuMotion = require(script.Parent:WaitForChild("KaijuMotion"))
 local gameEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameEvent")
 
 local player = Players.LocalPlayer
@@ -505,13 +507,7 @@ end
 -- ---------- kaiju ----------
 
 local kaiju = {}
-
-local EMOTES = {
-	{ name = "HopSpin", duration = 0.7 },
-	{ name = "Look", duration = 1.6 },
-	{ name = "Wiggle", duration = 0.8 },
-	{ name = "Hop", duration = 0.45 },
-}
+local kaijuFolders = { [kaijuFolder] = true } -- plus Map.Market.Keepers once it's found
 
 local LIMB_RANGE = 140 -- beyond this, limbs rest and the kaiju moves as one piece
 
@@ -662,33 +658,29 @@ local function slam(model, st, pos)
 end
 
 local function setupKaiju(model)
-	if model.Parent ~= kaijuFolder or kaiju[model] then
+	if not kaijuFolders[model.Parent] or kaiju[model] then
 		return
 	end
 	local rig = makeRig(model)
 	local _, yaw = rig.base:ToEulerAnglesYXZ()
 	local scale = model:GetAttribute("VisualScale") or 1
-	local limbs = #rig.groups > 0
-	local hasHead = false
-	for _, g in rig.groups do
-		hasHead = hasHead or g.name == "Head" or g.name == "Neck"
-	end
 	local st = {
 		rig = rig,
 		scale = scale,
-		limbs = limbs,
-		hasHead = hasHead,
-		headYaw = 0,
+		limbs = #rig.groups > 0,
 		owned = model:GetAttribute("OwnerUserId") == player.UserId,
 		seed = rng:NextNumber(0, 100),
 		yaw = yaw,
 		phase = 0,
 		moveBlend = 0,
-		-- walking legs carry the motion, so limbed kaiju only bob a little instead of hopping
-		hopHeight = (0.25 + rig.size.Y * 0.07) * (limbs and 0.35 or 1),
 		nextEmote = os.clock() + rng:NextNumber(2, 7),
 		nextPopup = os.clock() + rng:NextNumber(0, BaseConfig.IncomePopupSeconds),
 	}
+	KaijuMotion.Setup(st, model)
+	-- Gameplay.MarketFX stamps EatAt (client-only) when thrown food lands on this kaiju
+	model:GetAttributeChangedSignal("EatAt"):Connect(function()
+		KaijuMotion.Force(st, "Eat")
+	end)
 	local spawned = model:GetAttribute("SpawnedAt")
 	if spawned and serverNow() - spawned < 2.5 then
 		local rarityId = model:GetAttribute("Rarity")
@@ -729,45 +721,14 @@ local function updateKaiju(model, st, dt, t, camPos)
 	local moving = alpha < 1 and now >= ms
 	local dir = to - from
 	if moving and dir.Magnitude > 0.05 then
-		st.yaw = lerpAngle(st.yaw, math.atan2(-dir.X, -dir.Z), 1 - math.exp(-8 * dt))
-		st.phase += dt * 10 / math.sqrt(st.scale)
-		st.emote = nil
+		local heading = math.atan2(-dir.X, -dir.Z) + KaijuMotion.FaceOffset(st)
+		st.yaw = lerpAngle(st.yaw, heading, 1 - math.exp(-8 * dt))
+		st.phase += dt * 10 / math.sqrt(st.scale) * KaijuMotion.PhaseRate(st)
 	end
 	st.moveBlend = lerp(st.moveBlend, moving and 1 or 0, 1 - math.exp(-10 * dt))
-
-	local y = math.abs(math.sin(st.phase)) * st.hopHeight * st.moveBlend + math.sin(t * 2.2 + st.seed) * 0.06 * (1 - st.moveBlend)
-	local roll = math.sin(st.phase) * (st.limbs and 0.07 or 0.14) * st.moveBlend
-	local pitch = -0.08 * st.moveBlend
-	local extraYaw = 0
 	st.headYaw = lerp(st.headYaw, 0, 1 - math.exp(-6 * dt))
-
-	if not moving and st.moveBlend < 0.1 then
-		if not st.emote and os.clock() > st.nextEmote then
-			st.emote = EMOTES[rng:NextInteger(1, #EMOTES)]
-			st.emoteStart = os.clock()
-		end
-	end
-	if st.emote then
-		local e = (os.clock() - st.emoteStart) / st.emote.duration
-		if e >= 1 then
-			st.emote = nil
-			st.nextEmote = os.clock() + rng:NextNumber(4, 10)
-		elseif st.emote.name == "HopSpin" then
-			y += math.sin(e * math.pi) * (1 + st.hopHeight * 2)
-			extraYaw += e * math.pi * 2
-		elseif st.emote.name == "Hop" then
-			y += math.sin(e * math.pi) * (0.6 + st.hopHeight)
-		elseif st.emote.name == "Look" then
-			if st.hasHead then
-				st.headYaw = math.sin(e * math.pi * 2) * 0.65 -- turns its head, body follows a little
-				extraYaw += math.sin(e * math.pi * 2) * 0.2
-			else
-				extraYaw += math.sin(e * math.pi * 2) * 0.7
-			end
-		elseif st.emote.name == "Wiggle" then
-			roll += math.sin(e * math.pi * 6) * 0.22 * (1 - e)
-		end
-	end
+	KaijuMotion.UpdateEmote(st, rng, moving)
+	local y, pitch, roll, extraYaw = KaijuMotion.Body(st, t)
 
 	if st.popStart then
 		local p = (os.clock() - st.popStart) / st.popLen
@@ -785,7 +746,7 @@ local function updateKaiju(model, st, dt, t, camPos)
 
 	if st.limbs then
 		if dist < LIMB_RANGE then
-			animateGroups(st, t)
+			KaijuMotion.Limbs(st, t)
 			st.limbsAtRest = false
 		elseif not st.limbsAtRest then
 			for _, g in st.rig.groups do
@@ -975,19 +936,121 @@ local function updateCarried(t)
 	end
 end
 
+-- Little z's that float up from a sleeping guardian and fade (on top of the gently bobbing "Z Z" billboard).
+local function floatingZ(head, scale)
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(40, 40)
+	bb.LightInfluence = 0
+	bb.MaxDistance = 120
+	local start = Vector3.new(rng:NextNumber(-0.5, 0.5), 1, 0) * scale
+	bb.StudsOffsetWorldSpace = start
+	local l = Instance.new("TextLabel")
+	l.Size = UDim2.fromScale(1, 1)
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.FredokaOne
+	l.TextScaled = true
+	l.TextColor3 = Color3.fromHex("DFF4FF")
+	l.TextStrokeTransparency = 0.3
+	l.Text = "z"
+	l.Parent = bb
+	bb.Parent = head
+	local info = TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+	TweenService:Create(bb, info, {
+		StudsOffsetWorldSpace = start + Vector3.new(rng:NextNumber(1, 2) * scale, 3.2 * scale, 0),
+		Size = UDim2.fromOffset(90, 90),
+	}):Play()
+	TweenService:Create(l, info, { TextTransparency = 1, TextStrokeTransparency = 1, Rotation = rng:NextNumber(-25, 25) }):Play()
+	Debris:AddItem(bb, 2.3)
+end
+
+-- Rigged brick guardians (Tools.BiomeArtBuilder): Motor6Ds named after body groups, animated locally via .Transform.
+--   Sleeping: head down on the ground, slow breathing, tail curled.  Waking: rears up and roars, jaw wide.
+--   Chasing / Returning: stomping run or walk; stride speed follows how fast the guardian is actually moving.
+local guardianRigs = {}
+local function guardianRig(g)
+	local st = guardianRigs[g]
+	if st == nil then
+		if not g:GetAttribute("Rigged") then
+			guardianRigs[g] = false
+			return nil
+		end
+		local motors = {}
+		for _, d in g:GetDescendants() do
+			if d:IsA("Motor6D") then
+				motors[d.Name] = d
+			end
+		end
+		st = { motors = motors, phase = 0, run = 0, sleep = 1, roar = 0, seed = rng:NextNumber(0, 100) }
+		guardianRigs[g] = st
+		g.Destroying:Connect(function()
+			guardianRigs[g] = nil
+		end)
+	end
+	return st or nil
+end
+
+local function animateGuardian(g, st, dt, t)
+	local root = g.PrimaryPart
+	if not root then
+		return
+	end
+	local state = g:GetAttribute("State")
+	if state ~= st.state then
+		st.state = state
+		st.stateAt = os.clock()
+	end
+	local v = root.AssemblyLinearVelocity
+	local speed = Vector3.new(v.X, 0, v.Z).Magnitude
+	local k = 1 - math.exp(-8 * dt)
+	st.run = lerp(st.run, math.clamp(speed / 14, 0, 1), k)
+	st.sleep = lerp(st.sleep, state == "Sleeping" and 1 or 0, 1 - math.exp(-3 * dt))
+	local roaring = state == "Waking" and os.clock() - st.stateAt < 1.2
+	st.roar = lerp(st.roar, roaring and 1 or 0, 1 - math.exp(-12 * dt))
+	st.phase += dt * (1.5 + speed * 0.38)
+	local ph, run, sleep, roar = st.phase, st.run, st.sleep, st.roar
+	local breathe = math.sin(t * 1.3 + st.seed)
+	local function set(name, cf)
+		local m = st.motors[name]
+		if m then
+			m.Transform = cf
+		end
+	end
+	local swing = math.sin(ph) * 0.65 * run
+	set("LegL", CFrame.Angles(swing, 0, 0))
+	set("LegR", CFrame.Angles(-swing, 0, 0))
+	local arm = -math.sin(ph) * 0.18 * run + roar * 0.8 + breathe * 0.04 * sleep
+	set("ArmL", CFrame.Angles(arm, 0, -0.15 * roar))
+	set("ArmR", CFrame.Angles(-arm + roar * 1.6, 0, 0.15 * roar))
+	set("Tail", CFrame.Angles(-0.08 * sleep, -math.sin(ph) * 0.3 * run + 0.45 * sleep + math.sin(t * 0.7 + st.seed) * 0.08, 0))
+	local headPitch = math.sin(ph * 2) * 0.07 * run - 0.42 * sleep + breathe * 0.04 * sleep + roar * 0.55
+	set("Head", CFrame.Angles(headPitch, math.sin(t * 0.9 + st.seed) * 0.08 * (1 - run), 0))
+	local jaw = roar * 0.75 + math.max(0, math.sin(ph * 2)) * 0.15 * run + math.max(0, breathe) * 0.06 * sleep
+	set("Jaw", CFrame.Angles(-jaw, 0, 0))
+end
+
 local zzBase = {}
-local function updateGuardians(t)
+local nextZ = {}
+local function updateGuardians(dt, t, camPos)
 	for _, g in guardianFolder:GetChildren() do
 		local head = g:FindFirstChild("Head")
 		local zz = head and head:FindFirstChild("Sleep")
+		local near = g.PrimaryPart and (g.PrimaryPart.Position - camPos).Magnitude < ANIM_RANGE
 		if zz then
 			zzBase[zz] = zzBase[zz] or zz.StudsOffsetWorldSpace
 			zz.StudsOffsetWorldSpace = zzBase[zz] + Vector3.new(math.sin(t * 1.5) * 0.4, math.sin(t * 1.8) * 0.6, 0)
+			if zz.Enabled and near and os.clock() >= (nextZ[g] or 0) then
+				nextZ[g] = os.clock() + 0.9
+				floatingZ(head, math.max(1, (g:GetExtentsSize().Y) / 10))
+			end
 		end
 		local alert = head and head:FindFirstChild("Alert")
 		if alert and alert.Enabled then
 			local s = 1 + math.abs(math.sin(t * 8)) * 0.3
 			alert.Size = UDim2.fromOffset(160 * s, 60 * s)
+		end
+		local st = near and guardianRig(g)
+		if st then
+			animateGuardian(g, st, dt, t)
 		end
 	end
 end
@@ -1030,6 +1093,27 @@ end)
 for _, m in kaijuFolder:GetChildren() do
 	addKaiju(m)
 end
+
+-- Shopkeepers: display kaiju in Map.Market.Keepers (built by Tools.MarketBuilder) with WanderFrom = WanderTo = their
+-- standing spot. They idle and emote with their gait like any kaiju; no OwnerUserId / CashPerSecond, so no popups.
+task.spawn(function()
+	if not game:IsLoaded() then
+		game.Loaded:Wait()
+	end
+	local market = workspace:WaitForChild("Map"):WaitForChild("Market", 60)
+	local keepers = market and market:WaitForChild("Keepers", 30)
+	if not keepers then
+		return
+	end
+	kaijuFolders[keepers] = true
+	keepers.ChildAdded:Connect(addKaiju)
+	keepers.ChildRemoved:Connect(function(m)
+		kaiju[m] = nil
+	end)
+	for _, m in keepers:GetChildren() do
+		addKaiju(m)
+	end
+end)
 
 eggFolder.ChildAdded:Connect(addEgg)
 eggFolder.ChildRemoved:Connect(function(m)
@@ -1122,5 +1206,5 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	end
 	updateCarried(t)
-	updateGuardians(t)
+	updateGuardians(dt, t, camPos)
 end)

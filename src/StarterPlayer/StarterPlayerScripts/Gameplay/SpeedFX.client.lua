@@ -57,11 +57,13 @@ local function refreshShop()
 	local speed = player:GetAttribute("Speed") or SpeedConfig.BaseSpeed
 	local cost = player:GetAttribute("NextSpeedCost")
 	if cost and speed < SpeedConfig.MaxSpeed then
-		local nextSpeed = math.min(SpeedConfig.MaxSpeed, speed + SpeedConfig.Upgrade.SpeedPerLevel)
+		-- the equipped trail multiplies every point of Speed
+		local step = SpeedConfig.Upgrade.SpeedPerLevel * (player:GetAttribute("TrailSpeedMultiplier") or 1)
+		local nextSpeed = math.min(SpeedConfig.MaxSpeed, speed + step)
 		gui.Detail.Text = "Speed " .. fmtSpeed(speed) .. " > " .. fmtSpeed(nextSpeed)
 		gui.PriceFrame.Price.Text = Format.Money(cost)
 		if prompt then
-			prompt.ObjectText = "+" .. SpeedConfig.Upgrade.SpeedPerLevel .. " Speed: " .. Format.Money(cost)
+			prompt.ObjectText = "+" .. fmtSpeed(step) .. " Speed: " .. Format.Money(cost)
 			prompt.Enabled = true
 		end
 	else
