@@ -53,7 +53,7 @@ local list: { Trail } = {
 	{
 		Id = "PrismRainbow", DisplayName = "Prism Rainbow", Rarity = "Secret", SpeedMultiplier = 1.5,
 		Price = 15000000, RobuxPrice = 0, ProductId = 0, Color = "#FF8AE0", Image = "",
-		Colors = { "#FF4D4D", "#FFB84D", "#FFF04D", "#4DFF88", "#4DB8FF", "#C44DFF" }, Lifetime = 1.1, Width = 2, LightEmission = 1,
+		Colors = { "#FF4D4D", "#FFB84D", "#FFF04D", "#4DFF88", "#4DB8FF", "#C44DFF" }, Lifetime = 1.1, Width = 2, LightEmission = 0.35, -- higher glow washes the rainbow out to white
 	},
 }
 
