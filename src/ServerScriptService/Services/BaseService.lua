@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
+local EggConfig = require(ReplicatedStorage.Shared.Config.EggConfig)
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
 local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
@@ -221,21 +222,33 @@ function BaseService:HasRoom(player)
 	return count < PenGeometry.Level(data.Pen.Level).Capacity
 end
 
--- Nearest spot to (x, d) inside the pen that keeps eggs apart. Returns x, d or nil.
-function BaseService:FindFreeSpot(player, x, d)
+-- Footprint radius of an egg of this rarity and size roll.
+local function eggRadius(rarityId, size)
+	local rarity = EggConfig.RarityById[rarityId or "Common"]
+	return EggConfig.Size.X * (rarity and rarity.EggScale or 1) * (size or 1) / 2
+end
+
+-- Nearest spot to (x, d) inside the pen that keeps eggs apart (bigger eggs need more room). Returns x, d or nil.
+function BaseService:FindFreeSpot(player, x, d, size, rarityId)
 	local data = DataService:Get(player)
 	if not data then
 		return nil
 	end
 	local level = data.Pen.Level
-	local inset, spacing = BaseConfig.Drop.Inset, BaseConfig.Drop.Spacing
+	local myRadius = eggRadius(rarityId, size)
+	local inset = math.max(BaseConfig.Drop.Inset, myRadius + 0.5)
+	local gap = math.max(0, BaseConfig.Drop.Spacing - EggConfig.Size.X)
+	local spacing = BaseConfig.Drop.Spacing * math.max(1, size or 1)
 	local function free(cx, cd)
 		if not PenGeometry.Contains(level, cx, cd, inset) then
 			return false
 		end
 		for _, entry in data.Pen.Items do
-			if entry.Kind == "Egg" and (Vector2.new(entry.X, entry.D) - Vector2.new(cx, cd)).Magnitude < spacing then
-				return false
+			if entry.Kind == "Egg" then
+				local need = myRadius + eggRadius(entry.Rarity, entry.Size) + gap
+				if (Vector2.new(entry.X, entry.D) - Vector2.new(cx, cd)).Magnitude < need then
+					return false
+				end
 			end
 		end
 		return true
@@ -256,9 +269,27 @@ function BaseService:FindFreeSpot(player, x, d)
 	return nil
 end
 
+-- Pen insets can't exceed half the pen (huge kaiju in a small pen just stay near the middle).
+local function fitInset(level, inset)
+	return math.min(inset, level.Width / 2 - 1, level.Depth / 2 - 1)
+end
+
+-- World position pulled inside the player's pen, `inset` studs from the fence.
+function BaseService:ClampToPen(player, position, inset)
+	local plot = plotOf[player]
+	if not plot then
+		return position
+	end
+	local levelId = self:GetLevel(player)
+	local x, d = PenGeometry.ToLocal(plot, position)
+	x, d = PenGeometry.Clamp(levelId, x, d, fitInset(PenGeometry.Level(levelId), inset))
+	return PenGeometry.ToWorld(plot, x, d)
+end
+
 -- Random walkable point in the pen (for kaiju).
 function BaseService:RandomSpot(player, inset, near, maxDist)
 	local level = PenGeometry.Level(self:GetLevel(player))
+	inset = fitInset(level, inset)
 	local rng = Random.new()
 	local x = rng:NextNumber(-level.Width / 2 + inset, level.Width / 2 - inset)
 	local d = rng:NextNumber(inset, level.Depth - inset)

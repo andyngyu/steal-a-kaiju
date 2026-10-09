@@ -1,5 +1,7 @@
 -- Builds a kaiju display model. Uses ServerStorage.Assets.Kaiju.<Model> when it exists (art pass), otherwise a blocky
--- placeholder per archetype. Origin = centre of the feet, facing -Z. Adds an "Info" billboard with TextLabels Rarity / Title / Cash.
+-- placeholder per archetype. Origin = centre of the feet, facing -Z. Adds an "Info" billboard with TextLabels
+-- [SizeTier] / Rarity / Title / Cash. Size: model is scaled by species Scale x rarity KaijuScale x size roll; income = CPS x size.
+-- Epic+ get a sparkle "Aura" part, Legendary+ also a light and coloured mist (Secret = rainbow).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
@@ -12,6 +14,17 @@ local KaijuModel = {}
 
 local INK = Color3.fromHex("1A1033")
 local WHITE = Color3.new(1, 1, 1)
+local GOLD = Color3.fromHex("FFD84A")
+local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+local MIST = "rbxasset://textures/particles/smoke_main.dds"
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromHex("FF4D4D")),
+	ColorSequenceKeypoint.new(0.2, Color3.fromHex("FFB84D")),
+	ColorSequenceKeypoint.new(0.4, Color3.fromHex("FFF04D")),
+	ColorSequenceKeypoint.new(0.6, Color3.fromHex("4DFF88")),
+	ColorSequenceKeypoint.new(0.8, Color3.fromHex("4DB8FF")),
+	ColorSequenceKeypoint.new(1, Color3.fromHex("C44DFF")),
+})
 
 local function part(model, name, size, cf, color, material)
 	local p = Instance.new("Part")
@@ -104,13 +117,15 @@ function BUILDERS.CrabBug(m, c, a)
 	end
 end
 
-local function infoBillboard(model, top, cfg, cps)
+local function infoBillboard(model, top, cfg, size, scale)
 	local rarity = EggConfig.RarityById[cfg.Rarity]
+	local tier = EggConfig.SizeTierName(size)
+	local k = math.clamp(0.85 + scale * 0.15, 1, 1.5)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Info"
-	bb.Size = UDim2.fromOffset(180, 70)
+	bb.Size = UDim2.fromOffset(180 * k, (tier ~= "" and 92 or 70) * k)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, top + 1.6, 0)
-	bb.MaxDistance = 90
+	bb.MaxDistance = 90 + (scale - 1) * 35
 	local layout = Instance.new("UIListLayout")
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -130,14 +145,98 @@ local function infoBillboard(model, top, cfg, cps)
 		l.Text = text
 		l.Parent = bb
 	end
-	line("Rarity", cfg.Rarity, rarity and rarity.Color or WHITE, 0.3)
-	line("Title", cfg.DisplayName, WHITE, 0.36)
-	line("Cash", Format.PerSecond(cps), Color3.fromHex("6BE04A"), 0.34)
+	local f = tier ~= "" and 0.78 or 1
+	if tier ~= "" then
+		line("SizeTier", string.format("%s  %.2fx", string.upper(tier), size), GOLD, 0.22)
+	end
+	line("Rarity", cfg.Rarity, rarity and rarity.Color or WHITE, 0.3 * f)
+	line("Title", cfg.DisplayName, WHITE, 0.36 * f)
+	line("Cash", Format.PerSecond(cfg.CashPerSecond * size), Color3.fromHex("6BE04A"), 0.34 * f)
 	bb.Parent = model.PrimaryPart
 end
 
+local function emitter(parent, props)
+	local pe = Instance.new("ParticleEmitter")
+	pe.Shape = Enum.ParticleEmitterShape.Box
+	pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	pe.LightEmission = 1
+	for key, value in props do
+		pe[key] = value
+	end
+	pe.Parent = parent
+	return pe
+end
+
+-- Invisible box around the body that carries the rarity flair (moves with the model like any other part).
+local function aura(model, rarity, scale)
+	if not (rarity and rarity.Glow) then
+		return
+	end
+	local cf, ext = model:GetBoundingBox()
+	local holder = Instance.new("Part")
+	holder.Name = "Aura"
+	holder.Transparency = 1
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanTouch = false
+	holder.CanQuery = false
+	holder.CastShadow = false
+	holder.Size = ext * 0.85
+	holder.CFrame = cf
+	holder.Parent = model
+	local colors = rarity.Id == "Secret" and RAINBOW or ColorSequence.new(rarity.Color, WHITE)
+	emitter(holder, {
+		Name = "Sparkles",
+		Texture = SPARKLE,
+		Color = colors,
+		Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.3, 0.3 + 0.12 * scale),
+			NumberSequenceKeypoint.new(1, 0),
+		}),
+		Transparency = NumberSequence.new(0.1, 1),
+		Speed = NumberRange.new(0.3, 1.2),
+		Acceleration = Vector3.new(0, 1.5, 0),
+		Lifetime = NumberRange.new(1, 1.8),
+		Rate = rarity.Aura and 8 + scale * 3 or 4,
+	})
+	if not rarity.Aura then
+		return
+	end
+	local light = Instance.new("PointLight")
+	light.Color = rarity.Id == "Secret" and Color3.fromHex("F2D9FF") or rarity.Color
+	light.Range = math.min(10 + ext.Magnitude * 0.5, 40)
+	light.Brightness = 1.5
+	light.Shadows = false
+	light.Parent = holder
+	emitter(holder, {
+		Name = "Mist",
+		Texture = MIST,
+		Color = colors,
+		Size = NumberSequence.new(1.2 * scale, 2.6 * scale),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.3, 0.8),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Speed = NumberRange.new(0.2, 0.6),
+		Acceleration = Vector3.new(0, 0.8, 0),
+		Lifetime = NumberRange.new(1.6, 2.6),
+		RotSpeed = NumberRange.new(-30, 30),
+		Rate = 4,
+	})
+end
+
+-- How much bigger than its art this kaiju looks: species tweak x rarity (visual only) x size roll (also income).
+function KaijuModel.VisualScale(speciesId, size)
+	local cfg = KaijuConfig[speciesId]
+	local rarity = EggConfig.RarityById[cfg.Rarity]
+	return (cfg.Scale or 1) * (rarity and rarity.KaijuScale or 1) * (size or 1)
+end
+
 -- Returns a model whose pivot is the centre of its feet. Call :PivotTo() to place it.
-function KaijuModel.Build(speciesId)
+function KaijuModel.Build(speciesId, size)
+	size = size or 1
 	local cfg = KaijuConfig[speciesId]
 	assert(cfg, "unknown kaiju " .. tostring(speciesId))
 	local assets = ServerStorage:FindFirstChild("Assets")
@@ -156,11 +255,16 @@ function KaijuModel.Build(speciesId)
 	model.Name = speciesId
 	model:SetAttribute("Species", speciesId)
 	model:SetAttribute("Rarity", cfg.Rarity)
-	if cfg.Scale ~= 1 then
-		model:ScaleTo(cfg.Scale)
+	model:SetAttribute("Size", size)
+	model:SetAttribute("SizeTier", EggConfig.SizeTierName(size))
+	local scale = KaijuModel.VisualScale(speciesId, size)
+	model:SetAttribute("VisualScale", scale)
+	if math.abs(scale - 1) > 0.001 then
+		model:ScaleTo(scale)
 	end
-	local _, size = model:GetBoundingBox()
-	infoBillboard(model, size.Y, cfg, cfg.CashPerSecond)
+	local _, ext = model:GetBoundingBox()
+	infoBillboard(model, ext.Y, cfg, size, scale)
+	aura(model, EggConfig.RarityById[cfg.Rarity], scale)
 	return model
 end
 

@@ -1,7 +1,11 @@
 -- Pen eggs: species roll on placement, countdown, owner hatches it by hand once ready, then it becomes a wandering kaiju.
 -- Restores pen contents from saved data on join.
+-- Size: the egg's Size roll is saved on the entry; the kaiju hatches at that size +/- EggConfig.KaijuSizeJitter, and its
+-- income is CashPerSecond x Size. Grand hatches (EggConfig.IsGrand: Epic+ or Huge+) get a longer build-up
+-- (BaseConfig.Hatch.GrandAnimSeconds) and are announced to everyone (GameEvent "HatchAnnouncement").
 -- Pen egg model attributes: State="Pen", ItemId, OwnerUserId, PlacedAt, HatchAt (os.time; compare with workspace:GetServerTimeNow()),
---   Ready (bool), HatchStartedAt (server time, hatch animation running), DropFrom (Vector3) + DroppedAt (server time) for the toss arc.
+--   Ready (bool), HatchStartedAt (server time, hatch animation running), HatchAnim (its length in seconds),
+--   HatchGrand (bool), DropFrom (Vector3) + DroppedAt (server time) for the toss arc.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -57,18 +61,19 @@ local function hatchSeconds(species)
 	return KaijuConfig[species].HatchSeconds
 end
 
-local function countdown(egg, rarityId)
+local function countdown(egg, entry)
+	local rarityId = entry.Rarity
 	local rarity = EggConfig.RarityById[rarityId]
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Countdown"
-	bb.Size = UDim2.fromOffset(150, 64)
-	bb.StudsOffsetWorldSpace = Vector3.new(0, EggConfig.Size.Y / 2 + 1.8, 0)
-	bb.MaxDistance = 80
+	bb.Size = UDim2.fromOffset(170, 64)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, egg.PrimaryPart.Size.Y / 2 + 1.8, 0)
+	bb.MaxDistance = 80 + egg.PrimaryPart.Size.Y * 10
 	local list = Instance.new("UIListLayout")
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	list.Parent = bb
-	for order, spec in { { "Title", rarityId .. " Egg", rarity.Color, 0.45 }, { "Time", "", Color3.new(1, 1, 1), 0.55 } } do
+	for order, spec in { { "Title", EggModel.Label(rarityId, entry.Size), rarity.Color, 0.45 }, { "Time", "", Color3.new(1, 1, 1), 0.55 } } do
 		local l = Instance.new("TextLabel")
 		l.Name = spec[1]
 		l.LayoutOrder = order
@@ -94,13 +99,19 @@ local function tryHatch(owner, id, player)
 		return
 	end
 	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not hrp or (hrp.Position - egg.PrimaryPart.Position).Magnitude > BaseConfig.Hatch.PromptDistance + 4 then
+	if not hrp or (hrp.Position - egg.PrimaryPart.Position).Magnitude - egg.PrimaryPart.Size.X / 2 > BaseConfig.Hatch.PromptDistance + 4 then
 		return
 	end
+	local jitter = EggConfig.KaijuSizeJitter
+	local size = math.floor((entry.Size or 1) * rng:NextNumber(1 - jitter, 1 + jitter) * 100 + 0.5) / 100
+	local grand = EggConfig.IsGrand(KaijuConfig[entry.Species].Rarity, size)
+	local anim = grand and BaseConfig.Hatch.GrandAnimSeconds or BaseConfig.Hatch.AnimSeconds
+	egg:SetAttribute("HatchAnim", anim)
+	egg:SetAttribute("HatchGrand", grand)
 	egg:SetAttribute("HatchStartedAt", workspace:GetServerTimeNow())
 	egg.PrimaryPart.Prompt.Enabled = false
 	local spot = egg.PrimaryPart.Position
-	task.delay(BaseConfig.Hatch.AnimSeconds, function()
+	task.delay(anim, function()
 		local still = BaseService:GetItem(owner, id)
 		if still ~= entry or owner.Parent ~= Players then
 			return
@@ -112,21 +123,48 @@ local function tryHatch(owner, id, player)
 			Rarity = KaijuConfig[entry.Species].Rarity,
 			BiomeId = entry.BiomeId,
 			HatchedAt = os.time(),
+			Size = size,
 		}
 		local kaiju = KaijuService:Spawn(owner, id, kaijuEntry, spot, true)
 		BaseService:SetItem(owner, id, kaiju, kaijuEntry)
 		local data = DataService:Get(owner)
 		data.Stats.EggsHatched += 1
 		DataService:Save(owner)
-		gameEvent:FireClient(owner, "EggHatched", { ItemId = id, Species = entry.Species, Rarity = kaijuEntry.Rarity })
-		log(owner.Name, "hatched", entry.Species)
+		local tier = EggConfig.SizeTierName(size)
+		local payload = {
+			ItemId = id,
+			Species = entry.Species,
+			Rarity = kaijuEntry.Rarity,
+			Size = size,
+			SizeTier = tier,
+			CashPerSecond = KaijuConfig[entry.Species].CashPerSecond * size,
+			Grand = grand,
+		}
+		gameEvent:FireClient(owner, "EggHatched", payload)
+		if grand then
+			gameEvent:FireAllClients("HatchAnnouncement", {
+				UserId = owner.UserId,
+				PlayerName = owner.DisplayName,
+				Species = entry.Species,
+				DisplayName = KaijuConfig[entry.Species].DisplayName,
+				Rarity = kaijuEntry.Rarity,
+				Size = size,
+				SizeTier = tier,
+			})
+		end
+		log(owner.Name, "hatched", tier, entry.Species, "size", size)
 	end)
+end
+
+-- Same as the owner holding the Hatch prompt (used by Studio test commands).
+function HatchService:TryHatch(player, id)
+	tryHatch(player, id, player)
 end
 
 local function showEgg(player, id, egg, entry, fromPos)
 	local pos = BaseService:PenToWorld(player, entry.X, entry.D)
 	EggModel.SetPhysics(egg, true)
-	egg:PivotTo(CFrame.new(pos + Vector3.new(0, EggConfig.Size.Y / 2, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
+	egg:PivotTo(CFrame.new(pos + Vector3.new(0, egg.PrimaryPart.Size.Y / 2, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
 	egg:SetAttribute("State", "Pen")
 	egg:SetAttribute("ItemId", id)
 	egg:SetAttribute("OwnerUserId", player.UserId)
@@ -139,14 +177,14 @@ local function showEgg(player, id, egg, entry, fromPos)
 	end
 	local prompt = egg.PrimaryPart.Prompt
 	prompt.ActionText = "Hatch"
-	prompt.ObjectText = entry.Rarity .. " Egg"
+	prompt.ObjectText = EggModel.Label(entry.Rarity, entry.Size)
 	prompt.HoldDuration = BaseConfig.Hatch.HoldSeconds
-	prompt.MaxActivationDistance = BaseConfig.Hatch.PromptDistance
+	prompt.MaxActivationDistance = BaseConfig.Hatch.PromptDistance + egg.PrimaryPart.Size.X / 2
 	prompt.Enabled = os.time() >= entry.HatchAt
 	prompt.Triggered:Connect(function(who)
 		tryHatch(player, id, who)
 	end)
-	countdown(egg, entry.Rarity)
+	countdown(egg, entry)
 	local time = egg.PrimaryPart.Countdown.Time
 	if os.time() >= entry.HatchAt then
 		time.Text = "Ready!"
@@ -174,6 +212,7 @@ function HatchService:PlaceEgg(player, egg, x, d, fromPos)
 		HatchAt = now + hatchSeconds(species),
 		X = x,
 		D = d,
+		Size = egg:GetAttribute("Size") or 1,
 	}
 	showEgg(player, id, egg, entry, fromPos)
 	if not BaseService:SetItem(player, id, egg, entry) then
@@ -197,7 +236,7 @@ local function restore(player, data)
 			continue
 		end
 		if entry.Kind == "Egg" then
-			local egg = EggModel.Build(entry.BiomeId, entry.Rarity, id)
+			local egg = EggModel.Build(entry.BiomeId, entry.Rarity, id, entry.Size)
 			showEgg(player, id, egg, entry, nil)
 			BaseService:SetItem(player, id, egg, entry)
 		else

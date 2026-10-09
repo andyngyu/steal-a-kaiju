@@ -2,6 +2,8 @@
 -- (Remotes.DropEgg, sent by StarterPlayerScripts.Gameplay.KaijuInput): inside their own pen it's placed and starts
 -- incubating (HatchService), anywhere else it lands on the ground for anyone to grab.
 -- An egg moves through states (model attribute "State"): Nest -> Carried -> (Ground -> Carried)* -> Pen.
+-- Each nest egg rolls a Size (EggConfig.SizeTiers) that stays with it through carry/drop/pen and becomes the kaiju's size.
+-- Carried eggs get attribute CarryOffset (weld height) so client FX can bob them at the right height.
 -- Carried eggs are never saved: leaving mid-carry drops the egg in the world, so nothing can be duplicated.
 -- Player attributes: CarryingEgg (rarity), CarryingFromBiome, StunnedUntil (server time), BaseWalkSpeed.
 local Players = game:GetService("Players")
@@ -63,8 +65,8 @@ local function setPrompt(egg, enabled, action)
 end
 
 -- World egg (nest/ground) with its prompt wired to pickup.
-local function makeEgg(biomeId, rarityId, eggId)
-	local egg = EggModel.Build(biomeId, rarityId, eggId)
+local function makeEgg(biomeId, rarityId, eggId, size)
+	local egg = EggModel.Build(biomeId, rarityId, eggId, size)
 	egg.PrimaryPart.Prompt.Triggered:Connect(function(player)
 		EggService:TryPickup(player, egg)
 	end)
@@ -74,16 +76,16 @@ end
 -- A carried egg is part of the player's client-owned assembly, so moving that same instance from the server
 -- doesn't reliably replicate. Swap it for a fresh server-owned copy with the same identity instead.
 local function rebuild(egg)
-	local new = makeEgg(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"))
+	local new = makeEgg(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"), egg:GetAttribute("Size"))
 	egg:Destroy()
 	return new
 end
 
 local function spawnInSlot(biomeId, slot)
-	local egg = makeEgg(biomeId, rollRarity(biomeId))
+	local egg = makeEgg(biomeId, rollRarity(biomeId), nil, EggModel.RollSize())
 	egg:SetAttribute("State", "Nest")
 	setPrompt(egg, true, "Steal")
-	egg:PivotTo(CFrame.new(slot.attachment.WorldPosition + Vector3.new(0, EggConfig.Size.Y / 2 - 0.4, 0)))
+	egg:PivotTo(CFrame.new(slot.attachment.WorldPosition + Vector3.new(0, egg.PrimaryPart.Size.Y / 2 - 0.4, 0)))
 	egg.Parent = eggFolder
 	slot.egg = egg
 end
@@ -211,7 +213,8 @@ function EggService:TryPickup(player, egg)
 	if not (hum and hrp and hum.Health > 0) then
 		return false
 	end
-	local dist = (hrp.Position - egg.PrimaryPart.Position).Magnitude
+	-- measured to the egg's surface so giant eggs aren't harder to grab
+	local dist = (hrp.Position - egg.PrimaryPart.Position).Magnitude - egg.PrimaryPart.Size.X / 2
 	if dist > EggConfig.Pickup.MaxDistance then
 		log(player.Name, "pickup rejected: too far", math.floor(dist))
 		return false
@@ -231,12 +234,14 @@ function EggService:TryPickup(player, egg)
 	egg:SetAttribute("State", "Carried")
 	setPrompt(egg, false)
 	EggModel.SetPhysics(egg, false)
-	egg:PivotTo(hrp.CFrame * CFrame.new(0, EggConfig.Carry.OverheadOffset, 0))
+	local offset = EggModel.CarryOffset(egg)
+	egg:SetAttribute("CarryOffset", offset)
+	egg:PivotTo(hrp.CFrame * CFrame.new(0, offset, 0))
 	local weld = Instance.new("Weld")
 	weld.Name = "CarryWeld"
 	weld.Part0 = hrp
 	weld.Part1 = egg.PrimaryPart
-	weld.C0 = CFrame.new(0, EggConfig.Carry.OverheadOffset, 0)
+	weld.C0 = CFrame.new(0, offset, 0)
 	weld.Parent = egg.PrimaryPart
 	egg.Parent = char
 
@@ -245,7 +250,7 @@ function EggService:TryPickup(player, egg)
 	player:SetAttribute("CarryingEgg", egg:GetAttribute("Rarity"))
 	player:SetAttribute("CarryingFromBiome", pickedIn)
 	applyWalkSpeed(player)
-	gameEvent:FireClient(player, "EggPickedUp", { Rarity = egg:GetAttribute("Rarity"), BiomeId = egg:GetAttribute("BiomeId") })
+	gameEvent:FireClient(player, "EggPickedUp", { Rarity = egg:GetAttribute("Rarity"), BiomeId = egg:GetAttribute("BiomeId"), Size = egg:GetAttribute("Size"), SizeTier = egg:GetAttribute("SizeTier") })
 	log(player.Name, "picked up", egg:GetAttribute("Rarity"), "in", pickedIn or "safe zone", "dist", math.floor(dist))
 	if pickedIn then
 		GuardianService:OnEggTaken(pickedIn, player)
@@ -274,7 +279,7 @@ function EggService:DropCarried(player, reason, at)
 		table.insert(ignore, player.Character)
 	end
 	local y = groundY(pos, ignore)
-	egg:PivotTo(CFrame.new(pos.X, y + EggConfig.Size.Y / 2, pos.Z))
+	egg:PivotTo(CFrame.new(pos.X, y + egg.PrimaryPart.Size.Y / 2, pos.Z))
 	egg:SetAttribute("State", "Ground")
 	setPrompt(egg, true, "Grab")
 	egg.Parent = eggFolder
@@ -321,7 +326,7 @@ function EggService:TryDropAt(player, target)
 		local x, d
 		if BaseService:HasRoom(player) then
 			x, d = BaseService:ToPenLocal(player, spot)
-			x, d = BaseService:FindFreeSpot(player, x, d)
+			x, d = BaseService:FindFreeSpot(player, x, d, egg:GetAttribute("Size") or 1, egg:GetAttribute("Rarity"))
 		end
 		if not x then
 			gameEvent:FireClient(player, "PenFull", {})
@@ -329,7 +334,7 @@ function EggService:TryDropAt(player, target)
 		end
 		local fromPos = egg.PrimaryPart.Position
 		clearCarry(player)
-		local fresh = EggModel.Build(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"))
+		local fresh = EggModel.Build(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"), egg:GetAttribute("Size"))
 		egg:Destroy()
 		if HatchService:PlaceEgg(player, fresh, x, d, fromPos) then
 			gameEvent:FireClient(player, "EggPlaced", { Rarity = fresh:GetAttribute("Rarity") })

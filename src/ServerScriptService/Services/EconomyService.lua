@@ -30,7 +30,7 @@ function EconomyService:GetCashPerSecond(player)
 	BaseService:ForEachItem(player, function(_, entry)
 		if entry.Kind == "Kaiju" then
 			local cfg = KaijuConfig[entry.Species]
-			total += cfg and cfg.CashPerSecond or 0
+			total += cfg and cfg.CashPerSecond * (entry.Size or 1) or 0
 		end
 	end)
 	return total
@@ -61,7 +61,7 @@ local function offlineEarnings(data)
 		local cfg = KaijuConfig[entry.Species]
 		local from = entry.Kind == "Kaiju" and entry.HatchedAt
 		if cfg and from and from <= now then
-			total += cfg.CashPerSecond * math.min(now - math.max(data.LastOnline, from), cap)
+			total += cfg.CashPerSecond * (entry.Size or 1) * math.min(now - math.max(data.LastOnline, from), cap)
 		end
 	end
 	return math.floor(total * EconomyConfig.Offline.Rate), math.min(away, cap)
