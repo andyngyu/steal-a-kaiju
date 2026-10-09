@@ -4,7 +4,7 @@
 --
 -- Runtime contract (attributes are the API):
 --   Map                          attribute SafeZoneX (bases side is x < SafeZoneX)
---   Map.Plots.Plot<n>            Model, PlotId=n, Side=-1|1. Children: Zone (invisible volume, PlotId), EntranceMat (Attachment "Entrance"),
+--   Map.Plots.Plot<n>            Model, PlotId=n, Side=-1|1. Children: Zone (invisible volume, PlotId), EntranceMat (Attachment "Entrance"), CollectPad (PlotId),
 --                                NestPads/Pad<i> (PadIndex, PlotId), Arch/Board/SurfaceGui/OwnerLabel
 --   Map.Lane.<BiomeId>           Model, BiomeId, Order, RecommendedSpeed. Children: Zone (invisible volume, BiomeId),
 --                                NestSite (Model; Center part has GuardianSpawn + EggSpawn<i> attachments)
@@ -331,6 +331,13 @@ local function buildPlot(plots, id, side, cx, cz)
 	entrance.Name = "Entrance"
 	entrance.Position = Vector3.new(0, 0.1, 0)
 	entrance.Parent = mat
+	-- collect pad just inside the entrance (EconomyService moves pending cash into Cash when you stand on it)
+	local collect = block("CollectPad", model, Vector3.new(7, 0.5, 7), CFrame.new(cx - eh - 6, 0.25, frontZ + side * 7), Color3.fromHex("6BE04A"), TOP)
+	collect:SetAttribute("PlotId", id)
+	block("CollectRim", model, Vector3.new(8.2, 0.3, 8.2), CFrame.new(cx - eh - 6, 0.15, frontZ + side * 7), Color3.fromHex("FFD23F"))
+	local collectLabel = textGui(collect, Enum.NormalId.Top, "COLLECT", Color3.new(1, 1, 1), 30)
+	collectLabel.Rotation = side < 0 and 180 or 0
+
 	local arch = Instance.new("Model")
 	arch.Name = "Arch"
 	for _, sx in { -1, 1 } do
