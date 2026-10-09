@@ -1,7 +1,8 @@
 -- While the local player carries an egg (CarryingEgg) or stolen goods (CarryingStolen, StealService):
 --   a glowing arrow floats ahead of them pointing to their pen (entrance first, then the middle) with the distance,
 --     hidden once they're inside the pen or when the Path Home setting (CarryGuide) is off;
---   while carrying a nest egg, the screen edges pulse red as the guardian of that egg's biome closes in.
+--   while carrying a nest egg, the screen edges pulse red as your guardian closes in (each player has their own:
+--     guardian attribute TargetUserId).
 -- Client-only and cosmetic.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -133,7 +134,8 @@ local function danger(pos)
 		return 0
 	end
 	for _, g in guardianFolder:GetChildren() do
-		if g:GetAttribute("BiomeId") == from and g:GetAttribute("State") == "Chasing" and g.PrimaryPart then
+		local target = g:GetAttribute("TargetUserId")
+		if g:GetAttribute("State") == "Chasing" and g.PrimaryPart and (target == player.UserId or (target == nil and g:GetAttribute("BiomeId") == from)) then
 			local root = g.PrimaryPart
 			local d = Vector3.new(root.Position.X - pos.X, 0, root.Position.Z - pos.Z).Magnitude - root.Size.Z / 2
 			return math.clamp(1 - d / DANGER_RANGE, 0, 1)

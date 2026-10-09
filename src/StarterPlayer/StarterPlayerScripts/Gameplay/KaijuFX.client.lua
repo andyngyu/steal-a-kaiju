@@ -4,7 +4,9 @@
 --          (rex stomp, ape knuckle-walk, dog trot, mammoth amble, croc crawl, toad hops, sideways crabs, slithering serpents)
 --   keepers: display kaiju in workspace.Map.Market.Keepers (shopkeepers) idle and emote the same way
 --   eggs:  toss arc + landing squash, nest bob, incubating wobble (faster near the end), ready bounce + glow, hatch shake + shell burst
---   misc:  carried egg hover/spin, pen fence rising after an upgrade, guardian Z Z float
+--   misc:  pen fence rising after an upgrade (things carried overhead are Gameplay.CarryPose's)
+--   guardians: stride-matched run cycle with body bob / lean / sway, smooth turning and banking, roar, sleep,
+--          snapping jaws, personal copies rising and sinking, footfall markers (see the guardian section)
 --   grand hatches (EggConfig.IsGrand: Epic+ or Huge+): egg levitates + spins inside a rarity light pillar with inward sparkles
 --     and pulse rings, triple shockwave + confetti on burst, kaiju leaps out and slams down, "GIANT LEGENDARY!" banner
 --     over it for everyone nearby, camera shake (strongest for the owner). Big (non-grand) hatches get a small banner.
@@ -693,6 +695,17 @@ local function setupKaiju(model)
 	model:GetAttributeChangedSignal("EatAt"):Connect(function()
 		KaijuMotion.Force(st, "Eat")
 	end)
+	-- someone is holding Steal on it (StealService sets StealBy): it struggles until they stop
+	model:GetAttributeChangedSignal("StealBy"):Connect(function()
+		if model:GetAttribute("StealBy") then
+			task.spawn(function()
+				while model.Parent and model:GetAttribute("StealBy") do
+					KaijuMotion.Force(st, "Wiggle")
+					task.wait(0.85)
+				end
+			end)
+		end
+	end)
 	local spawned = model:GetAttribute("SpawnedAt")
 	if spawned and serverNow() - spawned < 2.5 then
 		local rarityId = model:GetAttribute("Rarity")
@@ -937,56 +950,33 @@ local function updateEgg(model, st, t, camPos)
 	pose(rig, base * CFrame.new(0, -half, 0) * CFrame.Angles(pitch, yaw, roll) * CFrame.new(0, half + y, 0))
 end
 
--- ---------- carried eggs, guardians, pens ----------
+-- ---------- guardians, pens ----------
+-- Rigged brick guardians (Tools.BiomeArtBuilder). GuardianService adds a "Body" motor (HumanoidRootPart -> BodyJoint)
+-- that carries the body bricks and every limb motor, so the whole body can move; everything is local Motor6D.Transform.
+--   run:     a stance / swing gait: a planted foot sweeps back at the real ground speed (no sliding), then the leg
+--            swings forward lifted; the body dips as each foot lands, leans into the run, sways
+--            towards the planted foot and twists with the stride; the head stays level and leads turns; the tail
+--            counter-swings and flicks out in turns; rexes pump their tucked arms, Frostfang swings its long arms
+--   turning: the humanoid snaps to each new goal, so the visible body turns towards it smoothly and banks into turns
+--   moods:   roar on waking (rears up, arms out, jaw wide), asleep (crouched, head down, breathing), jaws snapping when
+--            its player (TargetUserId) is close; personal copies rise out of the ground (RiseAt) and sink away (SinkAt)
+--   footfalls set the local attributes StepAt (os.clock) and StepPos (ground point) on the model; GameVFX and
+--            GameAudio stomp on them
+local GUARDIAN_GAIT = { FrostfangPeaks = "ape" } -- everyone else runs like a rex
+local RISE_SECONDS, SINK_SECONDS = 1.1, 1.2 -- GuardianService's copy rise / sink times
 
-local function updateCarried(t)
-	for _, plr in Players:GetPlayers() do
-		local char = plr.Character
-		local egg = char and char:FindFirstChild("Egg")
-		local shell = egg and egg.PrimaryPart
-		local weld = shell and shell:FindFirstChild("CarryWeld")
-		if weld then
-			local offset = egg:GetAttribute("CarryOffset") or EggConfig.Carry.OverheadOffset
-			weld.C0 = CFrame.new(0, offset + math.sin(t * 3) * 0.25, 0) * CFrame.Angles(math.sin(t * 2) * 0.12, t * 1.6, 0)
-		end
-	end
-end
-
--- Little z's that float up from a sleeping guardian and fade (on top of the gently bobbing "Z Z" billboard).
-local function floatingZ(head, scale)
-	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(40, 40)
-	bb.LightInfluence = 0
-	bb.MaxDistance = 120
-	local start = Vector3.new(rng:NextNumber(-0.5, 0.5), 1, 0) * scale
-	bb.StudsOffsetWorldSpace = start
-	local l = Instance.new("TextLabel")
-	l.Size = UDim2.fromScale(1, 1)
-	l.BackgroundTransparency = 1
-	l.Font = Enum.Font.FredokaOne
-	l.TextScaled = true
-	l.TextColor3 = Color3.fromHex("DFF4FF")
-	l.TextStrokeTransparency = 0.3
-	l.Text = "z"
-	l.Parent = bb
-	bb.Parent = head
-	local info = TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-	TweenService:Create(bb, info, {
-		StudsOffsetWorldSpace = start + Vector3.new(rng:NextNumber(1, 2) * scale, 3.2 * scale, 0),
-		Size = UDim2.fromOffset(90, 90),
-	}):Play()
-	TweenService:Create(l, info, { TextTransparency = 1, TextStrokeTransparency = 1, Rotation = rng:NextNumber(-25, 25) }):Play()
-	Debris:AddItem(bb, 2.3)
-end
-
--- Rigged brick guardians (Tools.BiomeArtBuilder): Motor6Ds named after body groups, animated locally via .Transform.
---   Sleeping: head down on the ground, slow breathing, tail curled.  Waking: rears up and roars, jaw wide.
---   Chasing / Returning: stomping run or walk; stride speed follows how fast the guardian is actually moving.
 local guardianRigs = {}
+
+local function wrapAngle(a)
+	return (a + math.pi) % (math.pi * 2) - math.pi
+end
+
 local function guardianRig(g)
 	local st = guardianRigs[g]
 	if st == nil then
-		if not g:GetAttribute("Rigged") then
+		local root = g.PrimaryPart
+		local hum = g:FindFirstChildOfClass("Humanoid")
+		if not (g:GetAttribute("Rigged") and root and hum) then
 			guardianRigs[g] = false
 			return nil
 		end
@@ -996,7 +986,23 @@ local function guardianRig(g)
 				motors[d.Name] = d
 			end
 		end
-		st = { motors = motors, phase = 0, run = 0, sleep = 1, roar = 0, seed = rng:NextNumber(0, 100) }
+		local groundY = -(root.Size.Y / 2 + hum.HipHeight) -- root space (limb motors hang off the BodyJoint, which rests on the root)
+		local legL, legR = motors.LegL, motors.LegR
+		st = {
+			motors = motors,
+			root = root,
+			groundY = groundY,
+			legLength = legL and math.max(1.5, legL.C0.Position.Y - groundY) or 4,
+			legX = { L = legL and legL.C0.Position.X or -1.5, R = legR and legR.C0.Position.X or 1.5 },
+			height = g:GetExtentsSize().Y,
+			gait = GUARDIAN_GAIT[g:GetAttribute("BiomeId") or ""] or "rex",
+			seed = rng:NextNumber(0, 100),
+			phase = 0,
+			speed = 0,
+			sleep = 1,
+			chomp = 0,
+			turnRate = 0,
+		}
 		guardianRigs[g] = st
 		g.Destroying:Connect(function()
 			guardianRigs[g] = nil
@@ -1005,65 +1011,188 @@ local function guardianRig(g)
 	return st or nil
 end
 
+local function groundBurst(root, st)
+	local ground = root.Position + Vector3.new(0, st.groundY + 0.2, 0)
+	dust(ground, math.clamp(st.height / 6, 1, 3))
+	shockwave(ground, Color3.fromHex("A0805C"), st.height * 2.2, 0.7)
+	addShake(0.45, ground)
+end
+
 local function animateGuardian(g, st, dt, t)
-	local root = g.PrimaryPart
-	if not root then
-		return
-	end
+	local root = st.root
+	local m = st.motors
 	local state = g:GetAttribute("State")
 	if state ~= st.state then
 		st.state = state
-		st.stateAt = os.clock()
-	end
-	local v = root.AssemblyLinearVelocity
-	local speed = Vector3.new(v.X, 0, v.Z).Magnitude
-	local k = 1 - math.exp(-8 * dt)
-	st.run = lerp(st.run, math.clamp(speed / 14, 0, 1), k)
-	st.sleep = lerp(st.sleep, state == "Sleeping" and 1 or 0, 1 - math.exp(-3 * dt))
-	local roaring = state == "Waking" and os.clock() - st.stateAt < 1.2
-	st.roar = lerp(st.roar, roaring and 1 or 0, 1 - math.exp(-12 * dt))
-	st.phase += dt * (1.5 + speed * 0.38)
-	local ph, run, sleep, roar = st.phase, st.run, st.sleep, st.roar
-	local breathe = math.sin(t * 1.3 + st.seed)
-	local function set(name, cf)
-		local m = st.motors[name]
-		if m then
-			m.Transform = cf
+		if state == "Waking" then
+			st.roarAt = os.clock()
 		end
 	end
-	local swing = math.sin(ph) * 0.65 * run
-	set("LegL", CFrame.Angles(swing, 0, 0))
-	set("LegR", CFrame.Angles(-swing, 0, 0))
-	local arm = -math.sin(ph) * 0.18 * run + roar * 0.8 + breathe * 0.04 * sleep
-	set("ArmL", CFrame.Angles(arm, 0, -0.15 * roar))
-	set("ArmR", CFrame.Angles(-arm + roar * 1.6, 0, 0.15 * roar))
-	set("Tail", CFrame.Angles(-0.08 * sleep, -math.sin(ph) * 0.3 * run + 0.45 * sleep + math.sin(t * 0.7 + st.seed) * 0.08, 0))
-	local headPitch = math.sin(ph * 2) * 0.07 * run - 0.42 * sleep + breathe * 0.04 * sleep + roar * 0.55
-	set("Head", CFrame.Angles(headPitch, math.sin(t * 0.9 + st.seed) * 0.08 * (1 - run), 0))
-	local jaw = roar * 0.75 + math.max(0, math.sin(ph * 2)) * 0.15 * run + math.max(0, breathe) * 0.06 * sleep
-	set("Jaw", CFrame.Angles(-jaw, 0, 0))
+
+	-- ground speed
+	local v = root.AssemblyLinearVelocity
+	st.speed = lerp(st.speed, Vector3.new(v.X, 0, v.Z).Magnitude, 1 - math.exp(-6 * dt))
+	local sp = st.speed
+	local moving = math.clamp((sp - 1) / 5, 0, 1) -- 0 standing .. 1 on the move
+	local run = math.clamp(sp / 30, 0, 1.2) * moving -- how hard it's running
+
+	-- the visible body turns smoothly towards the physical heading
+	local look = root.CFrame.LookVector
+	local rootYaw = math.atan2(-look.X, -look.Z)
+	st.yaw = st.yaw or rootYaw
+	local turn = math.clamp(wrapAngle(rootYaw - st.yaw) * (1 - math.exp(-9 * dt)), -7 * dt, 7 * dt)
+	st.yaw = wrapAngle(st.yaw + turn)
+	st.turnRate = lerp(st.turnRate, turn / math.max(dt, 1e-3), 1 - math.exp(-8 * dt))
+	local yawOffset = wrapAngle(st.yaw - rootYaw)
+	local bank = math.clamp(st.turnRate * 0.07, -0.22, 0.22) * moving
+
+	-- moods
+	local asleep = state == "Sleeping"
+	st.sleep = lerp(st.sleep, asleep and 1 or 0, 1 - math.exp(-(asleep and 2 or 14) * dt))
+	local sleep = st.sleep
+	local rt = st.roarAt and os.clock() - st.roarAt or math.huge
+	local roar = math.clamp(rt / 0.22, 0, 1) * math.clamp((1.15 - rt) / 0.35, 0, 1)
+	local breathe = math.sin(t * 1.3 + st.seed)
+	local near = false
+	if state == "Chasing" then
+		local who = Players:GetPlayerByUserId(g:GetAttribute("TargetUserId") or 0)
+		local hrp = who and who.Character and who.Character:FindFirstChild("HumanoidRootPart")
+		near = hrp ~= nil and (hrp.Position - root.Position).Magnitude < 24 + st.height * 0.5
+	end
+	st.chomp = lerp(st.chomp, near and 1 or 0, 1 - math.exp(-6 * dt))
+
+	-- gait: a planted foot sweeps back at the ground speed (stance), then the leg swings forward, lifted. Cadence rises
+	-- with speed and climbs further rather than over-stretch a leg past ~42 degrees; past 3 steps a second the stride
+	-- stretches (and only the very fastest runs slide a little). The hips ride on whichever leg is planted.
+	local L = st.legLength
+	local duty = math.clamp(0.62 - sp * 0.006, 0.42, 0.62) -- share of a cycle a foot is on the ground
+	local cadence = math.clamp(math.max(0.9 + sp * 0.045, sp * duty / (1.35 * L)), 0.9, 3) -- cycles per second
+	if sp > 0.5 then
+		st.phase = (st.phase + cadence * dt) % 1
+	end
+	local sweep = sp > 0.5 and math.min(sp * duty / cadence, 1.6 * L) or 0 -- how far a planted foot travels past the hip
+	local function legState(phi)
+		if phi < duty then
+			return math.asin(math.clamp(sweep * (0.5 - phi / duty) / L, -0.95, 0.95)), 0, true
+		end
+		local u = (phi - duty) / (1 - duty)
+		local x = sweep * ((1 - math.cos(u * math.pi)) / 2 - 0.5)
+		return math.asin(math.clamp(x / L, -0.95, 0.95)), math.sin(u * math.pi), false
+	end
+	local phL, phR = st.phase, (st.phase + 0.5) % 1
+	local angL, liftL, downL = legState(phL)
+	local angR, liftR, downR = legState(phR)
+	local s1 = math.sin(phL * 2 * math.pi)
+	local carry -- the hip's height over a planted foot: lowest at the ends of a stride, floating between steps
+	if downL or downR then
+		carry = math.max(downL and L * (math.cos(angL) - 1) or -math.huge, downR and L * (math.cos(angR) - 1) or -math.huge)
+	else
+		carry = L * 0.04
+	end
+	local bob = carry * 0.55 * moving
+
+	-- footfalls: a foot lands as its leg starts a new stance
+	for _, side in { "L", "R" } do
+		local phi = side == "L" and phL or phR
+		local prev = st["last" .. side]
+		st["last" .. side] = phi
+		if prev and phi < prev and moving > 0.5 and not asleep then
+			g:SetAttribute("StepPos", root.CFrame * Vector3.new(st.legX[side], st.groundY, -sweep / 2))
+			g:SetAttribute("StepAt", os.clock())
+		end
+	end
+
+	-- personal copies climb out of the ground and sink back into it
+	local lift, wobble = 0, 0
+	local riseAt, sinkAt = g:GetAttribute("RiseAt"), g:GetAttribute("SinkAt")
+	if sinkAt then
+		local k = math.clamp((serverNow() - sinkAt) / SINK_SECONDS, 0, 1)
+		lift = -(k ^ 2) * st.height * 1.1
+		wobble = math.sin(t * 30) * 0.05 * (1 - k)
+		if not st.sinkFx then
+			st.sinkFx = true
+			groundBurst(root, st)
+		end
+	elseif riseAt then
+		local k = math.clamp((serverNow() - riseAt) / RISE_SECONDS, 0, 1)
+		lift = -((1 - k) ^ 3) * st.height * 1.1
+		wobble = math.sin(t * 30) * 0.06 * (1 - k)
+		if not st.riseFx and k < 1 then
+			st.riseFx = true
+			groundBurst(root, st)
+		end
+	end
+
+	-- whole body
+	local ape = st.gait == "ape"
+	local crouch = L * 0.08 * sleep
+	local pitch = -(ape and 0.2 or 0.11) * run + math.sin(phL * 4 * math.pi) * 0.025 * run + 0.38 * roar - 0.07 * sleep + breathe * 0.012 * (1 - moving)
+	local roll = 0.05 * s1 * run + bank
+	local twist = 0.06 * s1 * run
+	if m.Body then
+		m.Body.Transform = CFrame.new(0, bob - crouch + lift, 0) * CFrame.Angles(0, yawOffset + twist, 0) * CFrame.Angles(pitch, 0, roll + wobble)
+	end
+
+	-- legs: the gait's swing, lifted clear on the way forward, braced apart for the roar
+	local function leg(motor, angle, lift, side)
+		if motor then
+			motor.Transform = CFrame.new(0, lift * L * 0.22 * math.min(run, 1), 0) * CFrame.Angles(angle * moving, 0, side * 0.1 * roar)
+		end
+	end
+	leg(m.LegL, angL, liftL, 1)
+	leg(m.LegR, angR, liftR, -1)
+
+	-- arms
+	if ape then
+		local swing = 0.9 * s1 * run -- opposite to the legs
+		local beat = math.sin(t * 16) * 0.35 * roar -- chest beat
+		if m.ArmL then
+			m.ArmL.Transform = CFrame.Angles(-swing + 1.3 * roar + beat + breathe * 0.03 * sleep, 0, -0.35 * roar)
+		end
+		if m.ArmR then
+			m.ArmR.Transform = CFrame.Angles(swing + 1.3 * roar - beat + breathe * 0.03 * sleep, 0, 0.35 * roar)
+		end
+	else
+		local pump = 0.28 * s1 * run
+		if m.ArmL then
+			m.ArmL.Transform = CFrame.Angles(0.15 * run - pump + 0.9 * roar + breathe * 0.04 * sleep, 0, -0.3 * roar)
+		end
+		if m.ArmR then
+			m.ArmR.Transform = CFrame.Angles(0.15 * run + pump + 0.9 * roar + breathe * 0.04 * sleep, 0, 0.3 * roar)
+		end
+	end
+
+	-- head: level, leading turns, looking around when idle; jaw for roars, chomping and panting
+	if m.Head then
+		local lookYaw = math.clamp(-yawOffset * 0.6, -0.5, 0.5) + math.sin(t * 0.8 + st.seed) * 0.1 * (1 - moving) * (1 - sleep)
+		local headPitch = -pitch * 0.75 - 0.42 * sleep + breathe * 0.04 * sleep + 0.3 * roar - 0.12 * st.chomp
+		m.Head.Transform = CFrame.new(0, -bob * 0.6, 0) * CFrame.Angles(0, lookYaw, 0) * CFrame.Angles(headPitch, 0, -roll * 0.5)
+	end
+	if m.Jaw then
+		local jaw = 0.85 * roar + st.chomp * (0.2 + 0.45 * math.max(0, math.sin(t * 13))) + 0.08 * math.abs(s1) * run + math.max(0, breathe) * 0.06 * sleep
+		m.Jaw.Transform = CFrame.Angles(-jaw, 0, 0)
+	end
+
+	-- tail: counter-swing, raised for balance, flicked out in turns, curled when asleep, lashing on a roar
+	if m.Tail then
+		local swing = -0.3 * s1 * run * (ape and 0.4 or 1)
+		local flick = math.clamp(-st.turnRate * 0.12, -0.4, 0.4) * moving
+		local idle = math.sin(t * 0.7 + st.seed) * 0.1 * (1 - moving)
+		local lash = math.sin(t * 10) * 0.25 * roar
+		local tailPitch = -0.14 * run - pitch * 0.5 - 0.08 * sleep + 0.15 * roar
+		m.Tail.Transform = CFrame.Angles(tailPitch, swing + flick + idle + lash + 0.45 * sleep, 0)
+	end
 end
 
-local zzBase = {}
-local nextZ = {}
 local function updateGuardians(dt, t, camPos)
 	for _, g in guardianFolder:GetChildren() do
 		local head = g:FindFirstChild("Head")
-		local zz = head and head:FindFirstChild("Sleep")
-		local near = g.PrimaryPart and (g.PrimaryPart.Position - camPos).Magnitude < ANIM_RANGE
-		if zz then
-			zzBase[zz] = zzBase[zz] or zz.StudsOffsetWorldSpace
-			zz.StudsOffsetWorldSpace = zzBase[zz] + Vector3.new(math.sin(t * 1.5) * 0.4, math.sin(t * 1.8) * 0.6, 0)
-			if zz.Enabled and near and os.clock() >= (nextZ[g] or 0) then
-				nextZ[g] = os.clock() + 0.9
-				floatingZ(head, math.max(1, (g:GetExtentsSize().Y) / 10))
-			end
-		end
 		local alert = head and head:FindFirstChild("Alert")
 		if alert and alert.Enabled then
 			local s = 1 + math.abs(math.sin(t * 8)) * 0.3
 			alert.Size = UDim2.fromOffset(160 * s, 60 * s)
 		end
+		local near = g.PrimaryPart and (g.PrimaryPart.Position - camPos).Magnitude < ANIM_RANGE
 		local st = near and guardianRig(g)
 		if st then
 			animateGuardian(g, st, dt, t)
@@ -1221,6 +1350,5 @@ RunService.RenderStepped:Connect(function(dt)
 			updateEgg(model, st, t, camPos)
 		end
 	end
-	updateCarried(t)
 	updateGuardians(dt, t, camPos)
 end)

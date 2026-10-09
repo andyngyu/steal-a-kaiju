@@ -1,10 +1,14 @@
 -- Player stealing and base defense, client side (rules in Services.StealService, numbers in StealConfig):
 --   steal prompts: the StealPrompt on every pen egg / kaiju shows only on other players' items, and only while their
---                  base isn't locked or protected, the item isn't hatching or freshly hatched and you aren't carrying
---                  anything; a trigger sends Remotes.Steal (ownerUserId, itemId)
---   thieves:       anyone carrying stolen goods (attribute CarryingStolen) gets a red "THIEF!" tag and, for everyone
---                  else, a Tackle prompt (E / ButtonX) that sends Remotes.Tackle (userId)
---   carried kaiju: a character's "StolenKaiju" bobs and sways over their head
+--                  base isn't locked or protected, the item isn't hatching, freshly hatched or being stolen by someone
+--                  else, and you aren't carrying anything. Holding it sends Remotes.Steal (ownerUserId, itemId,
+--                  "Begin"), letting go early sends (.., "Cancel"), finishing sends (ownerUserId, itemId); the hold
+--                  time grows with the item's rarity, size and level (StealConfig.HoldTime, set on the prompt)
+--   steal bars:    an item someone is holding a steal on (attributes StealBy / StealStart / StealSeconds) shows a red
+--                  "STEALING!" bar filling up over it, for everyone
+--   thieves:       anyone holding a steal (attribute Stealing) or carrying stolen goods (CarryingStolen) gets a red
+--                  "STEALING!" / "THIEF!" tag and, for everyone else, a Tackle prompt (E / ButtonX) that sends
+--                  Remotes.Tackle (userId). Carried things are held up by Gameplay.CarryPose
 --   base lock:     a locked pen is wrapped in a red force field; each pen's LockButton shows LOCK READY / LOCKED 0:42 /
 --                  LOCK IN 1:05 / PROTECTED 0:30 to its owner (others only see LOCKED / PROTECTED), and its prompt is
 --                  the owner's only
@@ -55,6 +59,23 @@ local function clock(seconds)
 	return string.format("%d:%02d", seconds // 60, seconds % 60)
 end
 
+local function outlinedLabel(parent, text, color, font, height, order)
+	local l = Instance.new("TextLabel")
+	l.LayoutOrder = order or 1
+	l.BackgroundTransparency = 1
+	l.Size = UDim2.fromScale(1, height)
+	l.Font = font
+	l.TextScaled = true
+	l.TextColor3 = color
+	l.Text = text
+	local s = Instance.new("UIStroke")
+	s.Thickness = 2.5
+	s.Color = INK
+	s.Parent = l
+	l.Parent = parent
+	return l
+end
+
 -- ---------- steal prompts ----------
 
 local stealPrompts = {} -- [prompt] = { ownerId, model }
@@ -84,8 +105,21 @@ local function addStealPrompt(prompt)
 		return
 	end
 	stealPrompts[prompt] = { ownerId = ownerId, model = model }
+	local done = false
+	prompt.PromptButtonHoldBegan:Connect(function()
+		done = false
+		stealRemote:FireServer(ownerId, id, "Begin")
+	end)
 	prompt.Triggered:Connect(function()
+		done = true
 		stealRemote:FireServer(ownerId, id)
+	end)
+	prompt.PromptButtonHoldEnded:Connect(function()
+		task.defer(function()
+			if not done then
+				stealRemote:FireServer(ownerId, id, "Cancel")
+			end
+		end)
 	end)
 	prompt.Destroying:Connect(function()
 		stealPrompts[prompt] = nil
@@ -96,6 +130,82 @@ for _, folder in { kaijuFolder, eggFolder } do
 	folder.DescendantAdded:Connect(addStealPrompt)
 	for _, d in folder:GetDescendants() do
 		addStealPrompt(d)
+	end
+end
+
+-- ---------- steal bars ----------
+
+local bars = {} -- [model] = { gui, fill }
+
+local function removeBar(model)
+	local b = bars[model]
+	bars[model] = nil
+	if b then
+		b.gui:Destroy()
+	end
+end
+
+local function refreshBar(model)
+	if not model:GetAttribute("StealBy") then
+		removeBar(model)
+		return
+	end
+	if bars[model] or not model.PrimaryPart then
+		return
+	end
+	local _, ext = model:GetBoundingBox()
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "StealBar"
+	gui.Size = UDim2.fromOffset(190, 58)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, ext.Y * 0.5 + 3, 0)
+	gui.LightInfluence = 0
+	gui.MaxDistance = 160
+	local list = Instance.new("UIListLayout")
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.Padding = UDim.new(0, 4)
+	list.Parent = gui
+	outlinedLabel(gui, "STEALING!", RED, Enum.Font.LuckiestGuy, 0.58, 1)
+	local back = Instance.new("Frame")
+	back.LayoutOrder = 2
+	back.Size = UDim2.fromScale(0.9, 0.28)
+	back.BackgroundColor3 = INK
+	back.BorderSizePixel = 0
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = back
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.new(1, 1, 1)
+	stroke.Parent = back
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = RED
+	fill.BorderSizePixel = 0
+	corner:Clone().Parent = fill
+	fill.Parent = back
+	back.Parent = gui
+	gui.Parent = model.PrimaryPart
+	bars[model] = { gui = gui, fill = fill }
+end
+
+local function watchItem(model)
+	if not model:IsA("Model") then
+		return
+	end
+	model:GetAttributeChangedSignal("StealBy"):Connect(function()
+		refreshBar(model)
+	end)
+	model.Destroying:Connect(function()
+		bars[model] = nil
+	end)
+	refreshBar(model)
+end
+
+for _, folder in { kaijuFolder, eggFolder } do
+	folder.ChildAdded:Connect(watchItem)
+	for _, m in folder:GetChildren() do
+		watchItem(m)
 	end
 end
 
@@ -115,7 +225,8 @@ end
 
 local function track(other)
 	untrack(other)
-	local item = other:GetAttribute("CarryingStolen")
+	local carried = other:GetAttribute("CarryingStolen")
+	local item = carried or other:GetAttribute("Stealing")
 	local char = other.Character
 	local head = char and char:FindFirstChild("Head")
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -126,28 +237,15 @@ local function track(other)
 	local tag = Instance.new("BillboardGui")
 	tag.Name = "ThiefTag"
 	tag.Size = UDim2.fromOffset(220, 56)
-	tag.StudsOffsetWorldSpace = Vector3.new(0, 7.5, 0)
+	tag.StudsOffsetWorldSpace = Vector3.new(0, carried and 7.5 or 3.5, 0)
 	tag.LightInfluence = 0
 	tag.MaxDistance = 200
 	local list = Instance.new("UIListLayout")
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	list.Parent = tag
-	for i, spec in { { "THIEF!", RED, 0.6 }, { item, Color3.new(1, 1, 1), 0.4 } } do
-		local l = Instance.new("TextLabel")
-		l.LayoutOrder = i
-		l.BackgroundTransparency = 1
-		l.Size = UDim2.fromScale(1, spec[3])
-		l.Font = i == 1 and Enum.Font.LuckiestGuy or Enum.Font.FredokaOne
-		l.TextScaled = true
-		l.TextColor3 = spec[2]
-		l.Text = spec[1]
-		local s = Instance.new("UIStroke")
-		s.Thickness = 2.5
-		s.Color = INK
-		s.Parent = l
-		l.Parent = tag
-	end
+	outlinedLabel(tag, carried and "THIEF!" or "STEALING!", RED, Enum.Font.LuckiestGuy, 0.6, 1)
+	outlinedLabel(tag, item, Color3.new(1, 1, 1), Enum.Font.FredokaOne, 0.4, 2)
 	tag.Parent = head
 	table.insert(t, tag)
 	if other ~= player then
@@ -170,9 +268,11 @@ local function track(other)
 end
 
 local function watchPlayer(other)
-	other:GetAttributeChangedSignal("CarryingStolen"):Connect(function()
-		track(other)
-	end)
+	for _, attr in { "CarryingStolen", "Stealing" } do
+		other:GetAttributeChangedSignal(attr):Connect(function()
+			track(other)
+		end)
+	end
 	other.CharacterAdded:Connect(function()
 		task.wait(0.5)
 		track(other)
@@ -252,16 +352,7 @@ local function buttonLabel(plot)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0)
 	bb.LightInfluence = 0
 	bb.MaxDistance = 90
-	label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	local s = Instance.new("UIStroke")
-	s.Thickness = 2.5
-	s.Color = INK
-	s.Parent = label
-	label.Parent = bb
+	label = outlinedLabel(bb, "", Color3.new(1, 1, 1), Enum.Font.FredokaOne, 1, 1)
 	bb.Parent = button
 	buttonLabels[plot] = label
 	return label
@@ -316,14 +407,11 @@ end
 
 local acc = 0
 RunService.RenderStepped:Connect(function(dt)
-	local t = os.clock()
-	-- stolen kaiju bob and sway over their carrier's head
-	for _, other in Players:GetPlayers() do
-		local carried = other.Character and other.Character:FindFirstChild("StolenKaiju")
-		local root = carried and carried.PrimaryPart
-		local weld = root and root:FindFirstChild("CarryWeld")
-		if weld then
-			weld.C1 = CFrame.Angles(0, math.sin(t * 2.2) * 0.35, math.sin(t * 3.1) * 0.08) * CFrame.new(0, -math.sin(t * 4) * 0.25, 0)
+	local now = serverNow()
+	for model, b in bars do
+		local start, seconds = model:GetAttribute("StealStart"), model:GetAttribute("StealSeconds")
+		if start and seconds then
+			b.fill.Size = UDim2.fromScale(math.clamp((now - start) / math.max(seconds, 0.1), 0, 1), 1)
 		end
 	end
 	acc += dt
@@ -331,13 +419,12 @@ RunService.RenderStepped:Connect(function(dt)
 		return
 	end
 	acc = 0
-	local now = serverNow()
 	for _, plot in plotsFolder:GetChildren() do
 		if plot:GetAttribute("PlotId") then
 			updatePlot(plot, now)
 		end
 	end
-	-- no steal prompts on locked or protected bases, on hatching or fresh items, or while carrying something
+	-- no steal prompts on locked or protected bases, on hatching, fresh or contested items, or while carrying
 	local handsFull = player:GetAttribute("CarryingStolen") ~= nil or player:GetAttribute("CarryingEgg") ~= nil
 	local freshAfter = now - StealConfig.NewHatchProtectionSeconds
 	local closedCache = {}
@@ -346,7 +433,10 @@ RunService.RenderStepped:Connect(function(dt)
 		if closedCache[ownerId] == nil then
 			closedCache[ownerId] = closed(plotOf(ownerId))
 		end
-		local busy = model:GetAttribute("HatchStartedAt") ~= nil or (model:GetAttribute("SpawnedAt") or -math.huge) > freshAfter
+		local by = model:GetAttribute("StealBy")
+		local busy = model:GetAttribute("HatchStartedAt") ~= nil
+			or (model:GetAttribute("SpawnedAt") or -math.huge) > freshAfter
+			or (by ~= nil and by ~= player.UserId)
 		prompt.Enabled = not (handsFull or busy or closedCache[ownerId])
 	end
 end)
