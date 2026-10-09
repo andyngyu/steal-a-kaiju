@@ -12,6 +12,7 @@ SettingsConfig.List = {
 	{ Key = "ReducedEffects", Label = "Reduced Effects", Description = "Fewer particles, for slower devices", Default = false },
 	{ Key = "AutoHatch", Label = "Auto Hatch", Description = "Hatch eggs as soon as they're ready", Default = false },
 	{ Key = "CarryGuide", Label = "Path Home", Description = "Arrow to your pen while you carry an egg", Default = true },
+	{ Key = "Auras", Label = "Player Auras", Description = "Glowing auras from equipped trails", Default = true },
 }
 
 SettingsConfig.ByKey = {}
