@@ -121,55 +121,77 @@ local function crackOn(shapes, group, c, r, pts, w, glow, core)
 	end
 end
 
--- Pebble Plains / Common / lizard on two legs: chunky moss-green baby with a ridge of pebbles from crown to tail tip.
+-- "Cute but tough" eyes (the 2026-10 refinement): a smaller eye with only a thin white rim, a big iris, a smaller pupil
+-- nudged inwards so the creature looks focused, a white highlight block in the upper outer corner, and a darker upper
+-- eyelid tilted down towards the centre (the key to a confident look). Lid sits in front of the eye.
+local function toughEyes(t, group, x, y, w, h, iris, lid, lidTilt)
+	local px, py = x - w * 0.09, y - h * 0.05
+	table.insert(t, { Name = "Eye", Group = group, Color = "White", X = x, Y = y, W = w, H = h, D = 0.12, Sink = 0.04, Mirror = true })
+	table.insert(t, { Name = "Iris", Group = group, Color = iris, X = x - w * 0.03, Y = y - h * 0.03, W = w * 0.9, H = h * 0.9, D = 0.14, Mirror = true })
+	table.insert(t, { Name = "Pupil", Group = group, Color = "Ink", X = px, Y = py, W = w * 0.42, H = h * 0.5, D = 0.16, Mirror = true })
+	table.insert(t, { Name = "Glint", Group = group, Color = "White", X = px + w * 0.13, Y = py + h * 0.14, W = w * 0.16, H = w * 0.16, D = 0.2, Mirror = true })
+	-- (its depth is measured over the eye it covers, so it hugs the eye instead of the brow that curves away)
+	table.insert(t, { Name = "Lid", Group = group, Color = lid, X = x + w * 0.02, Y = y + h * 0.4, W = w * 1.18, H = h * 0.32, D = 0.2, RefY = y, RefH = h * 0.8, Offset = -0.06, Tilt = lidTilt or 11, Mirror = true })
+	return t
+end
+
+-- Pebble Plains / Common / lizard on two legs: sturdy moss-green little dino with a determined look and a ridge of
+-- big pebbles from crown to tail tip. ("Cute but tough": smaller focused eyes under heavy lids, a smirk with one fang,
+-- a smaller head on a bulkier body, thick legs in a wide stance.)
 do
 	local S = {
-		-- body: round, darker down the back, segmented cream belly
-		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.45, 0.15 }, R = { 1.05, 1.05, 0.95 } },
-		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 0, 1.75, 0.95 }, R = { 0.95, 1.1, 0.62 } },
-		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.3, -0.47 }, R = { 0.78, 0.86, 0.5 } },
-		{ Group = "Body", Color = "BellyLine", Kind = "Box", Paint = true, C = { 0, 0.7, -0.85 }, S = { 2, 0.2, 0.8 } },
-		{ Group = "Body", Color = "BellyLine", Kind = "Box", Paint = true, C = { 0, 1.1, -0.85 }, S = { 2, 0.2, 0.8 } },
-		{ Group = "Body", Color = "BellyLine", Kind = "Box", Paint = true, C = { 0, 1.5, -0.85 }, S = { 2, 0.2, 0.8 } },
-		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 1.0, 1.25, 0.3 }, R = { 0.2, 0.2, 0.2 }, Mirror = true },
-		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 0.95, 1.85, 0.1 }, R = { 0.16, 0.16, 0.16 }, Mirror = true },
-		-- head: big round skull, chubby cheeks, rounded snout, lighter crown, cream jaw
-		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.95, -0.25 }, R = { 1.1, 0.95, 0.95 } },
-		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.52, -0.95 }, R = { 0.78, 0.44, 0.55 } },
-		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0.72, 2.62, -0.58 }, R = { 0.42, 0.36, 0.42 }, Mirror = true },
-		{ Group = "Head", Color = "BodyLight", Kind = "Ellipsoid", Paint = true, C = { 0, 3.72, -0.35 }, R = { 0.85, 0.32, 0.75 } },
-		{ Group = "Head", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 0, 3.2, 0.6 }, R = { 0.9, 0.7, 0.42 } },
-		{ Group = "Jaw", Color = "Belly", Kind = "Ellipsoid", C = { 0, 2.3, -0.9 }, R = { 0.66, 0.2, 0.56 } },
-		-- legs: thick thighs, rounded darker feet
-		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.6, 0.95, 0.15 }, B = { 0.62, 0.42, 0 }, RA = 0.48, RB = 0.4, Mirror = true },
-		{ Group = "LegL", Color = "BodyDark", Kind = "Ellipsoid", C = { 0.62, 0.2, -0.22 }, R = { 0.48, 0.22, 0.62 }, Mirror = true },
-		-- little arms with paws
-		{ Group = "ArmL", Color = "Body", Kind = "Capsule", A = { 0.95, 1.75, -0.25 }, B = { 1.05, 1.38, -0.68 }, RA = 0.28, RB = 0.22, Mirror = true },
-		{ Group = "ArmL", Color = "Body", Kind = "Ellipsoid", C = { 1.06, 1.3, -0.84 }, R = { 0.24, 0.2, 0.22 }, Mirror = true },
-		-- tail curling up at the tip, darker on top
-		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 1.0, 0.8 }, B = { 0, 0.65, 1.7 }, RA = 0.55, RB = 0.42 },
-		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 0.65, 1.7 }, B = { 0, 0.6, 2.45 }, RA = 0.42, RB = 0.26 },
-		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 0.6, 2.45 }, B = { 0, 0.95, 2.82 }, RA = 0.26, RB = 0.16 },
-		{ Group = "Tail", Color = "BodyDark", Kind = "Box", Paint = true, C = { 0, 1.15, 1.9 }, S = { 1.4, 0.5, 2.4 } },
+		-- body: bulky and round, darker down the back, segmented cream belly
+		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.5, 0.15 }, R = { 1.15, 1.1, 1.02 } },
+		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 0, 1.8, 1.0 }, R = { 1.05, 1.15, 0.64 } },
+		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.32, -0.5 }, R = { 0.84, 0.9, 0.54 } },
+		{ Group = "Body", Color = "BellyLine", Kind = "Box", Paint = true, C = { 0, 0.7, -0.9 }, S = { 2, 0.2, 0.8 } },
+		{ Group = "Body", Color = "BellyLine", Kind = "Box", Paint = true, C = { 0, 1.1, -0.9 }, S = { 2, 0.2, 0.8 } },
+		{ Group = "Body", Color = "BellyLine", Kind = "Box", Paint = true, C = { 0, 1.5, -0.9 }, S = { 2, 0.2, 0.8 } },
+		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 1.1, 1.28, 0.3 }, R = { 0.22, 0.22, 0.22 }, Mirror = true },
+		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 1.02, 1.9, 0.12 }, R = { 0.17, 0.17, 0.17 }, Mirror = true },
+		-- head: a little smaller, firm cheeks, rounded snout, lighter crown, cream jaw
+		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.92, -0.22 }, R = { 1.0, 0.86, 0.88 } },
+		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.48, -0.9 }, R = { 0.7, 0.4, 0.52 } },
+		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0.64, 2.56, -0.52 }, R = { 0.36, 0.3, 0.36 }, Mirror = true },
+		{ Group = "Head", Color = "BodyLight", Kind = "Ellipsoid", Paint = true, C = { 0, 3.6, -0.32 }, R = { 0.78, 0.3, 0.7 } },
+		{ Group = "Head", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 0, 3.12, 0.56 }, R = { 0.84, 0.66, 0.4 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Ellipsoid", C = { 0, 2.28, -0.88 }, R = { 0.6, 0.18, 0.5 } },
+		-- thick legs in a wide stance, big rounded feet
+		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.72, 0.98, 0.15 }, B = { 0.76, 0.42, 0 }, RA = 0.56, RB = 0.48, Mirror = true },
+		{ Group = "LegL", Color = "BodyDark", Kind = "Ellipsoid", C = { 0.78, 0.2, -0.22 }, R = { 0.56, 0.22, 0.7 }, Mirror = true },
+		-- sturdier arms and paws
+		{ Group = "ArmL", Color = "Body", Kind = "Capsule", A = { 1.02, 1.82, -0.25 }, B = { 1.14, 1.42, -0.68 }, RA = 0.34, RB = 0.28, Mirror = true },
+		{ Group = "ArmL", Color = "Body", Kind = "Ellipsoid", C = { 1.16, 1.33, -0.86 }, R = { 0.3, 0.25, 0.27 }, Mirror = true },
+		-- tail: thicker, curling up at the tip, darker on top
+		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 1.02, 0.85 }, B = { 0, 0.66, 1.75 }, RA = 0.6, RB = 0.46 },
+		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 0.66, 1.75 }, B = { 0, 0.6, 2.5 }, RA = 0.46, RB = 0.3 },
+		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 0.6, 2.5 }, B = { 0, 0.95, 2.86 }, RA = 0.3, RB = 0.18 },
+		{ Group = "Tail", Color = "BodyDark", Kind = "Box", Paint = true, C = { 0, 1.18, 1.95 }, S = { 1.5, 0.5, 2.4 } },
 	}
-	-- the pebble ridge: crown, spine, tail
+	-- the pebble ridge (bolder): crown, spine, flanks, tail
 	for _, p in {
-		{ "Head", { 0, 3.92, -0.1 }, 0.36 },
-		{ "Head", { 0.4, 3.74, 0.2 }, 0.28 },
-		{ "Head", { -0.38, 3.7, 0.26 }, 0.27 },
-		{ "Head", { 0.05, 3.55, 0.62 }, 0.3 },
-		{ "Body", { 0, 2.6, 0.82 }, 0.4 },
-		{ "Body", { 0.32, 2.15, 1.02 }, 0.38 },
-		{ "Body", { -0.32, 1.72, 1.08 }, 0.37 },
-		{ "Body", { 0.24, 1.3, 1.1 }, 0.32 },
-		{ "Body", { 0.86, 1.95, 0.62 }, 0.22 },
-		{ "Body", { -0.86, 1.55, 0.7 }, 0.22 },
-		{ "Tail", { 0, 1.2, 1.65 }, 0.32 },
-		{ "Tail", { 0, 1.02, 2.24 }, 0.25 },
-		{ "Tail", { 0, 1.08, 2.74 }, 0.18 },
+		{ "Head", { 0, 3.8, -0.1 }, 0.42 },
+		{ "Head", { 0.42, 3.62, 0.18 }, 0.32 },
+		{ "Head", { -0.4, 3.58, 0.24 }, 0.3 },
+		{ "Head", { 0.05, 3.44, 0.6 }, 0.34 },
+		{ "Body", { 0, 2.68, 0.88 }, 0.46 },
+		{ "Body", { 0.34, 2.22, 1.1 }, 0.43 },
+		{ "Body", { -0.34, 1.78, 1.16 }, 0.42 },
+		{ "Body", { 0.26, 1.34, 1.18 }, 0.36 },
+		{ "Body", { 0.94, 2.02, 0.66 }, 0.25 },
+		{ "Body", { -0.94, 1.6, 0.74 }, 0.25 },
+		{ "Tail", { 0, 1.24, 1.7 }, 0.36 },
+		{ "Tail", { 0, 1.04, 2.28 }, 0.28 },
+		{ "Tail", { 0, 1.08, 2.76 }, 0.2 },
 	} do
 		pebble(S, p[1], p[2], p[3], "Rock1", "Rock3", "Rock2")
 	end
+	local D = toughEyes({}, "Head", 0.34, 3.02, 0.54, 0.56, "Iris", "Lid", 11)
+	table.insert(D, { Name = "Nostril", Group = "Head", Color = "Ink", X = 0.18, Y = 2.7, W = 0.08, H = 0.08, D = 0.1, Mirror = true })
+	-- a small smirk with one fang
+	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = -0.04, Y = 2.44, W = 0.3, H = 0.08, D = 0.07 })
+	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = 0.13, Y = 2.465, W = 0.11, H = 0.08, D = 0.07, RefY = 2.44, RefH = 0.08, Tilt = 28 })
+	table.insert(D, { Name = "Fang", Group = "Head", Color = "White", X = -0.12, Y = 2.37, W = 0.09, H = 0.12, D = 0.11 })
 	specs.Pebblesaur = {
 		Voxel = 0.2,
 		StudScale = 0.4,
@@ -181,6 +203,7 @@ do
 			Body = "7DC24B",
 			BodyDark = "579B35",
 			BodyLight = "96D262",
+			Lid = "3A7424",
 			Belly = "FFE6A8",
 			BellyLine = "EDCB86",
 			Rock1 = "A4A8B8",
@@ -190,39 +213,27 @@ do
 			White = "FFFFFF",
 			Iris = "2C6E46",
 			Ink = "1A1033",
-			Mouth = "4A2A3A",
-			Blush = "FF9DBB",
+			Mouth = "3A2230",
 		},
 		Joints = {
 			Head = { 0, 2.3, -0.2 },
 			Jaw = { 0, 2.42, -0.45 },
-			LegL = { 0.6, 0.95, 0.15 },
-			LegR = { -0.6, 0.95, 0.15 },
-			ArmL = { 0.95, 1.75, -0.25 },
-			ArmR = { -0.95, 1.75, -0.25 },
-			Tail = { 0, 1.0, 0.8 },
+			LegL = { 0.72, 0.98, 0.15 },
+			LegR = { -0.72, 0.98, 0.15 },
+			ArmL = { 1.02, 1.82, -0.25 },
+			ArmR = { -1.02, 1.82, -0.25 },
+			Tail = { 0, 1.02, 0.85 },
 		},
 		Parents = { Jaw = "Head" },
 		Shapes = S,
-		Details = {
-			{ Name = "Eye", Group = "Head", Color = "White", X = 0.44, Y = 3.15, W = 0.8, H = 0.84, D = 0.12, Sink = 0.05, Mirror = true },
-			{ Name = "Iris", Group = "Head", Color = "Iris", X = 0.4, Y = 3.1, W = 0.58, H = 0.64, D = 0.14, Mirror = true },
-			{ Name = "Pupil", Group = "Head", Color = "Ink", X = 0.39, Y = 3.08, W = 0.4, H = 0.48, D = 0.16, Mirror = true },
-			{ Name = "Glint", Group = "Head", Color = "White", X = 0.29, Y = 3.24, W = 0.18, H = 0.18, D = 0.2, Mirror = true },
-			{ Name = "Glint", Group = "Head", Color = "White", X = 0.48, Y = 2.94, W = 0.08, H = 0.08, D = 0.2, Mirror = true },
-			{ Name = "Blush", Group = "Head", Color = "Blush", X = 0.84, Y = 2.74, W = 0.36, H = 0.18, D = 0.1, Mirror = true },
-			{ Name = "Nostril", Group = "Head", Color = "Ink", X = 0.2, Y = 2.72, W = 0.1, H = 0.1, D = 0.1, Mirror = true },
-			{ Name = "Mouth", Group = "Head", Color = "Mouth", X = 0, Y = 2.46, W = 0.6, H = 0.1, D = 0.07 },
-			{ Name = "Mouth", Group = "Head", Color = "Mouth", X = 0.34, Y = 2.52, W = 0.12, H = 0.1, D = 0.07, Mirror = true },
-			{ Name = "Tooth", Group = "Head", Color = "White", X = 0.17, Y = 2.37, W = 0.14, H = 0.16, D = 0.12 },
-		},
+		Details = D,
 		Bits = {
-			{ Name = "Toe", Group = "LegL", Color = "Claw", C = { 0.34, 0.12, -0.86 }, S = { 0.2, 0.24, 0.24 }, Mirror = true },
-			{ Name = "Toe", Group = "LegL", Color = "Claw", C = { 0.62, 0.12, -0.9 }, S = { 0.2, 0.24, 0.26 }, Mirror = true },
-			{ Name = "Toe", Group = "LegL", Color = "Claw", C = { 0.9, 0.12, -0.86 }, S = { 0.2, 0.24, 0.24 }, Mirror = true },
-			{ Name = "Claw", Group = "ArmL", Color = "Claw", C = { 0.94, 1.22, -1.02 }, S = { 0.1, 0.14, 0.14 }, Mirror = true },
-			{ Name = "Claw", Group = "ArmL", Color = "Claw", C = { 1.08, 1.2, -1.04 }, S = { 0.1, 0.14, 0.14 }, Mirror = true },
-			{ Name = "Claw", Group = "ArmL", Color = "Claw", C = { 1.22, 1.22, -1.0 }, S = { 0.1, 0.14, 0.14 }, Mirror = true },
+			{ Name = "Toe", Group = "LegL", Color = "Claw", C = { 0.44, 0.12, -0.92 }, S = { 0.22, 0.24, 0.26 }, Mirror = true },
+			{ Name = "Toe", Group = "LegL", Color = "Claw", C = { 0.78, 0.12, -0.96 }, S = { 0.22, 0.24, 0.28 }, Mirror = true },
+			{ Name = "Toe", Group = "LegL", Color = "Claw", C = { 1.12, 0.12, -0.92 }, S = { 0.22, 0.24, 0.26 }, Mirror = true },
+			{ Name = "Claw", Group = "ArmL", Color = "Claw", C = { 1.02, 1.22, -1.08 }, S = { 0.11, 0.15, 0.15 }, Mirror = true },
+			{ Name = "Claw", Group = "ArmL", Color = "Claw", C = { 1.17, 1.2, -1.1 }, S = { 0.11, 0.15, 0.15 }, Mirror = true },
+			{ Name = "Claw", Group = "ArmL", Color = "Claw", C = { 1.32, 1.22, -1.06 }, S = { 0.11, 0.15, 0.15 }, Mirror = true },
 		},
 	}
 end

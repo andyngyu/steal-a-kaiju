@@ -494,15 +494,18 @@ function KaijuBuilder.BuildModel(name, spec)
 		for _, dd in list do
 			local w, h = dd.W, dd.H
 			local minZ = math.huge
-			-- voxel columns whose centres fall inside the detail's footprint (at least the nearest one)
+			-- voxel columns whose centres fall inside the detail's footprint (at least the nearest one). RefY / RefH
+			-- measure the depth from another footprint (an eyelid sits at the depth of the eye it covers, not of the
+			-- brow above, which curves away)
+			local fy, fh = dd.RefY or dd.Y, dd.RefH or h
 			local ixa, ixb = math.ceil((dd.X - w / 2) / v), math.floor((dd.X + w / 2) / v)
 			if ixa > ixb then
 				ixa = math.floor(dd.X / v + 0.5)
 				ixb = ixa
 			end
-			local iya, iyb = math.ceil((dd.Y - h / 2 - v / 2) / v), math.floor((dd.Y + h / 2 - v / 2) / v)
+			local iya, iyb = math.ceil((fy - fh / 2 - v / 2) / v), math.floor((fy + fh / 2 - v / 2) / v)
 			if iya > iyb then
-				iya = math.floor((dd.Y - v / 2) / v + 0.5)
+				iya = math.floor((fy - v / 2) / v + 0.5)
 				iyb = iya
 			end
 			for ix = ixa, ixb do
