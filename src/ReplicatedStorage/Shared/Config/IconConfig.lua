@@ -5,26 +5,27 @@
 -- UI rows take these as their Icon image (UIApi.SetPet / SetIndexEntry data.Icon).
 local IconConfig = {}
 
+-- (re-rendered from the sculpted menacing models, 2026-10-13; previous set in icons/asset_ids_v2.json)
 IconConfig.Kaiju = {
-	Pebblesaur = "rbxassetid://115700737045701",
-	Chompling = "rbxassetid://105018332894896",
-	Rumblerex = "rbxassetid://113056806500772",
-	Bonkey = "rbxassetid://82244615785009",
-	Tuskit = "rbxassetid://83704701249409",
-	Thunderback = "rbxassetid://119130236863941",
-	Magmite = "rbxassetid://99840747705986",
-	CinderToad = "rbxassetid://92921189955423",
-	Scorchback = "rbxassetid://74671830261665",
-	BlazeBonkey = "rbxassetid://132027621489065",
-	MoltenRex = "rbxassetid://121184717701582",
-	InfernoSerpent = "rbxassetid://136196614876097",
-	Snowpup = "rbxassetid://72962725876027",
-	GlacierCrab = "rbxassetid://90408909859252",
-	Frostrhino = "rbxassetid://109307678669650",
-	Brrrilla = "rbxassetid://96328089571207",
-	IcebreakerRex = "rbxassetid://119669208077528",
-	AuroraSerpent = "rbxassetid://128205471450256",
-	Prismling = "rbxassetid://135476221391794",
+	Pebblesaur = "rbxassetid://86214005977607",
+	Chompling = "rbxassetid://130401670254097",
+	Rumblerex = "rbxassetid://78090860581568",
+	Bonkey = "rbxassetid://106269960314788",
+	Tuskit = "rbxassetid://92291136209195",
+	Thunderback = "rbxassetid://97429742476045",
+	Magmite = "rbxassetid://77116396076844",
+	CinderToad = "rbxassetid://81933138674457",
+	Scorchback = "rbxassetid://131879547111471",
+	BlazeBonkey = "rbxassetid://98680513339022",
+	MoltenRex = "rbxassetid://91664818713074",
+	InfernoSerpent = "rbxassetid://83235369470255",
+	Snowpup = "rbxassetid://91646335787432",
+	GlacierCrab = "rbxassetid://95324063785335",
+	Frostrhino = "rbxassetid://92132609444438",
+	Brrrilla = "rbxassetid://124953833658672",
+	IcebreakerRex = "rbxassetid://97949342854298",
+	AuroraSerpent = "rbxassetid://75618888906866",
+	Prismling = "rbxassetid://107278256092402",
 }
 
 IconConfig.Eggs = {
