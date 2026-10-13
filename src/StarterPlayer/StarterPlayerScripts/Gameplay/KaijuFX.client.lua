@@ -691,6 +691,7 @@ local function updateKaiju(model, st, dt, t, camPos)
 	local alpha = me > ms and math.clamp((now - ms) / (me - ms), 0, 1) or 1
 	local pos = from:Lerp(to, alpha)
 	local dist = (pos - camPos).Magnitude
+	st.dist = dist
 	if dist > ANIM_RANGE then
 		return
 	end
@@ -1317,12 +1318,23 @@ RunService:BindToRenderStep("KaijuShake", Enum.RenderPriority.Camera.Value + 1, 
 	shakeAmp *= math.exp(-5 * dt)
 end)
 
+-- Animation LOD: the brick kaiju have a few hundred parts each, so far ones are posed less often (every 2nd frame past
+-- 60 studs, every 4th past 120) with the time they skipped; each kaiju gets its own frame slot to spread the load.
+local frame = 0
 RunService.RenderStepped:Connect(function(dt)
+	frame += 1
 	local t = os.clock()
 	local camPos = workspace.CurrentCamera.CFrame.Position
 	for model, st in kaiju do
 		if model.Parent then
-			updateKaiju(model, st, dt, t, camPos)
+			st.skipped = (st.skipped or 0) + dt
+			st.slot = st.slot or rng:NextInteger(0, 3)
+			local d = st.dist or 0
+			local every = d > 120 and 4 or d > 60 and 2 or 1
+			if every == 1 or (frame + st.slot) % every == 0 then
+				updateKaiju(model, st, st.skipped, t, camPos)
+				st.skipped = 0
+			end
 		end
 	end
 	for model, st in eggs do
