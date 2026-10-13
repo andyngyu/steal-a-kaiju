@@ -513,9 +513,8 @@ specs.Dress_PebblePlains = {
 	},
 }
 
--- Lava Lagoon and Frostfang Peaks live in their own modules (Tools.BiomeArtSpecsLava / BiomeArtSpecsFrost);
--- the per-rarity eggs too (Tools.EggSpecsPlains)
-for _, name in { "BiomeArtSpecsLava", "BiomeArtSpecsFrost", "EggSpecsPlains" } do
+-- Lava Lagoon and Frostfang Peaks live in their own modules (Tools.BiomeArtSpecsLava / BiomeArtSpecsFrost)
+for _, name in { "BiomeArtSpecsLava", "BiomeArtSpecsFrost" } do
 	local module = game:GetService("ServerStorage").Tools:FindFirstChild(name)
 	if module then
 		local copy = module:Clone()
