@@ -1,6 +1,7 @@
 -- Edit-time tool: builds the sculpted kaiju (2026-10-13 art direction: powerful, a bit intimidating monsters, "voxel but
 -- sculpted"). Specs live in ServerStorage.Tools.KaijuSculptSpecs: per species a table with Palette, Joints, Parents,
--- Gait, Emotes, Seed and Build(K), a function that places the blocks through the API below.
+-- Gait, Emotes, Seed, Vary (random value variation per block, e.g. 0.06) and Build(K), a function that places the blocks
+-- through the API below.
 --   require(game.ServerStorage.Tools.KaijuSculpt:Clone()).Build("Pebblesaur")   -> ServerStorage.Assets.Kaiju.Pebblesaur
 -- Output contract (same as KaijuBuilder, so KaijuModel / KaijuFX / KaijuMotion / MutationVisuals / GoldVariant keep
 -- working): Model facing -Z, PrimaryPart "Root" at the centre of the feet, body groups as sub-Models with a Joint
@@ -15,7 +16,7 @@
 --                                                        (rx = side radius, ru / rd = up / down radius); ref = the
 --                                                        sideways axis for steep paths (legs)
 --   K:tube(group, nodes, opts) -> samples                core blocks + overlapping tiles + belly plates on a path:
---        opts.step (ring spacing), core (colour), coreEvery, tile = { w, l, t, lift, jitter, arc, sink, overlap },
+--        opts.step (ring spacing), core (colour), coreCap (colour of the end stretches), coreEvery, tile = { w, l, t, lift, jitter, arc, sink, overlap },
 --        color = fn(theta, ring, sample) -> colour or nil (theta 0 = top, +pi/2 = the R side), belly = { key, key2,
 --        arc, t }, from / trim (arc length left bare at the start / end), ref
 --   K:at(samples, s) -> sample                           the frame at arc length s: p, T (along), R (side), U (up), radii
@@ -23,6 +24,7 @@
 --   K:spike(group, colour, base, dir, across, h, thick)  a block on its corner: a point h from base along dir
 --   K:ridge(group, samples, opts)                        jagged double-point plates along a tube's top
 --   K:chain(group, colours, base, dir, axis, opts)       a tapered chain of blocks bending about axis (horns, claws)
+--   K:plate(group, colours, base, up, along, opts)       a stepped plate: layers narrowing and stepping back to a point
 --   K:rand(a, b)                                         seeded random (the same build every time)
 local ServerStorage = game:GetService("ServerStorage")
 
@@ -69,7 +71,13 @@ function K:block(group, key, cf, size, name)
 	p.Name = name or key
 	p.Size = Vector3.new(math.max(size.X, 0.05), math.max(size.Y, 0.05), math.max(size.Z, 0.05))
 	p.CFrame = cf
-	p.Color = pal.color
+	local color = pal.color
+	local vary = self.spec.Vary
+	if vary and pal.material ~= Enum.Material.Neon then
+		local v = self:rand(-vary, vary)
+		color = v < 0 and color:Lerp(Color3.new(0, 0, 0), -v) or color:Lerp(Color3.new(1, 1, 1), v * 0.6)
+	end
+	p.Color = color
 	p.Material = pal.material
 	p.Anchored = true
 	p.CanCollide = false
@@ -254,8 +262,10 @@ function K:tube(group, nodes, opts)
 				local k = opts.coreScale or 0.82
 				local cf = CFrame.fromMatrix((a.p + b.p) / 2 + U * (ru - rd) / 2, R, U)
 				local len = d.Magnitude + r * 0.7
-				self:block(group, opts.core, cf, Vector3.new(rx * 2 * k, h * k, len))
-				self:block(group, opts.core, cf * CFrame.Angles(0, 0, math.pi / 4), Vector3.new(r * 1.45 * k, r * 1.45 * k, len))
+				-- coreCap: the end stretches use another colour (a glowing core would show at the open ends)
+				local key = (opts.coreCap and (i == 1 or j == #samples)) and opts.coreCap or opts.core
+				self:block(group, key, cf, Vector3.new(rx * 2 * k, h * k, len))
+				self:block(group, key, cf * CFrame.Angles(0, 0, math.pi / 4), Vector3.new(r * 1.45 * k, r * 1.45 * k, len))
 			end
 			i = j
 		end
@@ -267,30 +277,34 @@ function K:tube(group, nodes, opts)
 		local bellyHalf = belly and math.rad(belly.arc or 32) or 0
 		local arc = math.min(math.rad(tile.arc or 180), math.pi - bellyHalf)
 		local full = not belly and arc >= math.pi - 1e-3
-		for ri, smp in samples do
-			if smp.s >= (opts.from or 0) - 1e-3 and smp.s <= total - (opts.trim or 0) + 1e-3 then
+		local n = tile.n
+		if not n then
+			local widest = 0
+			for _, smp in ipairs(samples) do
 				local _, perim = spread(self, smp, -arc, arc, 1, 0, false)
-				local n = math.max(full and 3 or 2, math.floor(perim / tile.w + 0.5))
-				local thetas
+				widest = math.max(widest, perim)
+			end
+			n = math.max(full and 3 or 2, math.floor(widest / tile.w + 0.5))
+		end
+		for ri, smp in ipairs(samples) do
+			if smp.s >= (opts.from or 0) - 1e-3 and smp.s <= total - (opts.trim or 0) + 1e-3 then
+				local thetas, perim
 				if full then
-					thetas = spread(self, smp, -math.pi, math.pi, n, ri % 2 == 0 and 0.5 or 0, true)
-				elseif ri % 2 == 0 then
-					thetas = spread(self, smp, -arc, arc, n, 0, false)
+					thetas, perim = spread(self, smp, -math.pi, math.pi, n, (tile.stagger and ri % 2 == 0) and 0.5 or 0, true)
 				else
-					thetas = spread(self, smp, -arc, arc, n + 1, -0.5 * (n + 1) / n, false)
-					thetas[1], thetas[#thetas] = -arc, arc
+					thetas, perim = spread(self, smp, -arc, arc, n, 0, false)
 				end
-				local w = perim / n * (tile.overlap or 1.18)
-				for _, th in thetas do
-					local key = opts.color and opts.color(th, ri, smp) or opts.key
+				local w = perim / n * (tile.overlap or 1.1)
+				for row, th in thetas do
+					local key = opts.color and opts.color(th, ri, smp, row, n) or opts.key
 					if key then
-						self:tile(group, key, smp, th, w, tile.l or step * 1.35, tile.t or 0.1, tile.lift, tile.jitter, tile.sink)
+						self:tile(group, key, smp, th, w, tile.l or step * 1.3, tile.t or 0.1, tile.lift, tile.jitter, tile.sink)
 					end
 				end
 				if belly then
 					local key = ri % 2 == 0 and belly.key or (belly.key2 or belly.key)
-					local bw = 2 * smp.rx * math.sin(bellyHalf) * 1.3
-					self:tile(group, key, smp, math.pi, bw, step * 1.2, belly.t or 0.1, belly.lift or 5, 2, 0.3)
+					local bw = 2 * smp.rx * math.sin(bellyHalf) * (belly.wide or 1.1)
+					self:tile(group, key, smp, math.pi, bw, step * 1.2, belly.t or 0.1, belly.lift or 3, 1, 0.45)
 				end
 			end
 		end
@@ -321,8 +335,16 @@ function K:ridge(group, samples, opts)
 		local jit = opts.jitter or 5
 		local lean = math.rad((opts.lean or 30) + self:rand(-jit, jit))
 		local base = smp.p + smp.U * smp.ru * (opts.sink or 0.8)
-		self:spike(group, opts.key, base, smp.U * math.cos(lean) + smp.T * math.sin(lean), smp.R, h, th)
-		if opts.tip then
+		if opts.style == "plate" then
+			local keys = opts.keys or { opts.key, opts.key, opts.tip or opts.key }
+			self:plate(group, keys, base, smp.U, smp.T, { h = h, w = h * value(opts.width or 0.62, u), t = th, n = opts.layers or 3, lean = (opts.lean or 14) + self:rand(-jit, jit), shift = opts.shift or 0.14 })
+		elseif opts.style == "spike" then
+			local depth = value(opts.depth or 2.4, u)
+			self:chain(group, { opts.key, opts.key, opts.tip or opts.key }, base, smp.U * math.cos(lean) + smp.T * math.sin(lean), smp.R, { n = 3, len = h, w0 = th, w1 = th * 0.65, depth = depth, bend = opts.bend or 12, tipH = th * 0.65 * depth * 0.55 })
+		else
+			self:spike(group, opts.key, base, smp.U * math.cos(lean) + smp.T * math.sin(lean), smp.R, h, th)
+		end
+		if opts.tip and opts.style ~= "spike" then
 			local lean2 = lean + math.rad(opts.tipLean or 16)
 			local base2 = base + smp.T * h * 0.45 + smp.U * h * 0.25
 			self:spike(group, opts.tip, base2, smp.U * math.cos(lean2) + smp.T * math.sin(lean2), smp.R, h * 0.6, th * 0.85)
@@ -344,13 +366,34 @@ function K:chain(group, keys, base, dir, axis, opts)
 		local X = axis - d * axis:Dot(d)
 		X = X.Magnitude > 1e-3 and X.Unit or frame(d)
 		if i == n and opts.tip ~= false then
-			self:spike(group, key, p - d * w * 0.25, d, X, seg * 0.6 + w * 0.5, w * (opts.depth or 1))
+			self:spike(group, key, p - d * w * 0.25, d, X, opts.tipH or (seg * 0.6 + w * 0.5), w)
 		else
 			self:block(group, key, CFrame.fromMatrix(p + d * seg / 2, X, d), Vector3.new(w, seg * 1.12, w * (opts.depth or 1)))
 			p += d * seg
 		end
 		d = (CFrame.fromAxisAngle(X, math.rad(opts.bend or 0)) * d).Unit
 	end
+end
+
+-- opts: h (height), w (base width along the body), t (thickness), n (layers), lean (degrees back), shift (each layer
+-- steps back by this fraction of w)
+function K:plate(group, keys, base, up, along, opts)
+	local n = opts.n or 3
+	local lean = math.rad(opts.lean or 14)
+	local U = (up * math.cos(lean) + along * math.sin(lean)).Unit
+	local A = (along - U * along:Dot(U)).Unit
+	local X = U:Cross(A)
+	local lh = opts.h / (n + 0.45)
+	local shift = (opts.shift or 0.14) * opts.w
+	local top
+	for i = 1, n do
+		local f = (i - 1) / n
+		local w = opts.w * (1 - f * 0.72)
+		local c = base + U * (lh * (i - 0.5)) + A * shift * (i - 1)
+		self:block(group, keys[math.min(i, #keys)], CFrame.fromMatrix(c, X, U), Vector3.new(opts.t * (1 - f * 0.35), lh * 1.04, w))
+		top = { c = c, w = w }
+	end
+	self:spike(group, keys[#keys], top.c + U * lh * 0.4 + A * shift * 0.6, (U + A * 0.25).Unit, X, top.w * 0.48, opts.t * 0.6)
 end
 
 function KaijuSculpt.BuildModel(name, spec)
@@ -419,7 +462,7 @@ function KaijuSculpt.Build(name)
 	end
 	model.Parent = folder
 	local _, size = model:GetBoundingBox()
-	return string.format("%s: %d parts, size %.1f x %.1f x %.1f", name, self and 0 or model:GetAttribute("Bricks"), size.X, size.Y, size.Z)
+	return string.format("%s: %d parts, size %.1f x %.1f x %.1f", name, model:GetAttribute("Bricks"), size.X, size.Y, size.Z)
 end
 
 return KaijuSculpt
