@@ -12,6 +12,13 @@ local function pebble(shapes, group, c, r, base, light, dark)
 end
 
 -- big cartoon eyes as face details: white (set a little into the face), coloured iris, pupil, a big and a small glint
+local function spike(shapes, group, c, r, base, light, dark, lean)
+	pebble(shapes, group, c, r, base, light, dark)
+	local tip = { c[1], c[2] + r * 0.72, c[3] + (lean or 0) }
+	table.insert(shapes, { Group = group, Color = base, Kind = "Ellipsoid", C = tip, R = { r * 0.56, r * 0.5, r * 0.56 } })
+	table.insert(shapes, { Group = group, Color = light, Kind = "Ellipsoid", Paint = true, C = { tip[1], tip[2] + r * 0.26, tip[3] }, R = { r * 0.5, r * 0.3, r * 0.5 } })
+end
+
 local function eyes(t, group, x, y, w, h, iris)
 	table.insert(t, { Name = "Eye", Group = group, Color = "White", X = x, Y = y, W = w, H = h, D = 0.12, Sink = 0.04, Mirror = true })
 	table.insert(t, { Name = "Iris", Group = group, Color = iris, X = x - w * 0.05, Y = y - h * 0.06, W = w * 0.72, H = h * 0.76, D = 0.14, Mirror = true })
@@ -124,20 +131,25 @@ end
 -- "Cute but tough" eyes (the 2026-10 refinement): a smaller eye with only a thin white rim, a big iris, a smaller pupil
 -- nudged inwards so the creature looks focused, a white highlight block in the upper outer corner, and a darker upper
 -- eyelid tilted down towards the centre (the key to a confident look). Lid sits in front of the eye.
-local function toughEyes(t, group, x, y, w, h, iris, lid, lidTilt)
-	local px, py = x - w * 0.09, y - h * 0.05
+local function toughEyes(t, group, x, y, w, h, iris, brow, browTilt)
+	local px, py = x - w * 0.08, y - h * 0.06
+	local pw, ph = w * 0.46, h * 0.54
+	local g, s = w * 0.3, w * 0.12
 	table.insert(t, { Name = "Eye", Group = group, Color = "White", X = x, Y = y, W = w, H = h, D = 0.12, Sink = 0.04, Mirror = true })
 	table.insert(t, { Name = "Iris", Group = group, Color = iris, X = x - w * 0.03, Y = y - h * 0.03, W = w * 0.9, H = h * 0.9, D = 0.14, Mirror = true })
-	table.insert(t, { Name = "Pupil", Group = group, Color = "Ink", X = px, Y = py, W = w * 0.42, H = h * 0.5, D = 0.16, Mirror = true })
-	table.insert(t, { Name = "Glint", Group = group, Color = "White", X = px + w * 0.13, Y = py + h * 0.14, W = w * 0.16, H = w * 0.16, D = 0.2, Mirror = true })
-	-- (its depth is measured over the eye it covers, so it hugs the eye instead of the brow that curves away)
-	table.insert(t, { Name = "Lid", Group = group, Color = lid, X = x + w * 0.02, Y = y + h * 0.4, W = w * 1.18, H = h * 0.32, D = 0.2, RefY = y, RefH = h * 0.8, Offset = -0.06, Tilt = lidTilt or 11, Mirror = true })
+	table.insert(t, { Name = "Pupil", Group = group, Color = "Ink", X = px, Y = py, W = pw, H = ph, D = 0.16, Mirror = true })
+	-- a big highlight over the pupil's upper outer corner and a tiny one low on the inner side: bright, alert eyes
+	table.insert(t, { Name = "Glint", Group = group, Color = "White", X = px + pw / 2 - g * 0.35, Y = py + ph / 2 - g * 0.35, W = g, H = g, D = 0.2, Mirror = true })
+	table.insert(t, { Name = "Glint", Group = group, Color = "White", X = px - pw / 2 + s * 0.85, Y = py - ph / 2 + s * 0.85, W = s, H = s, D = 0.2, Mirror = true })
+	-- the brow: about one voxel tall seen from the front, a gentle tilt, studded like the head, and leaning back into the
+	-- forehead (a ridge that grows out of the head, not a slab on top of it)
+	table.insert(t, { Name = "Brow", Group = group, Color = brow, X = x + w * 0.02, Y = y + h * 0.45, W = w * 1.16, H = 0.26, D = 0.3, RefY = y, RefH = h * 0.8, Offset = 0.14, Tilt = browTilt or 5, Yaw = 12, Pitch = 40, Studs = true, Mirror = true })
 	return t
 end
 
 -- Pebble Plains / Common / lizard on two legs: sturdy moss-green little dino with a determined look and a ridge of
--- big pebbles from crown to tail tip. ("Cute but tough": smaller focused eyes under heavy lids, a smirk with one fang,
--- a smaller head on a bulkier body, thick legs in a wide stance.)
+-- big rock spikes from crown to tail tip. ("Cute but tough": smaller bright eyes under a gentle brow ridge, a friendly
+-- grin with two little fangs, a smaller head on a bulkier body, thick legs in a wide stance.)
 do
 	local S = {
 		-- body: bulky and round, darker down the back, segmented cream belly
@@ -151,11 +163,11 @@ do
 		{ Group = "Body", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 1.02, 1.9, 0.12 }, R = { 0.17, 0.17, 0.17 }, Mirror = true },
 		-- head: a little smaller, firm cheeks, rounded snout, lighter crown, cream jaw
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.92, -0.22 }, R = { 1.0, 0.86, 0.88 } },
-		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.48, -0.9 }, R = { 0.7, 0.4, 0.52 } },
-		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0.64, 2.56, -0.52 }, R = { 0.36, 0.3, 0.36 }, Mirror = true },
+		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.28, -0.92 }, R = { 0.7, 0.4, 0.52 } },
+		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0.64, 2.42, -0.5 }, R = { 0.36, 0.3, 0.36 }, Mirror = true },
 		{ Group = "Head", Color = "BodyLight", Kind = "Ellipsoid", Paint = true, C = { 0, 3.6, -0.32 }, R = { 0.78, 0.3, 0.7 } },
 		{ Group = "Head", Color = "BodyDark", Kind = "Ellipsoid", Paint = true, C = { 0, 3.12, 0.56 }, R = { 0.84, 0.66, 0.4 } },
-		{ Group = "Jaw", Color = "Belly", Kind = "Ellipsoid", C = { 0, 2.28, -0.88 }, R = { 0.6, 0.18, 0.5 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Ellipsoid", C = { 0, 2.04, -0.92 }, R = { 0.62, 0.26, 0.54 } },
 		-- thick legs in a wide stance, big rounded feet
 		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.72, 0.98, 0.15 }, B = { 0.76, 0.42, 0 }, RA = 0.56, RB = 0.48, Mirror = true },
 		{ Group = "LegL", Color = "BodyDark", Kind = "Ellipsoid", C = { 0.78, 0.2, -0.22 }, R = { 0.56, 0.22, 0.7 }, Mirror = true },
@@ -168,30 +180,36 @@ do
 		{ Group = "Tail", Color = "Body", Kind = "Capsule", A = { 0, 0.6, 2.5 }, B = { 0, 0.95, 2.86 }, RA = 0.3, RB = 0.18 },
 		{ Group = "Tail", Color = "BodyDark", Kind = "Box", Paint = true, C = { 0, 1.18, 1.95 }, S = { 1.5, 0.5, 2.4 } },
 	}
-	-- the pebble ridge (bolder): crown, spine, flanks, tail
+	-- the rock ridge: big pointed spikes from crown to tail in a near-continuous kaiju dorsal row, small pebbles beside it
 	for _, p in {
-		{ "Head", { 0, 3.8, -0.1 }, 0.42 },
-		{ "Head", { 0.42, 3.62, 0.18 }, 0.32 },
-		{ "Head", { -0.4, 3.58, 0.24 }, 0.3 },
-		{ "Head", { 0.05, 3.44, 0.6 }, 0.34 },
-		{ "Body", { 0, 2.68, 0.88 }, 0.46 },
-		{ "Body", { 0.34, 2.22, 1.1 }, 0.43 },
-		{ "Body", { -0.34, 1.78, 1.16 }, 0.42 },
-		{ "Body", { 0.26, 1.34, 1.18 }, 0.36 },
+		{ "Head", { 0, 3.72, -0.22 }, 0.5, 0.04 },
+		{ "Head", { 0, 3.6, 0.24 }, 0.45, 0.07 },
+		{ "Head", { 0, 3.22, 0.66 }, 0.4, 0.09 },
+		{ "Body", { 0, 2.8, 0.88 }, 0.48, 0.09 },
+		{ "Body", { 0.18, 2.4, 1.06 }, 0.46, 0.1 },
+		{ "Body", { -0.18, 2.0, 1.18 }, 0.44, 0.1 },
+		{ "Body", { 0.16, 1.6, 1.24 }, 0.4, 0.1 },
+		{ "Tail", { 0, 1.26, 1.62 }, 0.4, 0.1 },
+		{ "Tail", { 0, 1.06, 2.22 }, 0.32, 0.09 },
+		{ "Tail", { 0, 1.08, 2.72 }, 0.23, 0.07 },
+	} do
+		spike(S, p[1], p[2], p[3], "Rock1", "Rock3", "Rock2", p[4])
+	end
+	for _, p in {
+		{ "Head", { 0.5, 3.46, 0.04 }, 0.3 },
+		{ "Head", { -0.48, 3.42, 0.12 }, 0.28 },
 		{ "Body", { 0.94, 2.02, 0.66 }, 0.25 },
 		{ "Body", { -0.94, 1.6, 0.74 }, 0.25 },
-		{ "Tail", { 0, 1.24, 1.7 }, 0.36 },
-		{ "Tail", { 0, 1.04, 2.28 }, 0.28 },
-		{ "Tail", { 0, 1.08, 2.76 }, 0.2 },
 	} do
 		pebble(S, p[1], p[2], p[3], "Rock1", "Rock3", "Rock2")
 	end
-	local D = toughEyes({}, "Head", 0.34, 3.02, 0.54, 0.56, "Iris", "Lid", 11)
-	table.insert(D, { Name = "Nostril", Group = "Head", Color = "Ink", X = 0.18, Y = 2.7, W = 0.08, H = 0.08, D = 0.1, Mirror = true })
-	-- a small smirk with one fang
-	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = -0.04, Y = 2.44, W = 0.3, H = 0.08, D = 0.07 })
-	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = 0.13, Y = 2.465, W = 0.11, H = 0.08, D = 0.07, RefY = 2.44, RefH = 0.08, Tilt = 28 })
-	table.insert(D, { Name = "Fang", Group = "Head", Color = "White", X = -0.12, Y = 2.37, W = 0.09, H = 0.12, D = 0.11 })
+	local D = toughEyes({}, "Head", 0.34, 3.02, 0.54, 0.56, "Iris", "Brow", 5)
+	table.insert(D, { Name = "Nostril", Group = "Head", Color = "Ink", X = 0.18, Y = 2.5, W = 0.08, H = 0.08, D = 0.1, Mirror = true })
+	-- a small friendly grin, corners up (the left one a touch higher for a little confidence), two small even fangs
+	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = 0, Y = 2.215, W = 0.3, H = 0.075, D = 0.07 })
+	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = 0.185, Y = 2.241, W = 0.1, H = 0.075, D = 0.07, RefY = 2.215, RefH = 0.08, Tilt = 32 })
+	table.insert(D, { Name = "Mouth", Group = "Head", Color = "Mouth", X = -0.183, Y = 2.235, W = 0.096, H = 0.075, D = 0.07, RefY = 2.215, RefH = 0.08, Tilt = 24 })
+	table.insert(D, { Name = "Fang", Group = "Head", Color = "White", X = 0.085, Y = 2.15, W = 0.075, H = 0.09, D = 0.11, RefY = 2.215, RefH = 0.08, Mirror = true })
 	specs.Pebblesaur = {
 		Voxel = 0.2,
 		StudScale = 0.4,
@@ -203,7 +221,7 @@ do
 			Body = "7DC24B",
 			BodyDark = "579B35",
 			BodyLight = "96D262",
-			Lid = "3A7424",
+			Brow = "5FA537",
 			Belly = "FFE6A8",
 			BellyLine = "EDCB86",
 			Rock1 = "A4A8B8",
@@ -217,7 +235,7 @@ do
 		},
 		Joints = {
 			Head = { 0, 2.3, -0.2 },
-			Jaw = { 0, 2.42, -0.45 },
+			Jaw = { 0, 2.22, -0.45 },
 			LegL = { 0.72, 0.98, 0.15 },
 			LegR = { -0.72, 0.98, 0.15 },
 			ArmL = { 1.02, 1.82, -0.25 },
