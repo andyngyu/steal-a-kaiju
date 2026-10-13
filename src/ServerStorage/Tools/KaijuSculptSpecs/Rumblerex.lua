@@ -1,12 +1,16 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Pebble Plains / Epic / earth: a tyrant rex whose stomps split the ground. Deep jungle-green hide in bold dark tiger
--- bands, a crest of amethyst crystal clusters erupting along its spine (its purple "rumble"), crystal horns behind the
--- brow, violet eyes and a jaw full of teeth.
+-- Pebble Plains / Epic / earth: the heavyweight. A bigger, heavier tyrant than anything else in the plains, with a
+-- massive head and jaw on a thick neck, deep jungle-green hide in bold tiger bands, giant amethyst crystal spines
+-- erupting from its shoulders and down its back, crystal horns, violet eyes.
+local HEAD_SCALE = 1.24
+local JAW = H.REX_HEAD.Position + (H.REX_HEAD * H.REX_HINGE - H.REX_HEAD.Position) * HEAD_SCALE
+
 return {
 	Seed = 23,
 	Vary = 0.07,
+	Scale = 1.08,
 	Gait = "Biped",
 	Emotes = { "Look", "Roar" },
 	Palette = {
@@ -28,24 +32,48 @@ return {
 		Eye = { "7C6BFF", Neon = true },
 		Socket = "120E18",
 	},
-	Joints = H.REX_JOINTS,
+	Joints = {
+		Head = H.REX_JOINTS.Head,
+		Jaw = JAW,
+		LegL = H.REX_JOINTS.LegL,
+		LegR = H.REX_JOINTS.LegR,
+		ArmL = H.REX_JOINTS.ArmL,
+		ArmR = H.REX_JOINTS.ArmR,
+		Tail = H.REX_JOINTS.Tail,
+	},
 	Parents = { Jaw = "Head" },
 	Build = function(K)
+		local KEYS = { "Crystal", "CrystalLight", "CrystalGlow", "Crystal", "CrystalLight", "Crystal" }
 		H.rex(K, {
+			headScale = HEAD_SCALE,
+			neckScale = 1.2,
 			color = H.skin({ stripe = 40, band = 96, every = 2 }),
 			crest = function(K, torso, neck, tail)
-				local keys = { "Crystal", "CrystalLight", "CrystalGlow", "Crystal" }
-				H.crystalRidge(K, "Head", neck, { from = 0.15, to = neck.total - 0.1, every = 0.36, size = function(u) return 0.42 + 0.18 * u end, count = 3, keys = keys })
-				H.crystalRidge(K, "Body", torso, { from = 0.2, to = torso.total - 0.2, every = 0.48, size = function(u) return 0.78 + 0.25 * math.sin(u * math.pi) end, count = 4, keys = keys, thetas = { 0, rad(52), rad(-52) }, sideScale = 0.45 })
-				H.crystalRidge(K, "Tail", tail, { from = 0.2, to = tail.total - 0.3, every = 0.42, size = function(u) return 0.55 * (1 - u) + 0.16 end, count = 3, keys = keys })
+				-- giant crystal spines bursting from each shoulder
+				for _, x in { 1, -1 } do
+					local smp = K:at(torso, 0.4)
+					local pos, nrm = K:surface(smp, rad(46) * x, 0.12)
+					H.crystal(K, "Body", KEYS, pos, (nrm + smp.U * 0.7 + smp.T * 0.25).Unit, 1.55, 6, 24)
+				end
+				-- tall single spines down the back and the neck, shrinking down the tail
+				for s = 0.9, torso.total - 0.15, 0.42 do
+					local smp = K:at(torso, s)
+					local pos = K:surface(smp, 0, 0.1)
+					H.crystal(K, "Body", KEYS, pos, (smp.U + smp.T * 0.35).Unit, 1.2 - (s / torso.total) * 0.35, 3, 14)
+				end
+				for s = 0.2, neck.total - 0.15, 0.36 do
+					local smp = K:at(neck, s)
+					H.crystal(K, "Head", KEYS, K:surface(smp, 0, 0.1), (smp.U + smp.T * 0.4).Unit, 0.7, 3, 16)
+				end
+				H.crystalRidge(K, "Tail", tail, { from = 0.2, to = tail.total - 0.3, every = 0.42, size = function(u) return 0.75 * (1 - u) + 0.18 end, count = 3, keys = KEYS })
 			end,
 			head = function(K, hcf, hp, hv)
 				for _, x in { 1, -1 } do
-					H.crystal(K, "Head", { "Crystal", "CrystalGlow", "CrystalLight" }, hp(0.36 * x, 0.66, -0.38), hv(0.45 * x, 0.8, 0.45), 0.5, 3, 24)
+					H.crystal(K, "Head", { "Crystal", "CrystalGlow", "CrystalLight" }, hp(0.36 * x, 0.66, -0.38), hv(0.45 * x, 0.8, 0.45), 0.62, 4, 24)
 				end
 			end,
 			extras = function(K, parts)
-				H.studs(K, "Body", parts.torso, { rad(80), rad(-80) }, 0.55, 0.22, 0.4, parts.torso.total - 0.3, { "Armour", "ArmourLight" })
+				H.studs(K, "Body", parts.torso, { rad(84), rad(-84) }, 0.55, 0.24, 0.4, parts.torso.total - 0.3, { "Armour", "ArmourLight" })
 			end,
 		})
 	end,
