@@ -2,6 +2,7 @@
 -- Command bar:
 --   local A = require(game.ServerStorage.Tools.BiomeArtBuilder:Clone())
 --   A.BuildEgg("PebblePlains")       -> ServerStorage.Assets.Eggs.PebblePlains (Lib.EggModel uses it, tints "Band" parts)
+--   A.BuildEgg("PebblePlains", "Epic") -> ServerStorage.Assets.Eggs.PebblePlains_Epic (spec Egg_PebblePlains_Epic)
 --   A.BuildGuardian("PebblePlains")  -> ServerStorage.Assets.Kaiju.Guardian_PebblePlains (GuardianService uses it)
 --   A.BuildProps()                    -> ServerStorage.Assets.Props (bushes, boulders, trees, flowers, grass, vines...)
 --   A.DressLane()                     nest art + props on Workspace.Map.Lane (run after MapBuilder rebuilds the map)
@@ -68,11 +69,12 @@ end
 
 -- ---------- eggs ----------
 
-function BiomeArtBuilder.BuildEgg(biomeId)
+function BiomeArtBuilder.BuildEgg(biomeId, rarityId)
 	local B, specs = tools()
 	local EggConfig = fresh(ReplicatedStorage.Shared.Config.EggConfig)
-	local spec = assert(specs["Egg_" .. biomeId], "no egg spec for " .. biomeId)
-	local model = B.BuildModel(biomeId, spec)
+	local name = rarityId and (biomeId .. "_" .. rarityId) or biomeId
+	local spec = assert(specs["Egg_" .. name], "no egg spec for " .. name)
+	local model = B.BuildModel(name, spec)
 	local bricks = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") and d.Name ~= "Root" then
@@ -81,7 +83,7 @@ function BiomeArtBuilder.BuildEgg(biomeId)
 	end
 	local size = EggConfig.Size
 	local shell = invisiblePart("Shell", size, CFrame.new(0, size.Y / 2, 0))
-	shell.Color = Color3.fromHex(spec.Palette.Cream) -- shell shards on hatch use this colour
+	shell.Color = Color3.fromHex(spec.ShellColor or spec.Palette.Cream) -- shell shards on hatch use this colour
 	shell.Anchored = true
 	shell.Parent = model
 	for _, p in bricks do
@@ -99,10 +101,10 @@ function BiomeArtBuilder.BuildEgg(biomeId)
 		end
 	end
 	model.PrimaryPart = shell
-	model.Name = biomeId
+	model.Name = name
 	model:SetAttribute("Bricks", #bricks)
 	store(assetFolder("Eggs"), model)
-	return string.format("Egg %s: %d bricks", biomeId, #bricks)
+	return string.format("Egg %s: %d bricks", name, #bricks)
 end
 
 -- ---------- guardians ----------
