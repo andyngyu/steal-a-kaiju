@@ -123,27 +123,37 @@ end
 
 local XP_BLUE = Color3.fromHex("5AD1FF")
 
-local function levelRow(bb, order, h)
+-- "Lv 12" + XP bar, centred together under the name (the label sizes to its text, so short and long levels both
+-- sit centred). heightPx = the row's height in pixels (the billboard has a fixed pixel size).
+local function levelRow(bb, order, h, heightPx)
 	local row = Instance.new("Frame")
 	row.Name = "LevelRow"
 	row.LayoutOrder = order
 	row.BackgroundTransparency = 1
 	row.Size = UDim2.new(0.86, 0, h, 0)
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, math.max(4, math.floor(heightPx * 0.3)))
+	list.Parent = row
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
+	label.LayoutOrder = 1
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(0.36, 1)
+	label.AutomaticSize = Enum.AutomaticSize.X
+	label.Size = UDim2.new(0, 0, 1, 0)
 	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
+	label.TextScaled = false
+	label.TextSize = math.max(8, math.floor(heightPx * 0.95))
 	label.TextColor3 = XP_BLUE
 	label.TextStrokeTransparency = 0.2
-	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Parent = row
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"
-	bar.AnchorPoint = Vector2.new(0, 0.5)
-	bar.Position = UDim2.fromScale(0.38, 0.5)
-	bar.Size = UDim2.fromScale(0.62, 0.5)
+	bar.LayoutOrder = 2
+	bar.Size = UDim2.fromScale(0.6, 0.5)
 	bar.BackgroundColor3 = Color3.fromHex("1A1033")
 	bar.BackgroundTransparency = 0.25
 	bar.BorderSizePixel = 0
@@ -184,7 +194,8 @@ local function infoBillboard(model, top, cfg, size, scale, level)
 	local k = math.clamp(0.85 + scale * 0.15, 1, 1.5)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Info"
-	bb.Size = UDim2.fromOffset(180 * k, (tier ~= "" and 110 or 88) * k)
+	local bbHeight = (tier ~= "" and 110 or 88) * k
+	bb.Size = UDim2.fromOffset(180 * k, bbHeight)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, top + 1.6, 0)
 	bb.MaxDistance = 90 + (scale - 1) * 35
 	local layout = Instance.new("UIListLayout")
@@ -213,7 +224,7 @@ local function infoBillboard(model, top, cfg, size, scale, level)
 	line("Rarity", cfg.Rarity, rarity and rarity.Color or WHITE, 0.24 * f)
 	line("Title", cfg.DisplayName, WHITE, 0.3 * f)
 	order += 1
-	levelRow(bb, order, 0.2 * f)
+	levelRow(bb, order, 0.2 * f, 0.2 * f * bbHeight)
 	line("Cash", Format.PerSecond(KaijuStats.CashPerSecond(model.Name, size, level)), Color3.fromHex("6BE04A"), 0.26 * f)
 	bb.Parent = model.PrimaryPart
 end

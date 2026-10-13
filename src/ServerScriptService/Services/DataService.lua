@@ -146,6 +146,41 @@ function DataService:OnLoaded(fn)
 	end
 end
 
+-- Wipes an online player's save back to a brand-new player (TEMPLATE), saves it and kicks them so they rejoin
+-- fresh. DevService's /wipedata command guards who may call it. Returns true when wiped.
+function DataService:Wipe(player, kickMessage)
+	local profile = profiles[player]
+	if not profile then
+		return false
+	end
+	local data = profile.Data
+	for k in data do
+		data[k] = nil
+	end
+	local function deepCopy(t)
+		local c = {}
+		for k, v in t do
+			c[k] = type(v) == "table" and deepCopy(v) or v
+		end
+		return c
+	end
+	for k, v in deepCopy(TEMPLATE) do
+		data[k] = v
+	end
+	profile:Save()
+	player:Kick(kickMessage or "Your data was wiped. Rejoin to start fresh.")
+	return true
+end
+
+-- Deletes the save of a player who isn't in this server (by user id). They start fresh next time they join.
+-- Fails (returns false) if their profile is open on another server; wipe them there instead. Yields.
+function DataService:WipeOffline(userId)
+	local ok, result = pcall(function()
+		return store:RemoveAsync("Player_" .. tostring(userId))
+	end)
+	return ok and result ~= false, ok and nil or result
+end
+
 -- Studio testing only (DevService guards it): wipes the profile back to the template and kicks the player to rejoin.
 function DataService:ResetForTesting(player)
 	local profile = profiles[player]

@@ -349,7 +349,13 @@ local function buttonLabel(plot)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "LockStatus"
 	bb.Size = UDim2.fromOffset(200, 44)
-	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0)
+	-- sits right on top of the button: its bottom edge just above the button's top
+	local up = button.CFrame:VectorToObjectSpace(Vector3.yAxis) -- the button may be rotated (a sideways cylinder)
+	local halfHeight = (math.abs(up.X) * button.Size.X + math.abs(up.Y) * button.Size.Y + math.abs(up.Z) * button.Size.Z) / 2
+	-- StudsOffsetWorldSpace is measured along the button's own axes; the button is a cylinder lying on its side, so
+	-- convert "straight up in the world" into its local space or the label ends up beside the button
+	bb.StudsOffsetWorldSpace = button.CFrame:VectorToObjectSpace(Vector3.new(0, halfHeight + 1.1, 0))
+	bb.SizeOffset = Vector2.new(0, 0.5) -- centred on the button, bottom edge just above it
 	bb.LightInfluence = 0
 	bb.MaxDistance = 90
 	label = outlinedLabel(bb, "", Color3.new(1, 1, 1), Enum.Font.FredokaOne, 1, 1)

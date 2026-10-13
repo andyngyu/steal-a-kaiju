@@ -26,10 +26,15 @@ local fraction = {} -- [player] = sub-dollar remainder carried between ticks
 local pendingOfflineBonus = {} -- [player] = base offline amount still owed the CashMultiplier extra
 local PERKS_WAIT_SECONDS = 20
 
--- x2 Cash and similar perks; 1 when the player has none.
+-- x2 Cash and similar perks (CashMultiplier, GamePassService) x the Kaiju Index area bonus (IndexCashBonus,
+-- IndexService: x1.5 per completed area, stacking); 1 when the player has neither.
 local function cashMultiplier(player)
 	local m = player:GetAttribute("CashMultiplier")
-	return type(m) == "number" and m > 0 and m or 1
+	local index = player:GetAttribute("IndexCashBonus")
+	local daily = player:GetAttribute("DailyCashBoost") -- timed Money Boost from the daily reward (DailyRewardService)
+	m = type(m) == "number" and m > 0 and m or 1
+	m *= type(daily) == "number" and daily > 0 and daily or 1
+	return m * (type(index) == "number" and index > 0 and index or 1)
 end
 
 local function log(...)

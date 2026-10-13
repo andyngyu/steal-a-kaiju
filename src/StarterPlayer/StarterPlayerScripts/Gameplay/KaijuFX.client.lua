@@ -13,6 +13,7 @@
 --   chat: GameEvent "HatchAnnouncement" -> coloured system message in the general channel.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MutationConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("MutationConfig"))
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -525,57 +526,6 @@ local kaijuFolders = { [kaijuFolder] = true } -- plus Map.Market.Keepers once it
 
 local LIMB_RANGE = 140 -- beyond this, limbs rest and the kaiju moves as one piece
 
--- Per-group motion for brick kaiju (group names from Tools.KaijuSpecs). st.phase advances while walking,
--- st.moveBlend fades the walk in and out; everything else is idle motion on os.clock().
-local function animateGroups(st, t)
-	local mb, ph, seed = st.moveBlend, st.phase, st.seed
-	for _, g in st.rig.groups do
-		local n = g.name
-		local side = n:sub(-1) == "R" and -1 or 1
-		local a = CFrame.identity
-		if n == "LegL" or n == "LegR" then
-			a = CFrame.Angles(math.sin(ph + (side == 1 and 0 or math.pi)) * 0.55 * mb, 0, 0)
-		elseif n == "ArmL" or n == "ArmR" then
-			-- swings against the leg on the same side, plus a little idle sway
-			local swing = math.sin(ph + (side == 1 and math.pi or 0)) * 0.45 * mb + math.sin(t * 2 + seed) * 0.05
-			a = CFrame.Angles(swing, 0, side * (0.04 + 0.03 * math.sin(t * 1.7 + seed)))
-		elseif n == "LegFL" or n == "LegFR" or n == "LegBL" or n == "LegBR" then
-			local pair = (n == "LegFL" or n == "LegBR") and 0 or math.pi -- diagonal pairs move together
-			a = CFrame.Angles(math.sin(ph + pair) * 0.5 * mb, 0, 0)
-		elseif n:match("^Leg[ABC][LR]$") then
-			-- crab tripod gait: front + back legs on one side step with the middle leg on the other
-			local tripod = ((n:sub(4, 4) == "B") == (side == 1)) and math.pi or 0
-			local s = ph * 1.6 + tripod
-			a = CFrame.Angles(0, math.sin(s) * 0.35 * mb, side * math.max(0, math.cos(s)) * 0.3 * mb)
-		elseif n == "ClawL" or n == "ClawR" then
-			local snap = math.max(0, math.sin(t * 2.3 + seed + (side == 1 and 0 or 1.3))) ^ 8
-			a = CFrame.Angles(0.12 * mb + snap * 0.3 + math.sin(t * 1.5 + seed) * 0.04, 0, 0)
-		elseif n == "Head" then
-			a = CFrame.Angles(math.sin(ph * 2) * 0.06 * mb + math.sin(t * 1.4 + seed) * 0.035, st.headYaw, 0)
-		elseif n == "Jaw" then
-			local open = mb > 0.3 and math.max(0, math.sin(ph * 2)) or math.max(0, math.sin(t * 1.3 + seed)) ^ 12
-			a = CFrame.Angles(-open * 0.4, 0, 0)
-		elseif n == "Tail" then
-			a = CFrame.Angles(0, math.sin(ph) * 0.25 * mb + math.sin(t * 1.8 + seed) * 0.14, 0)
-		elseif n == "EarL" or n == "EarR" then
-			local flick = math.max(0, math.sin(t * 1.1 + seed + (side == 1 and 0 or 0.7))) ^ 10
-			a = CFrame.Angles(0, 0, side * (flick * 0.35 + math.sin(ph * 2) * 0.1 * mb))
-		elseif n == "Trunk" then
-			a = CFrame.Angles(math.sin(t * 2.1 + seed) * 0.16 + math.sin(ph) * 0.15 * mb, 0, math.sin(t * 1.3 + seed) * 0.1)
-		elseif n == "Neck" then
-			local sway = math.sin(t * 1.6 + seed) * 0.12 + math.sin(ph) * 0.2 * mb
-			a = CFrame.Angles(math.sin(t * 1.2 + seed) * 0.04, sway, math.sin(t * 1.9 + seed) * 0.06 + math.sin(ph) * 0.08 * mb)
-		elseif n == "Fins" then
-			a = CFrame.Angles(0, 0, math.sin(t * 4 + seed) * 0.08)
-		elseif n == "Cloud" then
-			a = CFrame.new(0, math.sin(t * 1.5 + seed) * 0.15 * st.scale, 0) * CFrame.Angles(0, math.sin(t * 0.7 + seed) * 0.08, 0)
-		elseif n == "EyeL" or n == "EyeR" then
-			a = CFrame.Angles(math.sin(t * 2.2 + seed + side) * 0.1, 0, side * math.sin(t * 1.7 + seed) * 0.15)
-		end
-		g.anim = a
-	end
-end
-
 local function bannerLabel(parent, text, font, height, order, strokeThickness)
 	local l = Instance.new("TextLabel")
 	l.LayoutOrder = order
@@ -679,6 +629,7 @@ local function setupKaiju(model)
 	local _, yaw = rig.base:ToEulerAnglesYXZ()
 	local scale = model:GetAttribute("VisualScale") or 1
 	local st = {
+		model = model, -- read by KaijuMotion.EmoteStarted (sound hooks)
 		rig = rig,
 		scale = scale,
 		limbs = #rig.groups > 0,
@@ -823,7 +774,9 @@ end
 local function setGlow(model, st, on)
 	if on and not st.highlight then
 		local h = Instance.new("Highlight")
-		h.FillColor = rarityColor(model:GetAttribute("Rarity"))
+		local mutation = model:GetAttribute("Mutation") -- a weather mutation glows in its own colour
+		h.FillColor = mutation and MutationConfig.Color(mutation) or rarityColor(model:GetAttribute("Rarity"))
+		h.FillTransparency = mutation and 0.75 or h.FillTransparency
 		h.OutlineColor = Color3.new(1, 1, 1)
 		h.DepthMode = Enum.HighlightDepthMode.Occluded
 		h.Adornee = model
@@ -922,7 +875,14 @@ local function updateEgg(model, st, t, camPos)
 			y = b * 0.7
 			roll = math.sin(t * 10 + st.seed) * 0.08
 			if st.highlight then
-				st.highlight.FillTransparency = 0.55 + math.sin(t * 6) * 0.25
+				local mutation = model:GetAttribute("Mutation")
+				if mutation then
+					-- mutated: a lighter pulse so the mutation's own colours show through
+					st.highlight.FillColor = MutationConfig.Color(mutation)
+					st.highlight.FillTransparency = 0.78 + math.sin(t * 6) * 0.12
+				else
+					st.highlight.FillTransparency = 0.55 + math.sin(t * 6) * 0.25
+				end
 			end
 		else
 			local left = (model:GetAttribute("HatchAt") or 0) - serverNow()
@@ -962,8 +922,11 @@ end
 --            its player (TargetUserId) is close; personal copies rise out of the ground (RiseAt) and sink away (SinkAt)
 --   footfalls set the local attributes StepAt (os.clock) and StepPos (ground point) on the model; GameVFX and
 --            GameAudio stomp on them
+--   carrying an egg home (attribute CarryingEgg; GuardianService welds the egg in): rexes hold it in their jaws (jaw
+--            held a little open, head up), Frostfang (HoldStyle "Arms") cradles it with both arms held forward
 local GUARDIAN_GAIT = { FrostfangPeaks = "ape" } -- everyone else runs like a rex
 local RISE_SECONDS, SINK_SECONDS = 1.1, 1.2 -- GuardianService's copy rise / sink times
+local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38 -- arms forward / inward while carrying an egg (GuardianService matches)
 
 local guardianRigs = {}
 
@@ -1060,6 +1023,9 @@ local function animateGuardian(g, st, dt, t)
 		near = hrp ~= nil and (hrp.Position - root.Position).Magnitude < 24 + st.height * 0.5
 	end
 	st.chomp = lerp(st.chomp, near and 1 or 0, 1 - math.exp(-6 * dt))
+	local holding = g:GetAttribute("CarryingEgg") ~= nil
+	st.hold = lerp(st.hold or 0, holding and 1 or 0, 1 - math.exp(-8 * dt))
+	local hold = st.hold
 
 	-- gait: a planted foot sweeps back at the ground speed (stance), then the leg swings forward, lifted. Cadence rises
 	-- with speed and climbs further rather than over-stretch a leg past ~42 degrees; past 3 steps a second the stride
@@ -1146,11 +1112,14 @@ local function animateGuardian(g, st, dt, t)
 	if ape then
 		local swing = 0.9 * s1 * run -- opposite to the legs
 		local beat = math.sin(t * 16) * 0.35 * roar -- chest beat
+		local jiggle = 0.05 * math.sin(phL * 4 * math.pi) * moving -- the cradled egg bounces a little with each step
 		if m.ArmL then
-			m.ArmL.Transform = CFrame.Angles(-swing + 1.3 * roar + beat + breathe * 0.03 * sleep, 0, -0.35 * roar)
+			local free = CFrame.Angles(-swing + 1.3 * roar + beat + breathe * 0.03 * sleep, 0, -0.35 * roar)
+			m.ArmL.Transform = free:Lerp(CFrame.Angles(HOLD_ARM_PITCH + jiggle, 0, -HOLD_ARM_IN), hold)
 		end
 		if m.ArmR then
-			m.ArmR.Transform = CFrame.Angles(swing + 1.3 * roar - beat + breathe * 0.03 * sleep, 0, 0.35 * roar)
+			local free = CFrame.Angles(swing + 1.3 * roar - beat + breathe * 0.03 * sleep, 0, 0.35 * roar)
+			m.ArmR.Transform = free:Lerp(CFrame.Angles(HOLD_ARM_PITCH + jiggle, 0, HOLD_ARM_IN), hold)
 		end
 	else
 		local pump = 0.28 * s1 * run
@@ -1165,11 +1134,14 @@ local function animateGuardian(g, st, dt, t)
 	-- head: level, leading turns, looking around when idle; jaw for roars, chomping and panting
 	if m.Head then
 		local lookYaw = math.clamp(-yawOffset * 0.6, -0.5, 0.5) + math.sin(t * 0.8 + st.seed) * 0.1 * (1 - moving) * (1 - sleep)
-		local headPitch = -pitch * 0.75 - 0.42 * sleep + breathe * 0.04 * sleep + 0.3 * roar - 0.12 * st.chomp
+		local headPitch = -pitch * 0.75 - 0.42 * sleep + breathe * 0.04 * sleep + 0.3 * roar - 0.12 * st.chomp + (ape and 0 or 0.1 * hold)
 		m.Head.Transform = CFrame.new(0, -bob * 0.6, 0) * CFrame.Angles(0, lookYaw, 0) * CFrame.Angles(headPitch, 0, -roll * 0.5)
 	end
 	if m.Jaw then
 		local jaw = 0.85 * roar + st.chomp * (0.2 + 0.45 * math.max(0, math.sin(t * 13))) + 0.08 * math.abs(s1) * run + math.max(0, breathe) * 0.06 * sleep
+		if not ape then
+			jaw = jaw * (1 - hold) + 0.28 * hold -- jaws parted around the egg
+		end
 		m.Jaw.Transform = CFrame.Angles(-jaw, 0, 0)
 	end
 
@@ -1304,12 +1276,20 @@ gameEvent.OnClientEvent:Connect(function(kind, data)
 	local tier = (data.SizeTier or "") ~= "" and string.upper(data.SizeTier) .. " " or ""
 	local what = tier .. tostring(data.Rarity or "")
 	local article = what:sub(1, 1):match("[AEIOUaeiou]") and "an" or "a"
+	-- a weather mutation goes in front of the name in its own colour: "a Legendary Galaxy Thunderback"
+	local mutation = ""
+	if type(data.Mutation) == "string" and data.Mutation ~= "" then
+		local MutationConfig = require(game:GetService("ReplicatedStorage").Shared.Config.MutationConfig)
+		mutation = string.format('</b></font><font color="#%s"><b>%s</b></font><font color="#%s"><b> ',
+			MutationConfig.Color(data.Mutation):ToHex(), escape(data.Mutation), rarity and rarity.Color:ToHex() or "FFFFFF")
+	end
 	general:DisplaySystemMessage(string.format(
-		'<font color="#FFD84A"><b>%s</b></font> hatched %s <font color="#%s"><b>%s %s</b></font>! <font color="#6BE04A">(%.2fx size)</font>',
+		'<font color="#FFD84A"><b>%s</b></font> hatched %s <font color="#%s"><b>%s %s%s</b></font>! <font color="#6BE04A">(%.2fx size)</font>',
 		escape(data.PlayerName or "Someone"),
 		article,
 		rarity and rarity.Color:ToHex() or "FFFFFF",
 		escape(what),
+		mutation,
 		escape(data.DisplayName or data.Species or "kaiju"),
 		tonumber(data.Size) or 1
 	))

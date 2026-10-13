@@ -157,6 +157,13 @@ function BaseService:Init()
 			end)
 		end
 	end
+	-- the Upgrade Pen sign's price button (UpgradeSignsController): the only requirement is the cost (TryUpgrade
+	-- checks it); no distance or treadmill-level checks
+	ReplicatedStorage.Remotes:WaitForChild("UpgradePen").OnServerEvent:Connect(function(player)
+		if plotOf[player] then
+			BaseService:TryUpgrade(player)
+		end
+	end)
 	-- hand out the plots nearest the lane first
 	table.sort(plots, function(a, b)
 		local ax, bx = a:GetAttribute("PenOrigin").X, b:GetAttribute("PenOrigin").X

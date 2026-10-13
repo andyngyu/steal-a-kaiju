@@ -8,6 +8,7 @@ local KaijuConfig = require(Config.KaijuConfig)
 local EggConfig = require(Config.EggConfig)
 local FoodConfig = require(Config.FoodConfig)
 local EconomyConfig = require(Config.EconomyConfig)
+local MutationConfig = require(Config.MutationConfig)
 
 local KaijuStats = {}
 
@@ -33,9 +34,19 @@ function KaijuStats.SellPrice(species: string, size: number?, level: number?): n
 	return math.floor(KaijuStats.CashPerSecond(species, size, level) * EconomyConfig.SellMultiplier)
 end
 
--- Same values for a saved pen entry.
+-- Same values for a saved pen entry. A unique kaiju (e.g. the group reward's Golden Rumblerex) can carry its own
+-- FixedCashPerSecond instead of its species' rate; feeding levels still multiply it. A weather mutation
+-- (entry.Mutation, Shared.Config.MutationConfig) multiplies on top.
 function KaijuStats.EntryCashPerSecond(entry: { [string]: any }): number
-	return KaijuStats.CashPerSecond(entry.Species, entry.Size, entry.Level)
+	local mult = MutationConfig.Multiplier(entry.Mutation)
+	if type(entry.FixedCashPerSecond) == "number" then
+		return entry.FixedCashPerSecond * FoodConfig.IncomeMultiplier(entry.Level or 1) * mult
+	end
+	return KaijuStats.CashPerSecond(entry.Species, entry.Size, entry.Level) * mult
+end
+
+function KaijuStats.EntrySellPrice(entry: { [string]: any }): number
+	return math.floor(KaijuStats.EntryCashPerSecond(entry) * EconomyConfig.SellMultiplier)
 end
 
 return KaijuStats

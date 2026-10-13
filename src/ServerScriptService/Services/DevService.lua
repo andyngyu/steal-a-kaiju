@@ -1,4 +1,9 @@
 -- Studio-only test commands (DevConfig.AdminCommands is forced off in live servers).
+-- Wipe command (Studio, and in live servers for the game's owner only - the creator, or rank 255 of the owning group):
+--   /wipedata confirm                 wipe your own save (you're kicked and start fresh on rejoin)
+--   /wipedata <name> confirm          wipe a player in this server (name or display name, partial is fine)
+--   /wipedata <userId> confirm        wipe a player who's offline (deletes their save)
+--   Without "confirm" it only tells you what it would do. Alias: /wipe
 -- Chat:         /givecash 1000      /resetdata (wipes your save to a brand-new player, then kicks you)
 --               /egg Legendary 2.8  (puts a ready-to-hatch egg in your pen; size optional = random roll)
 --               /showcase [Species ...] [size]   (every species, or the ones named, wandering in your pen;
@@ -11,7 +16,7 @@
 --               game.ServerStorage.DevHooks.Snapshot:Invoke(userId) / Restore:Invoke(userId)
 --                 (copy the save before a test and put it back after; stop the playtest right after Restore)
 --               game.ServerStorage.DevHooks.PatchData:Invoke(userId, { Cash = 1000, CashDelta = -50, PenLevel = 2,
---                 RemoveItems = { id }, AddItems = { [id] = entry }, Food = {...}, SelectedFood = "", Trails = {...},
+--                 TreadmillLevel = 0, RemoveItems = { id }, AddItems = { [id] = entry }, Food = {...}, SelectedFood = "", Trails = {...},
 --                 StatDeltas = { KaijuSold = -1 } })
 --                 (edits the live save; pen changes show on the next join)
 --               game.ServerStorage.DevHooks.Call:Invoke(userId, "HatchService", "GiveEgg", "PebblePlains", "Rare")
@@ -34,6 +39,118 @@ local HatchService = require(script.Parent.HatchService)
 local KaijuService = require(script.Parent.KaijuService)
 
 local DevService = {}
+
+local TextChatService = game:GetService("TextChatService")
+
+-- Who may wipe saves: anyone in Studio (with AdminCommands on); in live servers only the game's owner.
+local function canWipe(player)
+	if DevConfig.AdminCommands then
+		return true
+	end
+	if game.CreatorType == Enum.CreatorType.User then
+		return player.UserId == game.CreatorId
+	end
+	local ok, rank = pcall(player.GetRankInGroup, player, game.CreatorId)
+	return ok and rank >= 255
+end
+
+local function notify(player, text, kind)
+	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+	local gameEvent = remotes and remotes:FindFirstChild("GameEvent")
+	if gameEvent and player.Parent == Players then
+		gameEvent:FireClient(player, "DevNotice", { Text = text, Kind = kind })
+	end
+	print("[Dev]", player.Name, "-", text)
+end
+
+local function findPlayer(query)
+	query = string.lower(query)
+	for _, p in Players:GetPlayers() do
+		if string.lower(p.Name) == query or string.lower(p.DisplayName) == query then
+			return p
+		end
+	end
+	for _, p in Players:GetPlayers() do
+		if string.lower(p.Name):sub(1, #query) == query or string.lower(p.DisplayName):sub(1, #query) == query then
+			return p
+		end
+	end
+	return nil
+end
+
+local function wipeCommand(caller, args)
+	if not canWipe(caller) then
+		return
+	end
+	local last = args[#args]
+	local confirmed = last ~= nil and string.lower(last) == "confirm"
+	if confirmed then
+		table.remove(args, #args)
+	end
+	local targetText = args[1]
+	local target = nil
+	local offlineId = nil
+	if targetText == nil then
+		target = caller
+	else
+		target = findPlayer(targetText)
+		if not target then
+			offlineId = tonumber(targetText)
+			if offlineId then
+				target = Players:GetPlayerByUserId(offlineId)
+				if target then
+					offlineId = nil
+				end
+			end
+		end
+	end
+	if not target and not offlineId then
+		notify(caller, "No player called \"" .. tostring(targetText) .. "\" here. Use their user id to wipe someone offline.", "warn")
+		return
+	end
+	local who = target and (target == caller and "your" or (target.Name .. "'s")) or ("user " .. offlineId .. "'s")
+	if not confirmed then
+		notify(caller, "This wipes " .. who .. " save for good. Type the same command with \"confirm\" at the end to do it.", "warn")
+		return
+	end
+	if target then
+		print("[Dev]", caller.Name, "wiped the data of", target.Name, target.UserId)
+		if target ~= caller then
+			notify(caller, "Wiped " .. target.Name .. "'s data.", "info")
+		end
+		DataService:Wipe(target, target == caller and "Your data was wiped. Rejoin to start fresh."
+			or "Your data was reset by the game's owner. Rejoin to start fresh.")
+	else
+		local ok, err = DataService:WipeOffline(offlineId)
+		if ok then
+			notify(caller, "Deleted the save of user " .. offlineId .. ".", "info")
+		else
+			notify(caller, "Couldn't delete user " .. offlineId .. "'s save" .. (err and (": " .. tostring(err)) or " (are they in another server?)"), "error")
+		end
+	end
+end
+
+local function setupWipeCommand()
+	local command = Instance.new("TextChatCommand")
+	command.Name = "WipeDataCommand"
+	command.PrimaryAlias = "/wipedata"
+	command.SecondaryAlias = "/wipe"
+	command.Triggered:Connect(function(textSource, message)
+		local caller = textSource and Players:GetPlayerByUserId(textSource.UserId)
+		if not caller then
+			return
+		end
+		local args = string.split(message, " ")
+		table.remove(args, 1) -- the alias itself
+		for i = #args, 1, -1 do
+			if args[i] == "" then
+				table.remove(args, i)
+			end
+		end
+		task.spawn(wipeCommand, caller, args)
+	end)
+	command.Parent = TextChatService
+end
 
 local function giveCash(player, amount)
 	amount = tonumber(amount)
@@ -123,6 +240,7 @@ local function spawnEgg(player, rarityId, size, biomeId)
 end
 
 function DevService:Start()
+	setupWipeCommand() -- also in live servers, but only the game's owner can use it
 	if not DevConfig.AdminCommands then
 		return
 	end
@@ -203,6 +321,9 @@ function DevService:Start()
 		end
 		if patch.PenLevel then
 			data.Pen.Level = patch.PenLevel
+		end
+		if patch.TreadmillLevel then
+			data.Treadmill.Level = patch.TreadmillLevel
 		end
 		for stat, delta in patch.StatDeltas or {} do
 			data.Stats[stat] = math.max(0, (data.Stats[stat] or 0) + delta)

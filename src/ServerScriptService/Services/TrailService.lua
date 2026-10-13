@@ -1,4 +1,4 @@
--- Character trails (Shared.Config.TrailConfig): bought with cash, equipped one at a time, multiply Speed.
+-- Character trails (Shared.Config.TrailConfig): bought with cash, equipped one at a time, multiply the Speed earned on the treadmill.
 --   Remotes.BuyTrail (trailId): buys and equips it. Remotes.EquipTrail (trailId, or "" to take it off).
 --   Used by the UI's POWERS / Trail Shop panel; the Trails stall in the Kaiju Market opens that panel.
 --   Free trails (Price 0) are owned by everyone; new players start with the first free one equipped.

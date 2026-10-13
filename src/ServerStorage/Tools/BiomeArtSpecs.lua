@@ -342,6 +342,7 @@ local function bushSpec(berries)
 	return {
 		Voxel = 0.6,
 		StudScale = 1.2,
+		StudFaces = "Top",
 		Palette = palette({ "Leaf", "LeafDark", "LeafLight", "Red", "Pink", "White", "Yellow" }),
 		Shapes = shapes,
 		Bits = bits,
@@ -353,6 +354,7 @@ specs.Prop_BerryBush = bushSpec(true)
 specs.Prop_Boulder = {
 	Voxel = 0.6,
 	StudScale = 1.2,
+	StudFaces = "Top",
 	Palette = palette({ "Rock", "RockDark", "RockLight", "Moss", "Leaf" }),
 	Shapes = {
 		{ Group = "Rock", Color = "Rock", Kind = "Ellipsoid", C = { 0, 1.0, 0 }, R = { 1.9, 1.35, 1.6 } },
@@ -371,6 +373,7 @@ specs.Prop_Boulder = {
 specs.Prop_Tree = {
 	Voxel = 0.8,
 	StudScale = 1.6,
+	StudFaces = "Top",
 	Palette = palette({ "Wood", "WoodDark", "Leaf", "LeafDark", "LeafLight", "Orange", "Red" }),
 	Shapes = {
 		{ Group = "Tree", Color = "Wood", Kind = "Capsule", A = { 0, 0, 0 }, B = { 0, 5, 0 }, R = 0.95 },
@@ -388,27 +391,27 @@ specs.Prop_Tree = {
 	},
 }
 
--- a clump of brick flowers in the given colours
+-- a clump of brick flowers in the given colours (exact pieces: 4 per flower)
 local function flowerSpec(colors, seed)
-	local shapes = {
-		{ Group = "Flowers", Color = "LeafDark", Kind = "Box", C = { 0, 0.1, 0 }, S = { 1.6, 0.2, 1.2 } },
-	}
+	local bits = {}
 	local rng = Random.new(seed)
-	for i = 1, 5 do
-		local x, z = rng:NextNumber(-1.1, 1.1), rng:NextNumber(-0.8, 0.8)
+	for i = 1, 4 do
+		local x, z = rng:NextNumber(-1.0, 1.0), rng:NextNumber(-0.7, 0.7)
 		local h = rng:NextNumber(0.6, 1.2)
 		local col = colors[(i - 1) % #colors + 1]
-		table.insert(shapes, { Group = "Flowers", Color = "Leaf", Kind = "Box", C = { x, h / 2, z }, S = { 0.2, h, 0.2 } })
-		table.insert(shapes, { Group = "Flowers", Color = "Leaf", Kind = "Box", C = { x + 0.2, h * 0.4, z }, S = { 0.4, 0.2, 0.2 } })
-		table.insert(shapes, { Group = "Flowers", Color = col, Kind = "Box", C = { x, h + 0.1, z }, S = { 0.6, 0.2, 0.2 } })
-		table.insert(shapes, { Group = "Flowers", Color = col, Kind = "Box", C = { x, h + 0.1, z }, S = { 0.2, 0.2, 0.6 } })
-		table.insert(shapes, { Group = "Flowers", Color = "Yellow", Kind = "Box", C = { x, h + 0.3, z }, S = { 0.2, 0.2, 0.2 } })
+		table.insert(bits, { Name = "Stem", Group = "Flowers", Color = "Leaf", C = { x, h / 2 + 0.1, z }, S = { 0.16, h, 0.16 } })
+		table.insert(bits, { Name = "Petal", Group = "Flowers", Color = col, C = { x, h + 0.15, z }, S = { 0.6, 0.18, 0.2 } })
+		table.insert(bits, { Name = "Petal", Group = "Flowers", Color = col, C = { x, h + 0.15, z }, S = { 0.2, 0.18, 0.6 } })
+		table.insert(bits, { Name = "Centre", Group = "Flowers", Color = "Yellow", C = { x, h + 0.22, z }, S = { 0.22, 0.2, 0.22 } })
 	end
 	return {
 		Voxel = 0.2,
 		NoStuds = true,
 		Palette = palette({ "Leaf", "LeafDark", "Pink", "White", "Yellow", "Purple", "Red" }),
-		Shapes = shapes,
+		Shapes = {
+			{ Group = "Flowers", Color = "LeafDark", Kind = "Box", C = { 0, 0.1, 0 }, S = { 1.6, 0.2, 1.2 } },
+		},
+		Bits = bits,
 	}
 end
 specs.Prop_FlowersPink = flowerSpec({ "Pink", "White", "Pink" }, 21)
@@ -432,8 +435,9 @@ specs.Prop_Grass = {
 }
 
 specs.Prop_Mushroom = {
-	Voxel = 0.25,
+	Voxel = 0.35,
 	StudScale = 1.0,
+	StudFaces = "Top",
 	Palette = palette({ "Cream", "Red", "White" }),
 	Shapes = {
 		{ Group = "Mushroom", Color = "Red", Kind = "Ellipsoid", C = { 0, 1.25, 0 }, R = { 1.0, 0.6, 1.0 } },
@@ -446,26 +450,29 @@ specs.Prop_Mushroom = {
 	},
 }
 
--- vine for a cliff face: built upward from y = 0 to Length (hang it with its top at the cliff edge); leaves point to -Z
+-- vine for a cliff face: built upward from y = 0 to Length (hang it with its top at the cliff edge); leaves point to -Z.
+-- Exact pieces (one stem + a leaf every ~1.3 studs + a few flowers) to keep part counts low.
 local function vineSpec(length, seed)
-	local shapes = {
-		{ Group = "Vine", Color = "LeafDark", Kind = "Box", C = { 0, length / 2, -0.2 }, S = { 0.4, length, 0.4 } },
-	}
+	local bits = {}
 	local rng = Random.new(seed)
 	local y = length - 0.6
-	while y > 0.4 do
-		local side = rng:NextInteger(0, 1) == 0 and -1 or 1
-		table.insert(shapes, { Group = "Vine", Color = rng:NextInteger(0, 2) == 0 and "LeafLight" or "Leaf", Kind = "Ellipsoid", C = { side * 0.45, y, -0.45 }, R = { 0.55, 0.4, 0.35 } })
-		if rng:NextNumber() < 0.3 then
-			table.insert(shapes, { Group = "Vine", Color = rng:NextInteger(0, 1) == 0 and "Pink" or "White", Kind = "Box", C = { side * 0.7, y - 0.2, -0.7 }, S = { 0.4, 0.4, 0.2 } })
+	local side = 1
+	while y > 0.5 do
+		table.insert(bits, { Name = "Leaf", Group = "Vine", Color = rng:NextInteger(0, 2) == 0 and "LeafLight" or "Leaf", C = { side * 0.42, y, -0.42 }, S = { 0.85, 0.5, 0.36 }, Rot = { 0, 0, side * 18 } })
+		if rng:NextNumber() < 0.28 then
+			table.insert(bits, { Name = "Flower", Group = "Vine", Color = rng:NextInteger(0, 1) == 0 and "Pink" or "White", C = { side * 0.8, y - 0.15, -0.62 }, S = { 0.36, 0.36, 0.18 } })
 		end
-		y -= rng:NextNumber(0.9, 1.4)
+		side = -side
+		y -= rng:NextNumber(1.1, 1.5)
 	end
 	return {
-		Voxel = 0.2,
+		Voxel = 0.4,
 		NoStuds = true,
 		Palette = palette({ "Leaf", "LeafDark", "LeafLight", "Pink", "White" }),
-		Shapes = shapes,
+		Shapes = {
+			{ Group = "Vine", Color = "LeafDark", Kind = "Box", C = { 0, length / 2, -0.2 }, S = { 0.4, length, 0.4 } },
+		},
+		Bits = bits,
 		Length = length,
 	}
 end
@@ -475,6 +482,7 @@ specs.Prop_VineLong = vineSpec(10, 32)
 specs.Prop_NestSign = {
 	Voxel = 0.25,
 	StudScale = 1.0,
+	StudFaces = "Top",
 	Palette = palette({ "Wood", "WoodDark", "Leaf", "Pink" }),
 	Shapes = {
 		{ Group = "Sign", Color = "WoodDark", Kind = "Box", C = { 0, 2.0, 0 }, S = { 0.5, 4.0, 0.5 } },

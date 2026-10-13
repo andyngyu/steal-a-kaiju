@@ -1,4 +1,7 @@
 -- Pen eggs: species roll on placement, countdown, owner hatches it by hand once ready, then it becomes a wandering kaiju.
+-- An egg's rarity is the minimum it hatches into: at hatch time the player's Luck (LuckService) rolls the final rarity
+-- from that tier and every rarer one the biome has species for (odds: Shared.Util.Luck.HatchOdds, LuckConfig.Hatch).
+-- The placement roll (entry.Species) sets the countdown and is kept when the hatch stays at the egg's own rarity.
 -- Restores pen contents from saved data on join.
 -- Size: the egg's Size roll is saved on the entry; the kaiju hatches at that size +/- EggConfig.KaijuSizeJitter, and its
 -- income is CashPerSecond x Size. Grand hatches (EggConfig.IsGrand: Epic+ or Huge+) get a longer build-up
@@ -22,6 +25,8 @@ local BiomeConfig = require(Config.BiomeConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
 local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
 local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
+local MutationConfig = require(Config.MutationConfig)
+local MutationVisuals = require(ReplicatedStorage.Shared.Util.MutationVisuals)
 
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 
@@ -29,6 +34,7 @@ local DataService = require(script.Parent.DataService)
 local BaseService = require(script.Parent.BaseService)
 local KaijuService = require(script.Parent.KaijuService)
 local IndexService = require(script.Parent.IndexService)
+local LuckService = require(script.Parent.LuckService)
 
 local HatchService = {}
 
@@ -96,6 +102,38 @@ local function countdown(egg, entry)
 	bb.Parent = egg.PrimaryPart
 end
 
+-- A pen egg with a weather mutation: mutation looks, and the countdown's title says it ("Shocked Rare Egg").
+local function applyPenMutation(egg, entry)
+	if not (entry.Mutation and EggModel.SetMutation(egg, entry.Mutation)) then
+		return
+	end
+	local tag = egg.PrimaryPart:FindFirstChild("MutationTag")
+	if tag then
+		tag:Destroy() -- the countdown above it already names the mutation
+	end
+	-- the mutation gets its own line above the egg's name (one long line didn't fit the label: "Rainbow Huge E...")
+	local bb = egg.PrimaryPart:FindFirstChild("Countdown")
+	local title = bb and bb:FindFirstChild("Title")
+	if title then
+		local line = bb:FindFirstChild("Mutation") or title:Clone()
+		line.Name = "Mutation"
+		line.LayoutOrder = 0
+		line.RichText = true
+		line.TextColor3 = Color3.new(1, 1, 1)
+		line.Text = MutationVisuals.RichName(entry.Mutation) .. string.format(' <font color="#6BE04A">x%s</font>', tostring(MutationConfig.Multiplier(entry.Mutation)))
+		line.Parent = bb
+		bb.Size = UDim2.fromOffset(190, 92)
+		line.Size = UDim2.new(1, 0, 0.32, 0)
+		title.Size = UDim2.new(1, 0, 0.31, 0)
+		local time = bb:FindFirstChild("Time")
+		if time then
+			time.Size = UDim2.new(1, 0, 0.37, 0)
+		end
+		title.RichText = false
+		title.Text = EggModel.Label(entry.Rarity, entry.Size)
+	end
+end
+
 -- fromMenu: the UI's Eggs panel (Remotes.HatchEgg) hatches from any distance; the prompt needs the owner nearby.
 local function tryHatch(owner, id, player, fromMenu)
 	if player ~= owner then
@@ -112,7 +150,13 @@ local function tryHatch(owner, id, player, fromMenu)
 	end
 	local jitter = EggConfig.KaijuSizeJitter
 	local size = math.floor((entry.Size or 1) * rng:NextNumber(1 - jitter, 1 + jitter) * 100 + 0.5) / 100
-	local grand = EggConfig.IsGrand(KaijuConfig[entry.Species].Rarity, size)
+	-- the egg's rarity is the floor; Luck can lift the hatch to a rarer tier
+	local species = entry.Species
+	local rolled = LuckService:RollHatchRarity(owner, entry.BiomeId, entry.Rarity)
+	if not KaijuConfig[species] or KaijuConfig[species].Rarity ~= rolled then
+		species = HatchService:RollSpecies(entry.BiomeId, rolled)
+	end
+	local grand = EggConfig.IsGrand(KaijuConfig[species].Rarity, size)
 	local anim = grand and BaseConfig.Hatch.GrandAnimSeconds or BaseConfig.Hatch.AnimSeconds
 	egg:SetAttribute("HatchAnim", anim)
 	egg:SetAttribute("HatchGrand", grand)
@@ -127,45 +171,73 @@ local function tryHatch(owner, id, player, fromMenu)
 		local kaijuEntry = {
 			Kind = "Kaiju",
 			KaijuId = id,
-			Species = entry.Species,
-			Rarity = KaijuConfig[entry.Species].Rarity,
+			Species = species,
+			Rarity = KaijuConfig[species].Rarity,
 			BiomeId = entry.BiomeId,
 			HatchedAt = os.time(),
 			Size = size,
 			Level = 1,
 			XP = 0,
+			Mutation = entry.Mutation, -- weather mutation: income x MutationConfig multiplier
 		}
 		local kaiju = KaijuService:Spawn(owner, id, kaijuEntry, spot, true)
 		BaseService:SetItem(owner, id, kaiju, kaijuEntry)
 		local data = DataService:Get(owner)
 		data.Stats.EggsHatched += 1
-		local isNew = IndexService:Record(owner, entry.Species, size)
+		local isNew = IndexService:Record(owner, species, size, entry.Mutation)
 		DataService:Save(owner)
 		local tier = EggConfig.SizeTierName(size)
 		local payload = {
 			ItemId = id,
-			Species = entry.Species,
+			Species = species,
+			EggRarity = entry.Rarity, -- higher than this = Luck lifted the hatch
+			Upgraded = kaijuEntry.Rarity ~= entry.Rarity,
 			Rarity = kaijuEntry.Rarity,
 			Size = size,
 			SizeTier = tier,
 			CashPerSecond = KaijuStats.EntryCashPerSecond(kaijuEntry),
 			Grand = grand,
 			New = isNew, -- first of this species for this player (Kaiju Index)
+			Mutation = entry.Mutation,
 		}
 		gameEvent:FireClient(owner, "EggHatched", payload)
 		if grand then
 			gameEvent:FireAllClients("HatchAnnouncement", {
 				UserId = owner.UserId,
 				PlayerName = owner.DisplayName,
-				Species = entry.Species,
-				DisplayName = KaijuConfig[entry.Species].DisplayName,
+				Species = species,
+				DisplayName = KaijuConfig[species].DisplayName,
 				Rarity = kaijuEntry.Rarity,
 				Size = size,
 				SizeTier = tier,
+				Mutation = entry.Mutation,
 			})
 		end
-		log(owner.Name, "hatched", tier, entry.Species, "size", size)
+		log(owner.Name, "hatched", entry.Mutation or "", tier, species, "(" .. entry.Rarity .. " egg ->", kaijuEntry.Rarity .. ", luck " .. LuckService:Get(owner) .. ") size", size)
 	end)
+end
+
+-- WeatherService: an incubating pen egg catches the weather. Returns true if it took the mutation (an egg keeps its
+-- first one; an egg that's hatching or stolen is skipped). Saved on the entry, so it hatches into a mutated kaiju.
+function HatchService:MutatePenEgg(player, id, mutation)
+	local entry, egg = BaseService:GetItem(player, id)
+	if not (entry and egg and entry.Kind == "Egg" and MutationConfig.ById[mutation]) then
+		return false
+	end
+	if entry.Mutation or entry.StolenBy or egg:GetAttribute("HatchStartedAt") or not egg.PrimaryPart then
+		return false
+	end
+	entry.Mutation = mutation
+	applyPenMutation(egg, entry)
+	egg:SetAttribute("MutatedAt", workspace:GetServerTimeNow())
+	local prompt = egg.PrimaryPart:FindFirstChild("Prompt")
+	if prompt then
+		prompt.ObjectText = EggModel.Label(entry.Rarity, entry.Size, mutation)
+	end
+	DataService:Save(player)
+	gameEvent:FireClient(player, "PenEggMutated", { ItemId = id, Mutation = mutation, Rarity = entry.Rarity, SizeTier = EggConfig.SizeTierName(entry.Size or 1) })
+	log(player.Name, "'s pen egg", id, "mutated:", mutation)
+	return true
 end
 
 -- Same as the owner holding the Hatch prompt (used by Studio test commands).
@@ -189,7 +261,7 @@ local function showEgg(player, id, egg, entry, fromPos)
 	end
 	local prompt = egg.PrimaryPart.Prompt
 	prompt.ActionText = "Hatch"
-	prompt.ObjectText = EggModel.Label(entry.Rarity, entry.Size)
+	prompt.ObjectText = EggModel.Label(entry.Rarity, entry.Size, entry.Mutation)
 	prompt.HoldDuration = BaseConfig.Hatch.HoldSeconds
 	prompt.MaxActivationDistance = BaseConfig.Hatch.PromptDistance + egg.PrimaryPart.Size.X / 2
 	prompt.Enabled = os.time() >= entry.HatchAt
@@ -197,6 +269,7 @@ local function showEgg(player, id, egg, entry, fromPos)
 		tryHatch(player, id, who)
 	end)
 	countdown(egg, entry)
+	applyPenMutation(egg, entry)
 	local time = egg.PrimaryPart.Countdown.Time
 	if os.time() >= entry.HatchAt then
 		time.Text = "Ready!"
@@ -226,6 +299,7 @@ function HatchService:PlaceEgg(player, egg, x, d, fromPos, gifted)
 		X = x,
 		D = d,
 		Size = egg:GetAttribute("Size") or 1,
+		Mutation = egg:GetAttribute("Mutation"), -- a weather mutation stays with it (and the kaiju it hatches into)
 	}
 	showEgg(player, id, egg, entry, fromPos)
 	if not BaseService:SetItem(player, id, egg, entry) then
@@ -248,7 +322,7 @@ end
 -- Puts a new egg into the player's pen (it falls from the sky onto the free spot nearest the middle). size is optional
 -- (a normal roll when nil). Returns the egg's item id, or nil for an unknown biome/rarity or when the player's data or
 -- plot isn't ready yet (call again later - a dev product receipt should return NotProcessedYet).
-function HatchService:GiveEgg(player, biomeId, rarityId, size)
+function HatchService:GiveEgg(player, biomeId, rarityId, size, mutation)
 	if not (BiomeConfig.ById[biomeId] and EggConfig.RarityById[rarityId]) then
 		warn("[HatchService] GiveEgg: unknown biome or rarity", biomeId, rarityId)
 		return nil
@@ -263,6 +337,9 @@ function HatchService:GiveEgg(player, biomeId, rarityId, size)
 		x, d = 0, middle -- packed with eggs: share the middle rather than lose a purchase
 	end
 	local egg = EggModel.Build(biomeId, rarityId, nil, size)
+	if MutationConfig.ById[mutation or ""] then
+		EggModel.SetMutation(egg, mutation)
+	end
 	local id = egg:GetAttribute("EggId")
 	local sky = BaseService:PenToWorld(player, x, d) + Vector3.new(0, 30, 0)
 	if not self:PlaceEgg(player, egg, x, d, sky, true) then

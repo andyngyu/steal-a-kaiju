@@ -60,10 +60,30 @@ local function rootPart()
 	return char and char:FindFirstChild("HumanoidRootPart")
 end
 
+-- Height of the ground the player is standing over (works mid-jump too).
+local function floorY(hrp)
+	local hit = workspace:Raycast(hrp.Position, Vector3.new(0, -60, 0), mapOnly)
+	if hit then
+		return hit.Position.Y
+	end
+	local hum = hrp.Parent and hrp.Parent:FindFirstChildOfClass("Humanoid")
+	return hrp.Position.Y - hrp.Size.Y / 2 - (hum and hum.HipHeight or 2)
+end
+
 -- World point under a screen position. `inset` = true for positions that include the top bar (touch events).
+-- Aims at the ground level the player stands on, so fences, signs, trees, walls or boards under the cursor no longer
+-- pull the preview away from where the cursor meets the ground.
 local function aimPoint(screenPos, inset)
 	local camera = workspace.CurrentCamera
 	local ray = inset and camera:ScreenPointToRay(screenPos.X, screenPos.Y) or camera:ViewportPointToRay(screenPos.X, screenPos.Y)
+	local hrp = rootPart()
+	if hrp and ray.Direction.Y < -0.01 then
+		local t = (floorY(hrp) - ray.Origin.Y) / ray.Direction.Y
+		if t > 0 then
+			return ray.Origin + ray.Direction * t
+		end
+	end
+	-- looking level / upwards: fall back to whatever the cursor is over
 	local hit = workspace:Raycast(ray.Origin, ray.Direction * 600, mapOnly)
 	return hit and hit.Position
 end
@@ -76,9 +96,12 @@ local function clampToReach(point, hrp)
 	return Vector3.new(hrp.Position.X + flat.X, 0, hrp.Position.Z + flat.Z)
 end
 
-local function groundY(spot)
-	local hit = workspace:Raycast(spot + Vector3.new(0, 20, 0), Vector3.new(0, -40, 0), mapOnly)
-	return hit and hit.Position.Y or 0
+-- Ground height at a spot, looking down from just above the player's floor (so fence rails, sign tops and arches
+-- above it are ignored).
+local function groundY(spot, nearY)
+	local from = (nearY or 0) + 1.5
+	local hit = workspace:Raycast(Vector3.new(spot.X, from, spot.Z), Vector3.new(0, -12, 0), mapOnly)
+	return hit and hit.Position.Y or (nearY or 0)
 end
 
 local function classify(spot)
@@ -138,7 +161,7 @@ RunService.RenderStepped:Connect(function()
 		return
 	end
 	local spot = clampToReach(aim, hrp)
-	local y = groundY(spot)
+	local y = groundY(spot, floorY(hrp))
 	local color = COLORS[classify(spot)]
 	local t = os.clock()
 	local egg = player.Character:FindFirstChild("Egg")

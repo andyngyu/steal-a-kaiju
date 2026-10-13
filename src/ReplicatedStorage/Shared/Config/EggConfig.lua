@@ -106,9 +106,10 @@ return table.freeze({
 
 	StunSecondsAfterCatch = 1.0, -- can't grab eggs right after being caught
 
-	-- Egg luck perk (player attributes EggLuckMultiplier + EggLuckUntil, set by GamePassService). Nests are shared, so
-	-- luck applies when a lucky player's egg lands in their pen: a chance to go up one rarity (only to rarities that
-	-- biome drops, never into Secret) and (multiplier - 1) extra size rolls keeping the biggest.
+	-- Luck (player attribute Luck, LuckService; see LuckConfig). Nests are shared, so an egg's rarity is rolled from the
+	-- biome weights above; the player's Luck then lifts the HATCH (egg rarity = minimum, see LuckConfig.Hatch) and adds
+	-- (Luck - 1) extra size rolls, keeping the biggest, when the egg lands in their pen.
+	-- (UpgradeChancePerLuck / MaxUpgradeChance below are from the old landing upgrade and are no longer used.)
 	Luck = table.freeze({
 		UpgradeChancePerLuck = 0.15, -- x2 luck = 15% chance to go up a rarity
 		MaxUpgradeChance = 0.5,

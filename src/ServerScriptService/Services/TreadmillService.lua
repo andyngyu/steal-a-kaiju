@@ -1,8 +1,13 @@
 -- Personal treadmills, one per base. Level 0 = locked (hologram); the TreadmillSign unlocks and upgrades it.
 -- Running: the owner uses Run on their treadmill. Their HumanoidRootPart is anchored on the belt (no physics jitter);
--- clients play the run animation and scroll the belt (Gameplay.SpeedFX). The server adds Speed every CheckInterval
--- up to the level's MaxTrained. Leaving: jump (client fires Remotes.Treadmill "Stop"), use the prompt again, die, or leave.
+-- clients play the run animation and scroll the belt (Gameplay.SpeedFX). Every CheckInterval the server adds Speed
+-- (a currency, no limit): GainPerSecond x level Multiplier x trail SpeedMultiplier per second. Leaving: jump (client fires Remotes.Treadmill "Stop"), use the prompt again, die, or leave.
 -- Player attributes: TreadmillLevel, OnTreadmill. Treadmill model attributes: Level, Ghost, Runner (UserId while running).
+-- Lightning bolt (TreadmillConfig.Lightning*): every LightningEverySeconds of running a bolt appears for the runner
+-- (player attribute TreadmillLightningUntil = server time it disappears); clicking it (Remotes.Treadmill "Lightning")
+-- sets LightningBoost = x4 + LightningBoostUntil for LightningBoostSeconds (5 s), which SpeedService multiplies into the
+-- Speed gain.
+-- Drawn by KaijuUI Controllers.TreadmillLightningController.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -22,7 +27,8 @@ local TreadmillService = {}
 local LEVELS = TreadmillConfig.Levels
 local gameEvent
 local plots = {}
-local running = {} -- [player] = { plot, model, maxed }
+local running = {} -- [player] = { plot, model, nextBolt, boltUntil }
+local boosts = {} -- [player] = server time the lightning boost ends
 local ownerPlot = {} -- [player] = plot (kept here so leaving doesn't depend on BaseService's handler order)
 
 local function log(...)
@@ -72,6 +78,7 @@ function TreadmillService:Stop(player)
 	running[player] = nil
 	if player.Parent == Players then
 		player:SetAttribute("OnTreadmill", nil)
+		player:SetAttribute("TreadmillLightningUntil", nil)
 	end
 	if r.model.Parent then
 		r.model:SetAttribute("Runner", nil)
@@ -85,7 +92,9 @@ function TreadmillService:Stop(player)
 	if hrp then
 		hrp.Anchored = false
 		if r.model.Parent then
-			char:PivotTo(r.model:GetPivot() * CFrame.new(0, 3.5, 7.5)) -- step off behind the belt
+			-- stay where you were, lifted just clear of the belt (no ejecting backwards)
+			char:PivotTo(CFrame.new(hrp.Position + Vector3.new(0, 1.5, 0)) * hrp.CFrame.Rotation)
+			hrp.AssemblyLinearVelocity = Vector3.zero
 		end
 	end
 end
@@ -112,7 +121,7 @@ function TreadmillService:BeginRun(player, plot)
 	local pos = point + Vector3.new(0, hum.HipHeight + hrp.Size.Y / 2, 0)
 	hrp.Anchored = true
 	char:PivotTo(CFrame.lookAt(pos, pos + model:GetPivot().LookVector))
-	running[player] = { plot = plot, model = model }
+	running[player] = { plot = plot, model = model, nextBolt = workspace:GetServerTimeNow() + TreadmillConfig.LightningEverySeconds }
 	player:SetAttribute("OnTreadmill", true)
 	model:SetAttribute("Runner", player.UserId)
 	model.Deck.RunPrompt.ActionText = "Stop"
@@ -162,6 +171,7 @@ local function upgrade(self, player, free)
 	placeModel(plot, data.Treadmill.Level)
 	updateSign(plot, data.Treadmill.Level, true)
 	player:SetAttribute("TreadmillLevel", data.Treadmill.Level)
+	SpeedService:Refresh(player) -- new gain multiplier
 	DataService:Save(player)
 	gameEvent:FireClient(player, "TreadmillUpgraded", { Level = data.Treadmill.Level, Name = nextLevel.Name })
 	log(player.Name, "treadmill now level", data.Treadmill.Level)
@@ -175,6 +185,45 @@ end
 -- Robux upgrade (GamePassService): the next level without spending cash. False when maxed or not ready.
 function TreadmillService:GrantUpgrade(player)
 	return upgrade(self, player, true)
+end
+
+-- The runner clicked the lightning bolt while it was up: x LightningBoost Speed gains for LightningBoostSeconds.
+function TreadmillService:ClaimLightning(player)
+	local r = running[player]
+	local now = workspace:GetServerTimeNow()
+	if not (r and r.boltUntil and now <= r.boltUntil + 0.5) then
+		return false
+	end
+	r.boltUntil = nil
+	r.nextBolt = now + TreadmillConfig.LightningEverySeconds
+	player:SetAttribute("TreadmillLightningUntil", nil)
+	boosts[player] = math.max(boosts[player] or 0, now) + TreadmillConfig.LightningBoostSeconds
+	player:SetAttribute("LightningBoost", TreadmillConfig.LightningBoost)
+	player:SetAttribute("LightningBoostUntil", boosts[player])
+	SpeedService:Refresh(player)
+	log(player.Name, "caught the lightning bolt")
+	return true
+end
+
+-- Admin panel: the lightning boost right now, bolt or not (works off the treadmill too, but only running earns Speed).
+function TreadmillService:GrantLightning(player)
+	local now = workspace:GetServerTimeNow()
+	boosts[player] = math.max(boosts[player] or 0, now) + TreadmillConfig.LightningBoostSeconds
+	player:SetAttribute("LightningBoost", TreadmillConfig.LightningBoost)
+	player:SetAttribute("LightningBoostUntil", boosts[player])
+	SpeedService:Refresh(player)
+	return true
+end
+
+-- Admin panel: pop a bolt up for a runner now.
+function TreadmillService:SpawnBolt(player)
+	local r = running[player]
+	if not r then
+		return false
+	end
+	r.boltUntil = workspace:GetServerTimeNow() + TreadmillConfig.LightningWindowSeconds
+	player:SetAttribute("TreadmillLightningUntil", r.boltUntil)
+	return true
 end
 
 function TreadmillService:Init()
@@ -194,9 +243,18 @@ function TreadmillService:Init()
 			end
 		end)
 	end
+	-- the Treadmill sign's price button (UpgradeSignsController): the only requirement is the cost (TryBuy checks
+	-- it); no distance or pen-level checks
+	ReplicatedStorage.Remotes:WaitForChild("UpgradeTreadmill").OnServerEvent:Connect(function(player)
+		if BaseService:GetPlot(player) then
+			TreadmillService:TryBuy(player)
+		end
+	end)
 	ReplicatedStorage.Remotes.Treadmill.OnServerEvent:Connect(function(player, action)
 		if action == "Stop" then
 			TreadmillService:Stop(player)
+		elseif action == "Lightning" then
+			TreadmillService:ClaimLightning(player)
 		end
 	end)
 end
@@ -205,6 +263,7 @@ function TreadmillService:Start()
 	DataService:OnLoaded(function(player, data)
 		data.Treadmill.Level = math.clamp(data.Treadmill.Level, 0, #LEVELS)
 		player:SetAttribute("TreadmillLevel", data.Treadmill.Level)
+		SpeedService:Refresh(player)
 		local plot = BaseService:GetPlot(player)
 		if plot then
 			ownerPlot[player] = plot
@@ -229,6 +288,7 @@ function TreadmillService:Start()
 		onPlayer(p)
 	end
 	Players.PlayerRemoving:Connect(function(player)
+		boosts[player] = nil
 		local plot = ownerPlot[player]
 		ownerPlot[player] = nil
 		TreadmillService:Stop(player)
@@ -246,17 +306,37 @@ function TreadmillService:Start()
 		end
 		local step = acc
 		acc = 0
+		local now = workspace:GetServerTimeNow()
+		-- lightning boosts running out
+		for player, untilT in boosts do
+			if now >= untilT then
+				boosts[player] = nil
+				if player.Parent == Players then
+					player:SetAttribute("LightningBoost", nil)
+					player:SetAttribute("LightningBoostUntil", nil)
+					SpeedService:Refresh(player)
+				end
+			end
+		end
+		-- lightning bolts for runners: one every LightningEverySeconds, up for LightningWindowSeconds
+		for player, r in running do
+			if r.boltUntil and now > r.boltUntil then
+				r.boltUntil = nil
+				r.nextBolt = now + TreadmillConfig.LightningEverySeconds
+				player:SetAttribute("TreadmillLightningUntil", nil)
+			elseif not r.boltUntil and r.nextBolt and now >= r.nextBolt then
+				r.boltUntil = now + TreadmillConfig.LightningWindowSeconds
+				player:SetAttribute("TreadmillLightningUntil", r.boltUntil)
+			end
+		end
 		for player, r in running do
 			local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			if not (hrp and hrp.Anchored and r.model.Parent) then
 				TreadmillService:Stop(player)
 				continue
 			end
-			local level = LEVELS[getLevel(player)]
-			if level and SpeedService:AddTrained(player, level.SpeedPerSecond * step, level.MaxTrained) and not r.maxed then
-				r.maxed = true
-				local nextLevel = LEVELS[getLevel(player) + 1]
-				gameEvent:FireClient(player, "TreadmillMaxed", { Max = level.MaxTrained, Level = getLevel(player), NextName = nextLevel and nextLevel.Name })
+			if LEVELS[getLevel(player)] then
+				SpeedService:AddSpeed(player, TreadmillConfig.GainPerSecond * SpeedService:GetGainMultiplier(player) * step)
 			end
 		end
 	end)

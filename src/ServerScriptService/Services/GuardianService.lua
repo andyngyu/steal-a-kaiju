@@ -7,7 +7,23 @@
 -- zone (Map attribute SafeZoneX; the lanes are joined end to end). It gives up when its player reaches the safe zone,
 -- drops or delivers the egg, dies or leaves, or the chase runs too long (MaxChaseSeconds plus the time to run the whole
 -- way home). While walking home it goes after its player again if they carry another egg from its biome nearby.
+-- Caught players are ragdolled (Lib.Ragdoll) and flung back toward the safe zone (-X); the egg drops where they were.
+-- A dropped egg (caught, clicked down, died) inside its own biome's chase area is fetched by that biome's guardian - the
+-- one that was after the player, else the resident if it's free - and dragged home behind it at Guardian.HaulSpeed
+-- (slow, so players can catch up), then set back in the nest (EggService:ReturnToNest). The egg keeps its "Grab" prompt
+-- the whole time (egg State "Guardian" while dragged); whoever grabs it gets that same guardian after them, after a
+-- short roar (REGRAB_ROAR). Fetching/dragging is part of the "Returning" state, so clients just see it walking.
+-- Model attribute CarryingEgg (EggId) while it drags an egg.
 -- Guardians aim a little ahead of a running player (LEAD_SECONDS), smoothed so the heading doesn't jerk.
+-- Chase speed scales with the player it chases, so every chase is close whatever their speed:
+-- (each constant below is a default; a biome can override it in BiomeConfig - Pebble Plains is gentler)
+--   right behind them (within FOLLOW_DISTANCE studs past catch reach): TRAIL_PACE x their pace - on their heels, but a
+--     player at the biome's RecommendedSpeed or faster who keeps running gets away at the safe zone;
+--   further back: their pace plus a catch-up of CATCHUP_PER_STUD per stud, never more than MAX_CATCHUP x their pace,
+--     so it closes in steadily instead of rocketing up (and never below its own WalkSpeed);
+--   under-speed thieves (Speed below the biome's RecommendedSpeed, the lane sign's "Too slow"): it roars for only
+--     UNDERSPEED_WAKE, then runs at UNDERSPEED_BOOST x their pace plus a hard catch-up (UNDERSPEED_CATCHUP_PER_STUD,
+--     up to UNDERSPEED_MAX_CATCHUP x their pace), so it's on them in moments and knocks the egg off them.
 -- Uses ServerStorage.Assets.Kaiju.Guardian_<BiomeId> if present, otherwise builds a placeholder.
 -- Model attributes: BiomeId, State, TargetUserId (its player while it has one), Personal (a copy), RiseAt / SinkAt
 --   (server time a copy started rising / sinking; Gameplay.KaijuFX animates both).
@@ -21,6 +37,8 @@ local Debris = game:GetService("Debris")
 
 local BiomeConfig = require(ReplicatedStorage.Shared.Config.BiomeConfig)
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
+local Ragdoll = require(game:GetService("ServerScriptService").Lib.Ragdoll)
+local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 
 local GuardianService = {}
 
@@ -28,7 +46,24 @@ local TICK = 0.1
 local RISE_SECONDS = 1.1 -- a copy climbing out of the ground (KaijuFX uses the same number)
 local SINK_SECONDS = 1.2 -- a copy sinking away once it's home
 local LEAD_SECONDS = 0.2
+local FOLLOW_DISTANCE = 6 -- studs beyond catch reach a guardian trails a player by
+local CATCHUP_PER_STUD = 0.8 -- extra studs/s for every stud it's further back than that...
+local MAX_CATCHUP = 0.3 -- ...up to this fraction of the player's pace on top of it
+local TRAIL_PACE = 0.97 -- fraction of the player's pace it runs at once it's on their heels
+local MAX_CHASE_SPEED = 250
+-- Against a player below the biome's RecommendedSpeed (the lane sign's "Too slow") a guardian is much quicker:
+local UNDERSPEED_BOOST = 1.4 -- pace multiple (a biome can override with Guardian.UnderspeedBoost)
+local UNDERSPEED_WAKE = 0.25 -- seconds of roar before it charges (instead of Guardian.WakeDelay)
+local underspeed -- (defined below, before step)
+local UNDERSPEED_CATCHUP_PER_STUD = 1.5 -- closes a gap this much faster per stud behind...
+local UNDERSPEED_MAX_CATCHUP = 0.6 -- ...up to this fraction of their pace on top
 local MAX_PER_BIOME = 8
+local CAUGHT_RAGDOLL_SECONDS = 1.4 -- a caught player flops (and can't grab eggs) this long
+local FLING_SCALE = 0.5 -- fling speed toward the safe zone, as a fraction of the biome's Knockback (a ragdoll slides far)
+local FLING_UP = 0.55 -- upward part of the fling, as a fraction of that
+local POST_CATCH_PAUSE = 1 -- seconds it stands over the egg after a catch before picking it up (time to come back for it)
+local FETCH_REACH = 3 -- studs past its body at which a guardian scoops up a dropped egg
+local REGRAB_ROAR = 1.2 -- seconds it roars before chasing someone who snatched the egg back off it
 -- where copies rise, around the resident's spot (the lane runs along X)
 local COPY_OFFSETS = {
 	Vector3.new(0, 0, 18),
@@ -235,7 +270,78 @@ local function targetValid(player)
 	return player:GetAttribute("CarryingEgg") ~= nil, hrp
 end
 
+-- Weather (WeatherService sets workspace attribute WeatherGuardianSpeed): Blizzard < 1 slows guardians, Blood Moon > 1
+-- makes them angrier.
+local function weatherSpeed()
+	local m = workspace:GetAttribute("WeatherGuardianSpeed")
+	return type(m) == "number" and m > 0 and m or 1
+end
+
+local function haulSpeed(g)
+	return g.cfg.HaulSpeed or math.max(8, g.cfg.WalkSpeed * 0.5)
+end
+
+-- Where a returning guardian heads: to the dropped egg it's fetching, home dragging it (slowly), or just home.
+local function headOff(g)
+	if g.egg and not (g.egg.Parent and g.egg.PrimaryPart) then
+		g.egg = nil
+		g.hauling = false
+		g.model:SetAttribute("CarryingEgg", nil)
+	end
+	local target, speed
+	if g.egg and not g.hauling then
+		target, speed = g.egg.PrimaryPart.Position, g.cfg.ReturnSpeed
+	elseif g.egg then
+		target, speed = g.home, haulSpeed(g)
+	else
+		target, speed = g.home, g.cfg.ReturnSpeed
+	end
+	g.humanoid.WalkSpeed = speed * weatherSpeed()
+	g.humanoid:MoveTo(target)
+	g.lastMoveTo = os.clock()
+	-- the walk can be a few biomes long: allow for it before the safety net steps in
+	local away = Vector3.new(target.X - g.root.Position.X, 0, target.Z - g.root.Position.Z).Magnitude
+	g.returnLimit = 12 + away / speed * 1.6
+	g.stateTime = os.clock()
+end
+
+local function groundBelow(position, ignore)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	local hit = workspace:Raycast(position + Vector3.new(0, 4, 0), Vector3.new(0, -60, 0), params)
+	return hit and hit.Position.Y or position.Y
+end
+
+local function forgetEgg(g)
+	local egg = g.egg
+	g.egg = nil
+	g.hauling = false
+	g.model:SetAttribute("CarryingEgg", nil)
+	return egg
+end
+
+-- Lets go of the egg it's fetching/dragging: it stays on the ground where it is, up for grabs (and despawns later).
+local function releaseEgg(g)
+	local egg = forgetEgg(g)
+	if not (egg and egg.Parent and egg:GetAttribute("State") == "Guardian") then
+		return
+	end
+	require(script.Parent.EggService):LetGoFromGuardian(egg)
+end
+
+-- Home with the egg: back into the nest it goes.
+local function nestEgg(g)
+	local egg = forgetEgg(g)
+	if egg and egg.Parent and egg:GetAttribute("State") == "Guardian" then
+		require(script.Parent.EggService):ReturnToNest(egg)
+	end
+end
+
 local function setState(g, state)
+	if g.egg and state ~= "Returning" then
+		releaseEgg(g)
+	end
 	g.state = state
 	g.stateTime = os.clock()
 	local model, hum = g.model, g.humanoid
@@ -259,11 +365,7 @@ local function setState(g, state)
 		g.aim = nil
 	elseif state == "Returning" then
 		setAwakeLook(g, true)
-		hum.WalkSpeed = g.cfg.ReturnSpeed
-		hum:MoveTo(g.home)
-		-- the walk home can be a few biomes long: allow for it before the safety net steps in
-		local away = Vector3.new(g.home.X - g.root.Position.X, 0, g.home.Z - g.root.Position.Z).Magnitude
-		g.returnLimit = 12 + away / g.cfg.ReturnSpeed * 1.6
+		headOff(g)
 	elseif state == "Leaving" then
 		g.owner = nil
 		hum.WalkSpeed = 0
@@ -274,30 +376,137 @@ local function setState(g, state)
 	log(g.zone.biome.Id, g.resident and "resident" or "copy", state, g.owner and g.owner.Name or "")
 end
 
-local function knockback(hrp, fromPos, strength)
-	local flat = Vector3.new(hrp.Position.X - fromPos.X, 0, hrp.Position.Z - fromPos.Z)
-	local dir = flat.Magnitude > 0.01 and flat.Unit or Vector3.xAxis * -1
+-- Throws a caught player back toward the safe zone (the lane's -X end), up and away.
+local function fling(hrp, strength)
 	local att = hrp:FindFirstChild("RootAttachment") or hrp:FindFirstChildOfClass("Attachment")
 	if not att then
 		return
 	end
 	local lv = Instance.new("LinearVelocity")
+	lv.Name = "GuardianFling"
 	lv.Attachment0 = att
 	lv.RelativeTo = Enum.ActuatorRelativeTo.World
 	lv.MaxForce = math.huge
-	lv.VectorVelocity = dir * strength + Vector3.new(0, strength * 0.5, 0)
+	strength *= FLING_SCALE
+	lv.VectorVelocity = Vector3.new(-strength, strength * FLING_UP, 0)
 	lv.Parent = hrp
-	Debris:AddItem(lv, 0.18)
+	Debris:AddItem(lv, 0.2)
 end
 
 local function catch(g, player, hrp)
 	local EggService = require(script.Parent.EggService)
+	-- the egg lands where they were caught, and this guardian goes to take it home (OnEggDropped)
 	EggService:DropCarried(player, "Caught")
-	knockback(hrp, g.root.Position, g.cfg.Knockback)
+	Ragdoll.Start(player.Character, CAUGHT_RAGDOLL_SECONDS)
+	fling(hrp, g.cfg.Knockback)
+	player:SetAttribute("StunnedUntil", math.max(player:GetAttribute("StunnedUntil") or 0, serverNow() + CAUGHT_RAGDOLL_SECONDS))
 	gameEvent:FireClient(player, "Caught", { BiomeId = g.zone.biome.Id })
-	setState(g, "Returning")
+	if g.state ~= "Returning" then
+		setState(g, "Returning")
+	end
 	g.humanoid.WalkSpeed = 0
-	g.pauseUntil = os.clock() + 0.8
+	g.pauseUntil = os.clock() + POST_CATCH_PAUSE
+end
+
+-- How a guardian carries an egg home: Pebble Plains / Lava Lagoon in their jaws, Frostfang in its arms. The arm pose
+-- (radians: forward, inward) is the one Gameplay.KaijuFX holds the arms in.
+local HOLD_STYLE = { FrostfangPeaks = "Arms" } -- everyone else: "Mouth"
+local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38
+
+-- Root-space box of the bricks welded to a rig joint part.
+local function jointExtents(model, root, jointPart)
+	local mn, mx = Vector3.one * 1e9, -Vector3.one * 1e9
+	for _, w in model:GetDescendants() do
+		if w:IsA("WeldConstraint") or w:IsA("Weld") then
+			local other = (w.Part0 == jointPart and w.Part1) or (w.Part1 == jointPart and w.Part0) or nil
+			if other then
+				local cf = root.CFrame:ToObjectSpace(other.CFrame)
+				local h = other.Size / 2
+				for _, sx in { -1, 1 } do
+					for _, sy in { -1, 1 } do
+						for _, sz in { -1, 1 } do
+							local c = cf * Vector3.new(h.X * sx, h.Y * sy, h.Z * sz)
+							mn, mx = mn:Min(c), mx:Max(c)
+						end
+					end
+				end
+			end
+		end
+	end
+	return mn, mx
+end
+
+-- Where the egg sits while carried. Returns the part it's welded to, its centre in root space (rest pose), the style
+-- and a scale for the egg (big eggs shrink to fit a jaw / a pair of arms; back to full size when grabbed).
+local function holdSpot(g, egg)
+	local model, root = g.model, g.root
+	local part = egg.PrimaryPart
+	local size = math.max(part.Size.X, part.Size.Y, part.Size.Z)
+	local motors = {}
+	for _, d in model:GetDescendants() do
+		if d:IsA("Motor6D") then
+			motors[d.Name] = d
+		end
+	end
+	local style = HOLD_STYLE[g.zone.biome.Id] or "Mouth"
+	if style == "Arms" and motors.ArmL and motors.Body then
+		-- cradled between the hands of arms held forward and in (KaijuFX's hold pose)
+		local arm = motors.ArmL.Part1
+		local shoulder = root.CFrame:PointToObjectSpace(arm.Position)
+		local mn = jointExtents(model, root, arm)
+		local reach = math.max(2, shoulder.Y - mn.Y)
+		local handY = shoulder.Y - reach * math.cos(HOLD_ARM_IN) * math.cos(HOLD_ARM_PITCH)
+		local handZ = shoulder.Z - reach * math.cos(HOLD_ARM_IN) * math.sin(HOLD_ARM_PITCH)
+		local bmn, bmx = jointExtents(model, root, motors.Body.Part1)
+		local scale = math.min(1, math.max(1.5, (bmx.X - bmn.X) * 0.45) / size)
+		local r = size * scale / 2
+		-- resting on top of the hands, held out in front of the chest
+		return motors.Body.Part1, Vector3.new(0, handY + r * 0.9, handZ - r * 0.1), style, scale
+	elseif motors.Jaw and motors.Head then
+		-- held in the front of the jaws: resting on the lower jaw, sticking out past the snout
+		local jaw = motors.Jaw.Part1
+		local mn, mx = jointExtents(model, root, jaw)
+		local hmn, hmx = jointExtents(model, root, motors.Head.Part1)
+		local scale = math.min(1, (hmx.X - hmn.X) * 0.6 / size)
+		local r = size * scale / 2
+		return jaw, Vector3.new(0, mx.Y + r * 0.6, mn.Z - r * 0.5), style, scale
+	end
+	local r = size / 2
+	return root, Vector3.new(0, 0, -(root.Size.Z / 2 + r)), style, 1 -- unrigged placeholder: in front of it
+end
+
+-- Picks up the egg it was fetching. The egg becomes part of the guardian model (a fresh server-owned copy - see
+-- EggService:TakeIntoGuardian - so it never fights the egg animation in Gameplay.KaijuFX, which froze the whole
+-- guardian on clients), welded to its jaw or body, still grabbable.
+local function attachEgg(g)
+	local holder, spot, style, scale = holdSpot(g, g.egg)
+	local egg = require(script.Parent.EggService):TakeIntoGuardian(g.egg)
+	g.egg = egg
+	if scale < 0.99 then
+		egg:SetAttribute("FullScale", egg:GetScale()) -- EggService puts it back to this when it's grabbed
+		egg:ScaleTo(egg:GetScale() * scale)
+	end
+	local prompt = egg.PrimaryPart:FindFirstChild("Prompt")
+	if prompt then
+		prompt.MaxActivationDistance = 12 -- scaling shrinks its reach, and the egg is up at mouth / chest height
+	end
+	local target = g.root.CFrame * CFrame.new(spot)
+	egg:PivotTo(target)
+	local weld = Instance.new("Weld")
+	weld.Name = "GuardianWeld"
+	weld.Part0 = holder
+	weld.Part1 = egg.PrimaryPart
+	weld.C0 = holder.CFrame:ToObjectSpace(target)
+	weld.Parent = egg.PrimaryPart
+	egg.Parent = g.model
+	pcall(function()
+		g.root:SetNetworkOwner(nil) -- the egg joined its assembly: keep the whole thing server-owned
+	end)
+	g.hauling = true
+	g.model:SetAttribute("HoldStyle", style)
+	g.model:SetAttribute("CarryingEgg", egg:GetAttribute("EggId") or true)
+	log(g.zone.biome.Id, "carrying egg home", style)
+	headOff(g)
 end
 
 local function newGuardian(zone, model, resident)
@@ -358,6 +567,13 @@ local function spawnCopy(zone, player)
 	return g
 end
 
+-- Is this guardian's player below its biome's RecommendedSpeed?
+function underspeed(g, owner)
+	local recommended = g.zone.biome.RecommendedSpeed
+	local statSpeed = owner and (owner:GetAttribute("RunSpeed") or owner:GetAttribute("BaseWalkSpeed"))
+	return recommended ~= nil and type(statSpeed) == "number" and statSpeed < recommended
+end
+
 local function step(g)
 	local now = os.clock()
 	if g.state == "Leaving" then
@@ -373,8 +589,7 @@ local function step(g)
 	if g.pauseUntil then
 		g.pauseUntil = nil
 		if g.state == "Returning" then
-			g.humanoid.WalkSpeed = g.cfg.ReturnSpeed
-			g.humanoid:MoveTo(g.home)
+			headOff(g)
 		end
 	end
 
@@ -385,7 +600,7 @@ local function step(g)
 			setState(g, "Waking")
 		end
 	elseif g.state == "Waking" then
-		if now - g.stateTime >= g.cfg.WakeDelay then
+		if now - g.stateTime >= (underspeed(g, owner) and UNDERSPEED_WAKE or g.cfg.WakeDelay) then
 			setState(g, "Chasing")
 		end
 	elseif g.state == "Chasing" then
@@ -412,14 +627,45 @@ local function step(g)
 			catch(g, owner, hrp)
 			return
 		end
-		-- aim a little ahead of the player, smoothed so the heading doesn't jerk with every step they take
+		-- keep pace: never let a faster player pull away, but don't out-run them once right behind
 		local v = hrp.AssemblyLinearVelocity
+		local playerHum = owner.Character and owner.Character:FindFirstChildOfClass("Humanoid")
+		local playerSpeed = math.max(playerHum and playerHum.WalkSpeed or 0, Vector3.new(v.X, 0, v.Z).Magnitude)
+		local gap = flat.Magnitude - reach
+		local wmult = weatherSpeed()
+		local base = g.cfg.WalkSpeed * wmult
+		local cfg = g.cfg -- a biome can soften or sharpen the scaling (BiomeConfig Guardian.TrailPace etc.)
+		local catchup = math.min(math.max(0, gap - FOLLOW_DISTANCE) * (cfg.CatchupPerStud or CATCHUP_PER_STUD), playerSpeed * (cfg.MaxCatchup or MAX_CATCHUP)) * wmult
+		local trailPace = (cfg.TrailPace or TRAIL_PACE) * wmult
+		if wmult > 1 then
+			trailPace = math.min(trailPace, 0.995) -- angrier, but a player at full speed can still just stay ahead
+		end
+		local speed
+		if underspeed(g, owner) then
+			-- too slow for this biome: clearly faster than them and closing gaps hard, so it's on them in moments
+			local hardCatchup = math.min(math.max(0, gap) * UNDERSPEED_CATCHUP_PER_STUD, playerSpeed * UNDERSPEED_MAX_CATCHUP)
+			speed = math.max(base * 1.25, playerSpeed * (cfg.UnderspeedBoost or UNDERSPEED_BOOST) + hardCatchup) * math.min(wmult, 1.1)
+		elseif gap > FOLLOW_DISTANCE then
+			speed = math.max(base, playerSpeed + catchup)
+		else
+			speed = playerSpeed * trailPace -- on their heels: near their pace (a player who stops gets caught)
+		end
+		g.humanoid.WalkSpeed = math.min(speed, MAX_CHASE_SPEED)
+		-- aim a little ahead of the player, smoothed so the heading doesn't jerk with every step they take
 		local lead = hrp.Position + Vector3.new(v.X, 0, v.Z) * LEAD_SECONDS
 		g.aim = g.aim and g.aim:Lerp(lead, 0.5) or lead
 		local z = g.zone
 		local goal = Vector3.new(math.clamp(g.aim.X, z.safeX + 2, z.maxX - 2), g.home.Y, math.clamp(g.aim.Z, -z.halfZ + 4, z.halfZ - 4))
 		g.humanoid:MoveTo(goal)
 	elseif g.state == "Returning" then
+		-- the egg it's fetching/dragging was grabbed (OnEggTaken normally deals with that) or vanished: just go home
+		if g.egg then
+			local st = g.egg.Parent and g.egg:GetAttribute("State")
+			if st ~= (g.hauling and "Guardian" or "Ground") then
+				forgetEgg(g)
+				headOff(g)
+			end
+		end
 		-- its own player has another egg from this biome nearby: back after them
 		if owner and owner:GetAttribute("CarryingFromBiome") == biomeId then
 			local ok, hrp = targetValid(owner)
@@ -429,16 +675,32 @@ local function step(g)
 				return
 			end
 		end
-		local flat = Vector3.new(g.home.X - g.root.Position.X, 0, g.home.Z - g.root.Position.Z)
-		if flat.Magnitude < 2.5 then
-			setState(g, g.resident and "Sleeping" or "Leaving")
-			return
-		elseif now - (g.lastMoveTo or 0) > 2 then
-			g.lastMoveTo = now
-			g.humanoid:MoveTo(g.home)
+		if g.egg and not g.hauling then
+			-- fetching a dropped egg
+			local at = g.egg.PrimaryPart.Position
+			local gap = Vector3.new(at.X - g.root.Position.X, 0, at.Z - g.root.Position.Z).Magnitude
+			if gap <= g.root.Size.Z / 2 + FETCH_REACH + g.egg.PrimaryPart.Size.X / 2 then
+				attachEgg(g)
+			elseif now - (g.lastMoveTo or 0) > 1 then
+				g.lastMoveTo = now
+				g.humanoid:MoveTo(at)
+			end
+		else
+			local flat = Vector3.new(g.home.X - g.root.Position.X, 0, g.home.Z - g.root.Position.Z)
+			if flat.Magnitude < 2.5 then
+				nestEgg(g)
+				setState(g, g.resident and "Sleeping" or "Leaving")
+				return
+			elseif now - (g.lastMoveTo or 0) > 2 then
+				g.lastMoveTo = now
+				g.humanoid:MoveTo(g.home)
+			end
 		end
 		if now - g.stateTime > (g.returnLimit or 30) then
-			-- safety net: never leave a guardian stuck away from home
+			-- safety net: never leave a guardian stuck away from home (a dragged egg goes straight back to the nest)
+			if g.hauling then
+				nestEgg(g)
+			end
 			if g.resident then
 				g.model:PivotTo(CFrame.lookAt(g.homeCFrame.Position, g.homeCFrame.Position - Vector3.xAxis))
 				setState(g, "Sleeping")
@@ -495,7 +757,9 @@ function GuardianService:Start()
 		for g in guardians do
 			if g.owner == player then
 				g.owner = nil
-				if not g.resident then
+				if g.egg and g.state == "Returning" then
+					g.model:SetAttribute("TargetUserId", nil) -- still taking an egg home: carry on
+				elseif not g.resident then
 					setState(g, "Leaving")
 				elseif g.state ~= "Sleeping" then
 					setState(g, "Returning")
@@ -528,11 +792,70 @@ function GuardianService:Start()
 	end)
 end
 
--- Called by EggService when a player takes an egg inside a biome: that player's guardian comes after them.
-function GuardianService:OnEggTaken(biomeId, player)
+local function inZoneChase(zone, pos)
+	return pos.X >= zone.safeX and pos.X <= zone.maxX and math.abs(pos.Z) <= zone.halfZ + 2
+end
+
+-- Is `position` inside the chase area of `biomeId`'s guardians (safe zone line to the far end of that biome)?
+function GuardianService:InChaseArea(biomeId, position)
+	local zone = biomeId and zones[biomeId]
+	return zone ~= nil and inZoneChase(zone, position)
+end
+
+-- Called by EggService when an egg lands on the ground (caught, clicked down, died). Inside its own biome's chase area a
+-- guardian of that biome fetches it and drags it home: the one that was after `player`, else the resident if it's free.
+-- Returns whether one is coming for it.
+function GuardianService:OnEggDropped(egg, player)
+	local zone = zones[egg:GetAttribute("BiomeId")]
+	if not (zone and egg.PrimaryPart and inZoneChase(zone, egg.PrimaryPart.Position)) then
+		return false
+	end
+	local pick
+	for g in guardians do
+		if g.zone == zone and g.owner == player and not g.egg and g.state ~= "Leaving" and g.state ~= "Sleeping" then
+			pick = g
+			break
+		end
+	end
+	local r = zone.resident
+	if not pick and r and not r.egg and (r.state == "Sleeping" or (r.state == "Returning" and r.owner == nil)) then
+		pick = r
+	end
+	if not pick then
+		return false
+	end
+	pick.egg = egg
+	pick.hauling = false
+	if pick.state == "Returning" then
+		headOff(pick)
+	else
+		setState(pick, "Returning")
+	end
+	log(zone.biome.Id, "fetching dropped egg")
+	return true
+end
+
+-- Called by EggService when a player takes an egg inside a biome: that player's guardian comes after them. `egg` is
+-- passed for ground/guardian eggs: if a guardian was fetching or dragging it, that same guardian goes after them.
+function GuardianService:OnEggTaken(biomeId, player, egg)
 	local zone = zones[biomeId]
 	if not zone then
 		return
+	end
+	if egg then
+		for g in guardians do
+			if g.egg == egg then
+				forgetEgg(g)
+				if g.zone == zone then
+					g.owner = player
+					gameEvent:FireClient(player, "GuardianAwake", { BiomeId = biomeId })
+					setState(g, "Waking")
+					g.pauseUntil = os.clock() + math.max(0, REGRAB_ROAR - g.cfg.WakeDelay)
+					return
+				end
+				headOff(g)
+			end
+		end
 	end
 	for g in guardians do
 		if g.zone == zone and g.owner == player and g.state ~= "Leaving" and g.state ~= "Sleeping" then
@@ -549,13 +872,34 @@ function GuardianService:OnEggTaken(biomeId, player)
 	if resident and resident.state == "Sleeping" then
 		resident.owner = player
 		setState(resident, "Waking")
-	elseif resident and resident.state == "Returning" and resident.owner == nil then
+	elseif resident and resident.state == "Returning" and resident.owner == nil and not resident.egg then
 		resident.owner = player
 		setState(resident, "Chasing")
 	else
 		local g = spawnCopy(zone, player)
 		if g then
 			setState(g, "Rising")
+		end
+	end
+end
+
+-- Night falls (DayNightService): every guardian drops what it's doing. Eggs they hold are lost with the rest
+-- (EggService:ResetForNight), residents are back asleep in their nests and personal copies sink away.
+function GuardianService:ResetForNight()
+	for g in guardians do
+		local egg = forgetEgg(g)
+		if egg then
+			egg:Destroy()
+		end
+		g.pauseUntil = nil
+		if g.resident then
+			g.owner = nil
+			if g.state ~= "Sleeping" then
+				g.model:PivotTo(CFrame.lookAt(g.homeCFrame.Position, g.homeCFrame.Position - Vector3.xAxis))
+				setState(g, "Sleeping")
+			end
+		elseif g.state ~= "Leaving" then
+			setState(g, "Leaving")
 		end
 	end
 end

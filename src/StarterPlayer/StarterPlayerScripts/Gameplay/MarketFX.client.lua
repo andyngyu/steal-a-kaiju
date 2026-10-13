@@ -245,7 +245,13 @@ local function addPad(pad)
 		radius = pad:GetAttribute("Radius") or 4.6,
 		panel = pad:GetAttribute("Panel"),
 		seed = rng:NextNumber(0, 10),
+		hidden = pad:GetAttribute("Hidden") == true, -- invisible proximity zone (the golden Rumblerex NPC): no sparkles/burst
 	}
+	if entry.hidden then
+		entry.emitter = Instance.new("ParticleEmitter") -- placeholder, never parented (the settings toggle expects one)
+		table.insert(pads, entry)
+		return
+	end
 	local pe = Instance.new("ParticleEmitter")
 	pe.Texture = SPARKLE
 	pe.Color = ColorSequence.new(entry.ring and entry.ring.Color or pad.Color, Color3.new(1, 1, 1))
@@ -264,6 +270,12 @@ local function addPad(pad)
 end
 
 local function setupStalls()
+Settings.Changed("ReducedEffects", function(on)
+	reduced = on == true
+	for _, entry in pads do
+		entry.emitter.Enabled = not reduced
+	end
+end)
 	for _, d in market:GetDescendants() do
 		if d:IsA("BasePart") and d.Name == "Pad" then
 			addPad(d)
@@ -345,12 +357,6 @@ local function setupStalls()
 	end
 end
 setupStalls()
-Settings.Changed("ReducedEffects", function(on)
-	reduced = on == true
-	for _, entry in pads do
-		entry.emitter.Enabled = not reduced
-	end
-end)
 
 local currentPad = nil
 local function checkPads()
@@ -374,7 +380,9 @@ local function checkPads()
 	end
 	currentPad = inside
 	if inside then
-		burst(inside.pad.Position + Vector3.new(0, 0.5, 0), inside.ring and inside.ring.Color or inside.pad.Color, 18, 8, 0.5)
+		if not inside.hidden then
+			burst(inside.pad.Position + Vector3.new(0, 0.5, 0), inside.ring and inside.ring.Color or inside.pad.Color, 18, 8, 0.5)
+		end
 		if inside.panel then
 			openPanel(inside.panel)
 		end

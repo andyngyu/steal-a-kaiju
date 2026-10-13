@@ -24,6 +24,10 @@
 --            the forked tongue flicks; RearUp lifts the neck like a cobra
 local KaijuMotion = {}
 
+-- Fires (model, emoteName) whenever a kaiju starts an emote; Gameplay.GameAudio plays the matching sound.
+local emoteStarted = Instance.new("BindableEvent")
+KaijuMotion.EmoteStarted = emoteStarted.Event
+
 local PI = math.pi
 
 local GAITS = {
@@ -107,6 +111,7 @@ function KaijuMotion.Force(st, name)
 		st.emoteStart = os.clock()
 		st.emoteProgress = 0
 		st.forced = true
+		emoteStarted:Fire(st.model, name)
 	end
 end
 
@@ -118,6 +123,7 @@ function KaijuMotion.UpdateEmote(st, rng, moving)
 		local name = st.emotes[rng:NextInteger(1, #st.emotes)]
 		st.emote = name
 		st.emoteStart = now
+		emoteStarted:Fire(st.model, name)
 	end
 	if st.emote then
 		st.emoteProgress = (now - st.emoteStart) / EMOTE_SECONDS[st.emote]

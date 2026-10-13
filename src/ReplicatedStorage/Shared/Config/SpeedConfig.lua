@@ -1,40 +1,36 @@
 --!strict
--- Player Speed (WalkSpeed). Speed = BaseSpeed + trained (personal treadmill) + Level * Upgrade.SpeedPerLevel, capped at MaxSpeed.
--- Biome RecommendedSpeed values live in BiomeConfig; guardian chase speeds are tuned against them.
+-- Speed is a currency (like Cash) with no upper limit. The only way to earn it is running on your personal treadmill:
+-- each second you gain TreadmillConfig.GainPerSecond x the treadmill level's Multiplier x the equipped trail's
+-- SpeedMultiplier (see SpeedService / TreadmillService).
+-- Your actual running speed (Humanoid WalkSpeed) follows your Speed on a gentle curve with no cap:
+--   RunSpeed = BaseSpeed + RunSpeedPerTenfold x log10(Speed / Unit)     (Speed below Unit = BaseSpeed)
+-- so every time your Speed grows tenfold you run RunSpeedPerTenfold faster:
+--   100 -> 16,  1K -> 31,  10K -> 46,  100K -> 61,  1M -> 76,  1B -> 121,  1T -> 166 ...
+-- Biome RecommendedSpeed values (BiomeConfig) are run speeds; signs show them in Speed via PointsForRunSpeed.
 local Speed = {
-	BaseSpeed = 16,
-	MaxSpeed = 80,
+	BaseSpeed = 16, -- run speed until you have Unit Speed
+	Unit = 100, -- Speed where the curve starts (bigger = bigger numbers for the same running speed)
+	RunSpeedPerTenfold = 15, -- extra run speed each time Speed grows 10x
+	MaxRunSpeed = 500, -- physics safety only
 
-	Upgrade = table.freeze({
-		SpeedPerLevel = 2,
-		BaseCost = 50, -- price of the first upgrade
-		CostGrowth = 1.5, -- each upgrade costs this much more than the last
-		MaxLevel = 30,
-		CooldownSeconds = 0.25,
-	}),
-
-	-- Treadmill training rates/caps per treadmill level live in TreadmillConfig.
+	-- old saves (before the currency) stored bought upgrade levels worth this much run speed each
+	LegacySpeedPerLevel = 2,
 }
 
--- Rounds prices to friendly numbers: 2 significant figures (113 -> 110, 1922 -> 1900).
-local function friendly(n: number): number
-	if n < 100 then
-		return math.floor(n / 5 + 0.5) * 5
+-- Running speed (WalkSpeed) for a Speed balance.
+function Speed.RunSpeed(points: number): number
+	if points <= Speed.Unit then
+		return Speed.BaseSpeed
 	end
-	local mag = 10 ^ (math.floor(math.log10(n)) - 1)
-	return math.floor(n / mag + 0.5) * mag
+	return math.min(Speed.MaxRunSpeed, Speed.BaseSpeed + Speed.RunSpeedPerTenfold * math.log10(points / Speed.Unit))
 end
 
--- Cost to go from `level` to `level + 1` (level starts at 0). nil when maxed.
-function Speed.UpgradeCost(level: number): number?
-	if level >= Speed.Upgrade.MaxLevel then
-		return nil
+-- Speed balance needed to run at `runSpeed`.
+function Speed.PointsForRunSpeed(runSpeed: number): number
+	if runSpeed <= Speed.BaseSpeed then
+		return 0
 	end
-	return friendly(Speed.Upgrade.BaseCost * Speed.Upgrade.CostGrowth ^ level)
-end
-
-function Speed.Total(trained: number, level: number): number
-	return math.min(Speed.MaxSpeed, Speed.BaseSpeed + trained + level * Speed.Upgrade.SpeedPerLevel)
+	return Speed.Unit * 10 ^ ((runSpeed - Speed.BaseSpeed) / Speed.RunSpeedPerTenfold)
 end
 
 return table.freeze(Speed)

@@ -10,6 +10,11 @@ local RunService = game:GetService("RunService")
 
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local KaijuStats = require(ReplicatedStorage.Shared.Util.KaijuStats)
+local GoldVariant = require(ReplicatedStorage.Shared.Util.GoldVariant)
+local MutationVisuals = require(ReplicatedStorage.Shared.Util.MutationVisuals)
+local MutationConfig = require(ReplicatedStorage.Shared.Config.MutationConfig)
+local EggConfig = require(ReplicatedStorage.Shared.Config.EggConfig)
+local Format = require(ReplicatedStorage.Shared.Util.Format)
 local KaijuModel = require(game:GetService("ServerScriptService").Lib.KaijuModel)
 
 local BaseService = require(script.Parent.BaseService)
@@ -46,6 +51,62 @@ function KaijuService:Spawn(player, id, entry, position, justHatched, yaw, attrs
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("KaijuId", id)
 	model:SetAttribute("CashPerSecond", KaijuStats.EntryCashPerSecond(entry))
+	if entry.Variant == "Golden" then
+		-- a unique reward kaiju (GroupRewardService): gold bricks, its own name and income on the name plate,
+		-- and attribute Unique (StealService gives it no steal prompt, MarketService won't sell it)
+		GoldVariant.Apply(model)
+		model:SetAttribute("Variant", entry.Variant)
+		model:SetAttribute("Unique", true)
+		local plate = model.PrimaryPart and model.PrimaryPart:FindFirstChild("Info")
+		if plate then
+			local title, rarity, cash = plate:FindFirstChild("Title"), plate:FindFirstChild("Rarity"), plate:FindFirstChild("Cash")
+			if title then
+				title.Text = "Golden " .. title.Text
+				-- gold name (a gradient of its own, so the client's rarity tint leaves it alone)
+				title.TextColor3 = Color3.new(1, 1, 1)
+				local g = Instance.new("UIGradient")
+				g.Rotation = 90
+				g.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromHex("FFF6B0")),
+					ColorSequenceKeypoint.new(0.5, Color3.fromHex("FFD23F")),
+					ColorSequenceKeypoint.new(1, Color3.fromHex("E89A00")),
+				})
+				g.Parent = title
+			end
+			if rarity then
+				rarity.Text = "Unique"
+				rarity.TextColor3 = Color3.fromRGB(255, 210, 63)
+			end
+			if cash then
+				cash.Text = Format.PerSecond(KaijuStats.EntryCashPerSecond(entry))
+			end
+		end
+	end
+	if entry.Mutation and MutationConfig.ById[entry.Mutation] then
+		-- a weather mutation (WeatherService): recoloured, glowing, named on the plate ("Shocked Rumblerex"), income x mult
+		model:SetAttribute("Mutation", entry.Mutation)
+		MutationVisuals.Recolor(model, entry.Mutation)
+		MutationVisuals.AddFX(model, entry.Mutation, scale)
+		local plate = model.PrimaryPart and model.PrimaryPart:FindFirstChild("Info")
+		local title = plate and plate:FindFirstChild("Title")
+		if title then
+			-- "<Shocked> <Rumblerex>": the mutation word in its colour, the species name in its rarity colour (or gold for
+			-- the Golden reward kaiju). Clients leave coloured rich text untinted (WorldTextController).
+			local r = EggConfig.RarityById[model:GetAttribute("Rarity") or ""]
+			local nameColor = entry.Variant == "Golden" and "#FFD23F" or (r and ("#" .. r.Color:ToHex()) or "#FFFFFF")
+			local g = title:FindFirstChildOfClass("UIGradient")
+			if g then
+				g:Destroy()
+			end
+			title.RichText = true
+			title.TextColor3 = Color3.new(1, 1, 1)
+			title.Text = MutationVisuals.RichName(entry.Mutation, string.format('<font color="%s">%s</font>', nameColor, title.Text))
+		end
+		local cash = plate and plate:FindFirstChild("Cash")
+		if cash then
+			cash.Text = Format.PerSecond(KaijuStats.EntryCashPerSecond(entry))
+		end
+	end
 	model:SetAttribute("WanderFrom", ground)
 	model:SetAttribute("WanderTo", ground)
 	model:SetAttribute("MoveStart", now)

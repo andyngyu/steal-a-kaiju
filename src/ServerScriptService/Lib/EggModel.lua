@@ -8,6 +8,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local EggConfig = require(ReplicatedStorage.Shared.Config.EggConfig)
+local MutationConfig = require(ReplicatedStorage.Shared.Config.MutationConfig)
+local MutationVisuals = require(ReplicatedStorage.Shared.Util.MutationVisuals)
 
 local EggModel = {}
 
@@ -39,10 +41,37 @@ function EggModel.RollSize()
 	return 1
 end
 
--- "Giant Rare Egg", "Common Egg"
-function EggModel.Label(rarityId, size)
+-- "Giant Rare Egg", "Common Egg", "Shocked Epic Egg" (with a weather mutation)
+function EggModel.Label(rarityId, size, mutation)
 	local tier = EggConfig.SizeTierName(size or 1)
-	return (tier ~= "" and tier .. " " or "") .. rarityId .. " Egg"
+	return MutationConfig.Prefix(mutation) .. (tier ~= "" and tier .. " " or "") .. rarityId .. " Egg"
+end
+
+-- Gives an egg a weather mutation (Shared.Config.MutationConfig): attribute Mutation, recoloured shell, glowing FX,
+-- a floating "⚡ Shocked x2" tag, and the prompt's name. nil / unknown = no change. Safe to call again.
+function EggModel.SetMutation(egg, mutation)
+	if not (mutation and MutationConfig.ById[mutation] and egg.PrimaryPart) then
+		return false
+	end
+	if egg:GetAttribute("Mutation") == mutation and egg.PrimaryPart:FindFirstChild("MutationMain") then
+		return true
+	end
+	egg:SetAttribute("Mutation", mutation)
+	MutationVisuals.Recolor(egg, mutation)
+	local shell = egg.PrimaryPart
+	local scale = shell.Size.Y / EggConfig.Size.Y
+	MutationVisuals.AddFX(shell, mutation, math.max(1, scale))
+	for _, d in shell:GetChildren() do
+		if d:IsA("PointLight") and d.Name ~= "MutationLight" then
+			d:Destroy()
+		end
+	end
+	MutationVisuals.Tag(shell, mutation, shell.Size.Y / 2 + 0.9, math.clamp(scale * 0.8, 0.8, 1.5))
+	local prompt = shell:FindFirstChild("Prompt")
+	if prompt then
+		prompt.ObjectText = EggModel.Label(egg:GetAttribute("Rarity"), egg:GetAttribute("Size"), mutation)
+	end
+	return true
 end
 
 -- Weld offset (above the HumanoidRootPart) for carrying this egg overhead.

@@ -12,6 +12,8 @@ local specs = {}
 -- Pebble Plains / Common / lizard on two legs: chunky moss-green baby with a pebble-covered back.
 specs.Pebblesaur = {
 	Voxel = 0.4,
+	Gait = "Biped",
+	Emotes = { "Look", "Hop", "HopSpin", "Roar" },
 	Palette = {
 		Body = "7DC24B",
 		BodyDark = "5A9E36",
@@ -28,12 +30,14 @@ specs.Pebblesaur = {
 	},
 	Joints = {
 		Head = { 0, 2.3, -0.2 },
+		Jaw = { 0, 2.42, -0.45 },
 		LegL = { 0.6, 0.95, 0.15 },
 		LegR = { -0.6, 0.95, 0.15 },
 		ArmL = { 0.95, 1.75, -0.25 },
 		ArmR = { -0.95, 1.75, -0.25 },
 		Tail = { 0, 1.0, 0.8 },
 	},
+	Parents = { Jaw = "Head" },
 	Shapes = {
 		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.45, 0.15 }, R = { 1.05, 1.05, 0.95 } },
 		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.3, -0.45 }, R = { 0.8, 0.85, 0.5 } },
@@ -41,7 +45,7 @@ specs.Pebblesaur = {
 		-- head + snout
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.95, -0.25 }, R = { 1.1, 0.95, 0.95 } },
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.55, -0.95 }, R = { 0.8, 0.45, 0.55 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 2.3, -0.95 }, S = { 1.3, 0.3, 1.0 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Box", C = { 0, 2.3, -0.95 }, S = { 1.3, 0.3, 1.0 } },
 		-- legs, feet, toes
 		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.6, 0.95, 0.15 }, B = { 0.62, 0.4, 0 }, RA = 0.48, RB = 0.42, Mirror = true },
 		{ Group = "LegL", Color = "BodyDark", Kind = "Box", C = { 0.62, 0.2, -0.2 }, S = { 1.0, 0.4, 1.2 }, Mirror = true },
@@ -80,6 +84,8 @@ specs.Pebblesaur = {
 -- Pebble Plains / Epic / lizard: the hero. Green rex with a big head, long snout, small fangs and glowing purple plates.
 specs.Rumblerex = {
 	Voxel = 0.4,
+	Gait = "Biped",
+	Emotes = { "Look", "Roar", "Wiggle" },
 	Palette = {
 		Body = "4DBB45",
 		Dark = "2E8B3E",
@@ -94,12 +100,14 @@ specs.Rumblerex = {
 	},
 	Joints = {
 		Head = { 0, 2.7, -0.3 },
+		Jaw = { 0, 2.75, -0.7 },
 		LegL = { 0.75, 1.0, 0.25 },
 		LegR = { -0.75, 1.0, 0.25 },
 		ArmL = { 1.15, 2.05, -0.25 },
 		ArmR = { -1.15, 2.05, -0.25 },
 		Tail = { 0, 1.1, 1.0 },
 	},
+	Parents = { Jaw = "Head" },
 	Shapes = {
 		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.7, 0.25 }, R = { 1.25, 1.25, 1.1 } },
 		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.55, -0.4 }, R = { 0.9, 1.0, 0.6 } },
@@ -110,7 +118,7 @@ specs.Rumblerex = {
 		-- head: rounded skull, boxy rex snout, cream lower jaw (snout kept below y 3.35 so the eyes sit on the skull)
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 3.55, -0.35 }, R = { 1.15, 0.95, 1.0 } },
 		{ Group = "Head", Color = "Body", Kind = "Box", C = { 0, 3.0, -1.4 }, S = { 1.35, 0.7, 1.4 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 2.6, -1.3 }, S = { 1.2, 0.4, 1.2 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Box", C = { 0, 2.6, -1.3 }, S = { 1.2, 0.4, 1.2 } },
 		{ Group = "Head", Color = "Dark", Kind = "Ellipsoid", C = { 0.65, 4.05, 0.1 }, R = { 0.36, 0.3, 0.36 }, Paint = true, Mirror = true },
 		-- legs (chunky thighs), feet
 		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.78, 1.05, 0.25 }, B = { 0.8, 0.45, 0.05 }, RA = 0.64, RB = 0.5, Mirror = true },
@@ -150,6 +158,8 @@ specs.Rumblerex = {
 -- Pebble Plains / Common / four legs: lime pup-croc that is mostly mouth. Big underbite, eyes on bumps.
 specs.Chompling = {
 	Voxel = 0.4,
+	Gait = "Crawl",
+	Emotes = { "Look", "Chomp", "Wiggle" },
 	Palette = {
 		Body = "8FD43F",
 		Dark = "5FA82A",
@@ -209,6 +219,8 @@ specs.Chompling = {
 -- Pebble Plains / Uncommon / ape: cheeky brown monkey-ape with huge knuckle-walking fists and a bandaged bump.
 specs.Bonkey = {
 	Voxel = 0.4,
+	Gait = "Knuckle",
+	Emotes = { "Look", "ChestBeat", "Hop" },
 	Palette = {
 		Fur = "A0703F",
 		FurDark = "7A5230",
@@ -268,6 +280,8 @@ specs.Bonkey = {
 -- Pebble Plains / Rare / four legs: woolly baby mammoth with a swinging trunk, curly tusks and blue tribal stripes.
 specs.Tuskit = {
 	Voxel = 0.4,
+	Gait = "Amble",
+	Emotes = { "Look", "Trumpet", "Wiggle" },
 	Palette = {
 		Fur = "9C7B6A",
 		FurDark = "76594C",
@@ -332,6 +346,8 @@ specs.Tuskit = {
 -- Pebble Plains / Legendary / ape: storm gorilla with a thundercloud on its back, lightning chest and glowing fists.
 specs.Thunderback = {
 	Voxel = 0.4,
+	Gait = "Knuckle",
+	Emotes = { "Look", "ChestBeat", "Hop" },
 	Palette = {
 		Fur = "3A4A8C",
 		FurDark = "27326A",
@@ -397,6 +413,8 @@ specs.Thunderback = {
 -- Lava Lagoon / Common / crab: basalt mite with glowing lava cracks, eyes on stalks and hot pincer tips.
 specs.Magmite = {
 	Voxel = 0.4,
+	Gait = "Scuttle",
+	Emotes = { "ClawSnap", "Look", "Wiggle" },
 	Palette = {
 		Rock = "3B2A2A",
 		RockLight = "5A403A",
@@ -458,6 +476,8 @@ specs.Magmite = {
 -- Lava Lagoon / Uncommon / four legs: squat toad with glowing ember warts and eyes on top.
 specs.CinderToad = {
 	Voxel = 0.4,
+	Gait = "Hop",
+	Emotes = { "BigHop", "Look" },
 	Palette = {
 		Skin = "7A4A3A",
 		SkinDark = "5C3328",
@@ -509,6 +529,8 @@ specs.CinderToad = {
 -- Lava Lagoon / Rare / four legs: low armoured lizard with stone spikes, a glowing vent line and a lava club tail.
 specs.Scorchback = {
 	Voxel = 0.4,
+	Gait = "Crawl",
+	Emotes = { "Look", "TailSwing" },
 	Palette = {
 		Hide = "6B4F3C",
 		HideDark = "4F3A2C",
@@ -577,6 +599,8 @@ specs.Scorchback = {
 -- Lava Lagoon / Epic / ape: fire monkey with blazing hair, burning knuckles and a flame-tipped tail.
 specs.BlazeBonkey = {
 	Voxel = 0.4,
+	Gait = "Knuckle",
+	Emotes = { "Look", "ChestBeat", "Hop" },
 	Palette = {
 		Fur = "B5452A",
 		FurDark = "8A2F1C",
@@ -640,6 +664,8 @@ specs.BlazeBonkey = {
 -- Lava Lagoon / Legendary / rex: obsidian tyrant with lava cracks, horns and blazing plates.
 specs.MoltenRex = {
 	Voxel = 0.4,
+	Gait = "Biped",
+	Emotes = { "Look", "Roar", "Wiggle" },
 	Palette = {
 		Body = "2E2424",
 		Dark = "1C1616",
@@ -657,12 +683,14 @@ specs.MoltenRex = {
 	},
 	Joints = {
 		Head = { 0, 2.7, -0.3 },
+		Jaw = { 0, 2.75, -0.7 },
 		LegL = { 0.75, 1.0, 0.25 },
 		LegR = { -0.75, 1.0, 0.25 },
 		ArmL = { 1.15, 2.05, -0.25 },
 		ArmR = { -1.15, 2.05, -0.25 },
 		Tail = { 0, 1.1, 1.0 },
 	},
+	Parents = { Jaw = "Head" },
 	Shapes = {
 		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.7, 0.25 }, R = { 1.25, 1.25, 1.1 } },
 		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.55, -0.4 }, R = { 0.9, 1.0, 0.6 } },
@@ -674,7 +702,7 @@ specs.MoltenRex = {
 		-- head
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 3.55, -0.35 }, R = { 1.15, 0.95, 1.0 } },
 		{ Group = "Head", Color = "Body", Kind = "Box", C = { 0, 3.0, -1.4 }, S = { 1.35, 0.7, 1.4 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 2.6, -1.3 }, S = { 1.2, 0.4, 1.2 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Box", C = { 0, 2.6, -1.3 }, S = { 1.2, 0.4, 1.2 } },
 		{ Group = "Head", Color = "Crack", Kind = "Box", C = { 0.95, 3.45, -0.5 }, S = { 0.5, 0.36, 0.9 }, Rot = { 20, 0, 0 }, Paint = true, Mirror = true },
 		-- legs, feet
 		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.78, 1.05, 0.25 }, B = { 0.8, 0.45, 0.05 }, RA = 0.64, RB = 0.5, Mirror = true },
@@ -714,9 +742,12 @@ specs.MoltenRex = {
 	},
 }
 
--- Lava Lagoon / Mythic / serpent: fire dragon rising from a coil, gold belly, horns, whiskers and a flame mane.
+-- Lava Lagoon / Mythic / serpent: fire dragon that slithers on a jointed body chain, neck raised, gold belly, horns,
+-- whiskers, a flame mane and a flicking forked tongue.
 specs.InfernoSerpent = {
 	Voxel = 0.4,
+	Gait = "Slither",
+	Emotes = { "RearUp", "Look" },
 	Palette = {
 		Scale = "C2361F",
 		ScaleDark = "8E2414",
@@ -724,69 +755,78 @@ specs.InfernoSerpent = {
 		Flame = { "FF8A1F", Neon = true },
 		FlameHot = { "FFD23F", Neon = true },
 		Horn = "FFE9A8",
+		Tongue = "FF3B5C",
 		White = "FFFFFF",
 		Ink = "1A1033",
 		Mouth = "3A0A0A",
 	},
+	-- Seg1..Seg4 and Tail form a chain (each nested in the one in front) so a wave can travel down the body.
 	Joints = {
-		Neck = { 0, 1.2, 1.0 },
-		Head = { 0, 3.85, -0.2 },
-		Fins = { 0, 2.6, 1.3 },
-		Tail = { 0.75, 0.4, 1.6 },
+		Neck = { 0, 0.6, -0.05 },
+		Head = { 0, 2.15, -1.0 },
+		Tongue = { 0, 2.0, -2.4 },
+		Seg1 = { 0, 0.6, 0.15 },
+		Seg2 = { 0, 0.6, 1.15 },
+		Seg3 = { 0, 0.6, 2.15 },
+		Seg4 = { 0, 0.6, 3.1 },
+		Tail = { 0, 0.6, 3.95 },
 	},
-	Parents = { Head = "Neck", Fins = "Neck" },
+	Parents = { Head = "Neck", Tongue = "Head", Seg2 = "Seg1", Seg3 = "Seg2", Seg4 = "Seg3", Tail = "Seg4" },
 	Shapes = {
-		-- two stacked coils
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 1.15, 0.45, 0.7 }, B = { 0.81, 0.45, 1.51 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0.81, 0.45, 1.51 }, B = { 0, 0.45, 1.85 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0, 0.45, 1.85 }, B = { -0.81, 0.45, 1.51 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { -0.81, 0.45, 1.51 }, B = { -1.15, 0.45, 0.7 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { -1.15, 0.45, 0.7 }, B = { -0.81, 0.45, -0.11 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { -0.81, 0.45, -0.11 }, B = { 0, 0.45, -0.45 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0, 0.45, -0.45 }, B = { 0.81, 0.45, -0.11 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0.81, 0.45, -0.11 }, B = { 1.15, 0.45, 0.7 }, R = 0.5 },
-		{ Group = "Body", Color = "ScaleDark", Kind = "Capsule", A = { 0.75, 1.15, 0.7 }, B = { 0, 1.15, 1.45 }, R = 0.44 },
-		{ Group = "Body", Color = "ScaleDark", Kind = "Capsule", A = { 0, 1.15, 1.45 }, B = { -0.75, 1.15, 0.7 }, R = 0.44 },
-		{ Group = "Body", Color = "ScaleDark", Kind = "Capsule", A = { -0.75, 1.15, 0.7 }, B = { 0, 1.15, -0.05 }, R = 0.44 },
-		{ Group = "Body", Color = "Belly", Kind = "Box", C = { 0, 0.45, -0.75 }, S = { 2.4, 0.4, 0.5 }, Paint = true },
-		-- neck rising from the back of the coil and curving forward, gold belly on the front
-		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 1.2, 1.1 }, B = { 0, 2.4, 1.25 }, RA = 0.5, RB = 0.45 },
-		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 2.4, 1.25 }, B = { 0, 3.3, 0.7 }, RA = 0.45, RB = 0.42 },
-		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 3.3, 0.7 }, B = { 0, 3.85, -0.1 }, RA = 0.42, RB = 0.4 },
-		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 1.3, 0.8 }, B = { 0, 2.35, 0.9 }, R = 0.32 },
-		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 2.35, 0.9 }, B = { 0, 3.05, 0.45 }, R = 0.3 },
-		-- head
-		{ Group = "Head", Color = "Scale", Kind = "Ellipsoid", C = { 0, 4.25, -0.55 }, R = { 0.75, 0.62, 0.72 } },
-		{ Group = "Head", Color = "Scale", Kind = "Box", C = { 0, 4.05, -1.25 }, S = { 0.95, 0.55, 0.85 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 3.7, -1.15 }, S = { 0.85, 0.3, 0.75 } },
-		{ Group = "Head", Color = "Flame", Kind = "Box", C = { 0, 4.6, 0.2 }, S = { 0.9, 0.5, 0.4 } },
-		{ Group = "Head", Color = "FlameHot", Kind = "Box", C = { 0, 5.0, 0.35 }, S = { 0.5, 0.4, 0.4 } },
-		{ Group = "Head", Color = "Flame", Kind = "Box", C = { 0.55, 4.3, 0.25 }, S = { 0.4, 0.45, 0.4 }, Mirror = true },
-		-- tail tip poking out of the coil
-		{ Group = "Tail", Color = "Scale", Kind = "Capsule", A = { 0.75, 0.4, 1.6 }, B = { 1.45, 0.35, 2.3 }, RA = 0.32, RB = 0.2 },
-		{ Group = "Tail", Color = "Flame", Kind = "Box", C = { 1.6, 0.55, 2.45 }, S = { 0.4, 0.5, 0.4 } },
-		{ Group = "Tail", Color = "FlameHot", Kind = "Box", C = { 1.7, 0.95, 2.55 }, S = { 0.4, 0.35, 0.4 } },
+		-- body chain lying on the ground, thinning towards the tail
+		{ Group = "Seg1", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 0.15 }, B = { 0, 0.6, 1.15 }, R = 0.6 },
+		{ Group = "Seg2", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 1.15 }, B = { 0, 0.6, 2.15 }, RA = 0.58, RB = 0.52 },
+		{ Group = "Seg3", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 2.15 }, B = { 0, 0.6, 3.1 }, RA = 0.52, RB = 0.45 },
+		{ Group = "Seg4", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 3.1 }, B = { 0, 0.6, 3.95 }, RA = 0.45, RB = 0.38 },
+		{ Group = "Tail", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 3.95 }, B = { 0, 0.5, 4.85 }, RA = 0.38, RB = 0.2 },
+		{ Group = "Tail", Color = "Flame", Kind = "Box", C = { 0, 0.6, 5.05 }, S = { 0.4, 0.5, 0.4 } },
+		{ Group = "Tail", Color = "FlameHot", Kind = "Box", C = { 0, 1.0, 5.15 }, S = { 0.4, 0.35, 0.4 } },
+		{ Group = "Seg1", Color = "Belly", Kind = "Box", C = { 0, 0.2, 2.6 }, S = { 1.6, 0.4, 5.8 }, Paint = true },
+		{ Group = "Seg1", Color = "ScaleDark", Kind = "Box", C = { 0, 1.0, 2.5 }, S = { 0.4, 0.4, 5 }, Paint = true },
+		-- neck rising at the front, gold belly scales down its front
+		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 0 }, B = { 0, 1.45, -0.55 }, RA = 0.55, RB = 0.5 },
+		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 1.45, -0.55 }, B = { 0, 2.15, -1.0 }, RA = 0.5, RB = 0.45 },
+		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 0.7, -0.4 }, B = { 0, 1.4, -0.85 }, R = 0.32 },
+		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 1.4, -0.85 }, B = { 0, 1.95, -1.25 }, R = 0.3 },
+		-- dragon head with a flame mane
+		{ Group = "Head", Color = "Scale", Kind = "Ellipsoid", C = { 0, 2.55, -1.35 }, R = { 0.75, 0.62, 0.72 } },
+		{ Group = "Head", Color = "Scale", Kind = "Box", C = { 0, 2.3, -2.0 }, S = { 0.95, 0.7, 0.8 } },
+		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 1.85, -1.9 }, S = { 0.85, 0.3, 0.72 } },
+		{ Group = "Head", Color = "Flame", Kind = "Box", C = { 0, 2.95, -0.8 }, S = { 0.95, 0.5, 0.4 } },
+		{ Group = "Head", Color = "FlameHot", Kind = "Box", C = { 0, 3.3, -0.65 }, S = { 0.5, 0.4, 0.4 } },
+		{ Group = "Head", Color = "Flame", Kind = "Box", C = { 0.55, 2.65, -0.75 }, S = { 0.4, 0.45, 0.4 }, Mirror = true },
 	},
 	Details = {
-		{ Name = "Eye", Group = "Head", Color = "White", X = 0.33, Y = 4.55, W = 0.56, H = 0.48, D = 0.12, Mirror = true },
-		{ Name = "Pupil", Group = "Head", Color = "Ink", X = 0.29, Y = 4.52, W = 0.28, H = 0.36, D = 0.16, Mirror = true },
-		{ Name = "Glint", Group = "Head", Color = "FlameHot", X = 0.23, Y = 4.6, W = 0.12, H = 0.12, D = 0.2, Mirror = true },
-		{ Name = "Nostril", Group = "Head", Color = "Ink", X = 0.22, Y = 4.15, W = 0.12, H = 0.1, D = 0.1, Mirror = true },
-		{ Name = "Mouth", Group = "Head", Color = "Mouth", X = 0, Y = 3.85, W = 0.8, H = 0.1, D = 0.07 },
+		{ Name = "Eye", Group = "Head", Color = "White", X = 0.33, Y = 2.95, W = 0.56, H = 0.48, D = 0.12, Mirror = true },
+		{ Name = "Pupil", Group = "Head", Color = "Ink", X = 0.29, Y = 2.92, W = 0.28, H = 0.36, D = 0.16, Mirror = true },
+		{ Name = "Glint", Group = "Head", Color = "FlameHot", X = 0.23, Y = 3.0, W = 0.12, H = 0.12, D = 0.2, Mirror = true },
+		{ Name = "Nostril", Group = "Head", Color = "Ink", X = 0.22, Y = 2.5, W = 0.12, H = 0.1, D = 0.1, Mirror = true },
+		{ Name = "Mouth", Group = "Head", Color = "Mouth", X = 0, Y = 2.0, W = 0.8, H = 0.1, D = 0.07 },
 	},
 	Bits = {
-		{ Name = "Horn", Group = "Head", Color = "Horn", C = { 0.35, 4.85, -0.15 }, S = { 0.2, 0.7, 0.2 }, Rot = { 40, 0, -15 }, Mirror = true },
-		{ Name = "Horn", Group = "Head", Color = "Horn", C = { 0.45, 5.1, 0.2 }, S = { 0.16, 0.4, 0.16 }, Rot = { 70, 0, -15 }, Mirror = true },
-		{ Name = "Whisker", Group = "Head", Color = "FlameHot", C = { 0.75, 3.9, -1.45 }, S = { 0.7, 0.08, 0.08 }, Rot = { 0, 25, -25 }, Mirror = true },
-		{ Name = "Fin", Group = "Fins", Color = "Flame", C = { 0, 2.0, 1.75 }, S = { 0.2, 0.55, 0.5 } },
-		{ Name = "Fin", Group = "Fins", Color = "FlameHot", C = { 0, 2.85, 1.65 }, S = { 0.2, 0.55, 0.5 }, Rot = { -25, 0, 0 } },
-		{ Name = "Fin", Group = "Fins", Color = "Flame", C = { 0, 3.55, 1.05 }, S = { 0.2, 0.55, 0.5 }, Rot = { -45, 0, 0 } },
+		{ Name = "Horn", Group = "Head", Color = "Horn", C = { 0.32, 3.15, -1.05 }, S = { 0.2, 0.7, 0.2 }, Rot = { 40, 0, -15 }, Mirror = true },
+		{ Name = "Horn", Group = "Head", Color = "Horn", C = { 0.42, 3.45, -0.75 }, S = { 0.16, 0.4, 0.16 }, Rot = { 70, 0, -15 }, Mirror = true },
+		{ Name = "Whisker", Group = "Head", Color = "FlameHot", C = { 0.62, 2.25, -2.3 }, S = { 0.7, 0.08, 0.08 }, Rot = { 0, 25, -25 }, Mirror = true },
+		-- forked tongue, tucked in the mouth until it flicks out
+		{ Name = "Tongue", Group = "Tongue", Color = "Tongue", C = { 0, 2.0, -2.35 }, S = { 0.12, 0.06, 0.5 } },
+		{ Name = "Fork", Group = "Tongue", Color = "Tongue", C = { 0.07, 2.0, -2.62 }, S = { 0.06, 0.05, 0.16 }, Rot = { 0, -30, 0 } },
+		{ Name = "Fork", Group = "Tongue", Color = "Tongue", C = { -0.07, 2.0, -2.62 }, S = { 0.06, 0.05, 0.16 }, Rot = { 0, 30, 0 } },
+		-- flame fins along the spine (one per segment so they ride the wave)
+		{ Name = "Fin", Group = "Neck", Color = "Flame", C = { 0, 1.5, 0.05 }, S = { 0.18, 0.55, 0.5 }, Rot = { -30, 0, 0 } },
+		{ Name = "Fin", Group = "Neck", Color = "FlameHot", C = { 0, 2.2, -0.45 }, S = { 0.18, 0.5, 0.45 }, Rot = { -45, 0, 0 } },
+		{ Name = "Fin", Group = "Seg1", Color = "Flame", C = { 0, 1.4, 0.65 }, S = { 0.18, 0.5, 0.5 } },
+		{ Name = "Fin", Group = "Seg2", Color = "FlameHot", C = { 0, 1.35, 1.65 }, S = { 0.18, 0.5, 0.5 } },
+		{ Name = "Fin", Group = "Seg3", Color = "Flame", C = { 0, 1.25, 2.6 }, S = { 0.18, 0.45, 0.45 } },
+		{ Name = "Fin", Group = "Seg4", Color = "FlameHot", C = { 0, 1.1, 3.5 }, S = { 0.16, 0.4, 0.4 } },
 	},
 }
 
 -- Frostfang Peaks / Common / four legs: fluffy snow puppy with floppy blue ears, blue paws and a red scarf.
 specs.Snowpup = {
 	Voxel = 0.4,
+	Gait = "Trot",
+	Emotes = { "Look", "PlayBow", "HopSpin" },
+	Wag = true,
 	Palette = {
 		Fur = "F4FAFF",
 		FurShade = "D6E4F2",
@@ -842,6 +882,8 @@ specs.Snowpup = {
 -- Frostfang Peaks / Uncommon / crab: ice-blue crab with a frosty rim and an ice crystal cluster on its shell.
 specs.GlacierCrab = {
 	Voxel = 0.4,
+	Gait = "Scuttle",
+	Emotes = { "ClawSnap", "Look", "Wiggle" },
 	Palette = {
 		Shell = "5DB6F0",
 		ShellDark = "3C8FD6",
@@ -906,6 +948,8 @@ specs.GlacierCrab = {
 -- Frostfang Peaks / Rare / four legs: armoured rhino with a glowing ice horn and frosty back plates.
 specs.Frostrhino = {
 	Voxel = 0.4,
+	Gait = "Trot",
+	Emotes = { "Look", "Paw", "Wiggle" },
 	Palette = {
 		Hide = "B8C8D8",
 		HideDark = "8FA3B8",
@@ -969,6 +1013,8 @@ specs.Frostrhino = {
 -- Frostfang Peaks / Epic / ape: white yeti gorilla with a blue face and chest, icicle crown and frozen fists.
 specs.Brrrilla = {
 	Voxel = 0.4,
+	Gait = "Knuckle",
+	Emotes = { "Look", "ChestBeat", "Hop" },
 	Palette = {
 		Fur = "EAF2FA",
 		FurShade = "C9D8EA",
@@ -1023,6 +1069,8 @@ specs.Brrrilla = {
 -- Frostfang Peaks / Legendary / rex: ice tyrant with a snow cap, glowing crystal clusters along the spine and ice horns.
 specs.IcebreakerRex = {
 	Voxel = 0.4,
+	Gait = "Biped",
+	Emotes = { "Look", "Roar", "Wiggle" },
 	Palette = {
 		Body = "6FA8DC",
 		Dark = "4A7FB8",
@@ -1039,12 +1087,14 @@ specs.IcebreakerRex = {
 	},
 	Joints = {
 		Head = { 0, 2.7, -0.3 },
+		Jaw = { 0, 2.75, -0.7 },
 		LegL = { 0.75, 1.0, 0.25 },
 		LegR = { -0.75, 1.0, 0.25 },
 		ArmL = { 1.15, 2.05, -0.25 },
 		ArmR = { -1.15, 2.05, -0.25 },
 		Tail = { 0, 1.1, 1.0 },
 	},
+	Parents = { Jaw = "Head" },
 	Shapes = {
 		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.7, 0.25 }, R = { 1.25, 1.25, 1.1 } },
 		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.55, -0.4 }, R = { 0.9, 1.0, 0.6 } },
@@ -1054,7 +1104,7 @@ specs.IcebreakerRex = {
 		{ Group = "Body", Color = "Dark", Kind = "Ellipsoid", C = { 1.0, 1.6, 0.65 }, R = { 0.4, 0.4, 0.4 }, Paint = true, Mirror = true },
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 3.55, -0.35 }, R = { 1.15, 0.95, 1.0 } },
 		{ Group = "Head", Color = "Body", Kind = "Box", C = { 0, 3.0, -1.4 }, S = { 1.35, 0.7, 1.4 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 2.6, -1.3 }, S = { 1.2, 0.4, 1.2 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Box", C = { 0, 2.6, -1.3 }, S = { 1.2, 0.4, 1.2 } },
 		{ Group = "Head", Color = "Frost", Kind = "Ellipsoid", C = { 0, 4.35, -0.3 }, R = { 1.05, 0.35, 0.95 }, Paint = true },
 		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.78, 1.05, 0.25 }, B = { 0.8, 0.45, 0.05 }, RA = 0.64, RB = 0.5, Mirror = true },
 		{ Group = "LegL", Color = "Dark", Kind = "Box", C = { 0.8, 0.2, -0.2 }, S = { 1.2, 0.4, 1.4 }, Mirror = true },
@@ -1090,9 +1140,12 @@ specs.IcebreakerRex = {
 	},
 }
 
--- Frostfang Peaks / Mythic / serpent: night-sky serpent with starry scales, aurora ribbon fins and glowing antennae.
+-- Frostfang Peaks / Mythic / serpent: night-sky serpent on a jointed body chain with starry scales, aurora ribbon
+-- fins, glowing antennae and a flicking tongue.
 specs.AuroraSerpent = {
 	Voxel = 0.4,
+	Gait = "Slither",
+	Emotes = { "RearUp", "Look" },
 	Palette = {
 		Scale = "3B4FA8",
 		ScaleDark = "2B3A80",
@@ -1102,74 +1155,80 @@ specs.AuroraSerpent = {
 		Aurora2 = { "5AD1FF", Neon = true },
 		Aurora3 = { "D78CFF", Neon = true },
 		Horn = "E6F0FF",
+		Tongue = "FF8FD8",
 		White = "FFFFFF",
 		Ink = "1A1033",
 		Mouth = "141A40",
 	},
 	Joints = {
-		Neck = { 0, 1.2, 1.0 },
-		Head = { 0, 3.85, -0.2 },
-		Fins = { 0, 2.6, 1.3 },
-		Tail = { 0.75, 0.4, 1.6 },
+		Neck = { 0, 0.6, -0.05 },
+		Head = { 0, 2.15, -1.0 },
+		Tongue = { 0, 2.0, -2.3 },
+		Seg1 = { 0, 0.6, 0.15 },
+		Seg2 = { 0, 0.6, 1.15 },
+		Seg3 = { 0, 0.6, 2.15 },
+		Seg4 = { 0, 0.6, 3.1 },
+		Tail = { 0, 0.6, 3.95 },
 	},
-	Parents = { Head = "Neck", Fins = "Neck" },
+	Parents = { Head = "Neck", Tongue = "Head", Seg2 = "Seg1", Seg3 = "Seg2", Seg4 = "Seg3", Tail = "Seg4" },
 	Shapes = {
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 1.15, 0.45, 0.7 }, B = { 0.81, 0.45, 1.51 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0.81, 0.45, 1.51 }, B = { 0, 0.45, 1.85 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0, 0.45, 1.85 }, B = { -0.81, 0.45, 1.51 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { -0.81, 0.45, 1.51 }, B = { -1.15, 0.45, 0.7 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { -1.15, 0.45, 0.7 }, B = { -0.81, 0.45, -0.11 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { -0.81, 0.45, -0.11 }, B = { 0, 0.45, -0.45 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0, 0.45, -0.45 }, B = { 0.81, 0.45, -0.11 }, R = 0.5 },
-		{ Group = "Body", Color = "Scale", Kind = "Capsule", A = { 0.81, 0.45, -0.11 }, B = { 1.15, 0.45, 0.7 }, R = 0.5 },
-		{ Group = "Body", Color = "ScaleDark", Kind = "Capsule", A = { 0.75, 1.15, 0.7 }, B = { 0, 1.15, 1.45 }, R = 0.44 },
-		{ Group = "Body", Color = "ScaleDark", Kind = "Capsule", A = { 0, 1.15, 1.45 }, B = { -0.75, 1.15, 0.7 }, R = 0.44 },
-		{ Group = "Body", Color = "ScaleDark", Kind = "Capsule", A = { -0.75, 1.15, 0.7 }, B = { 0, 1.15, -0.05 }, R = 0.44 },
-		{ Group = "Body", Color = "Belly", Kind = "Box", C = { 0, 0.45, -0.75 }, S = { 2.4, 0.4, 0.5 }, Paint = true },
+		{ Group = "Seg1", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 0.15 }, B = { 0, 0.6, 1.15 }, R = 0.6 },
+		{ Group = "Seg2", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 1.15 }, B = { 0, 0.6, 2.15 }, RA = 0.58, RB = 0.52 },
+		{ Group = "Seg3", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 2.15 }, B = { 0, 0.6, 3.1 }, RA = 0.52, RB = 0.45 },
+		{ Group = "Seg4", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 3.1 }, B = { 0, 0.6, 3.95 }, RA = 0.45, RB = 0.38 },
+		{ Group = "Tail", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 3.95 }, B = { 0, 0.5, 4.85 }, RA = 0.38, RB = 0.2 },
+		{ Group = "Seg1", Color = "Belly", Kind = "Box", C = { 0, 0.2, 2.6 }, S = { 1.6, 0.4, 5.8 }, Paint = true },
+		{ Group = "Seg1", Color = "ScaleDark", Kind = "Box", C = { 0, 1.0, 2.5 }, S = { 0.4, 0.4, 5 }, Paint = true },
 		-- starry speckles
-		{ Group = "Body", Color = "Star", Kind = "Ellipsoid", C = { 1.0, 0.75, 1.2 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
-		{ Group = "Body", Color = "Star", Kind = "Ellipsoid", C = { -1.1, 0.75, 0.3 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
-		{ Group = "Body", Color = "Star", Kind = "Ellipsoid", C = { 0.4, 1.5, 1.3 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
-		{ Group = "Body", Color = "Star", Kind = "Ellipsoid", C = { -0.6, 0.85, 1.8 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
-		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 1.2, 1.1 }, B = { 0, 2.4, 1.25 }, RA = 0.5, RB = 0.45 },
-		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 2.4, 1.25 }, B = { 0, 3.3, 0.7 }, RA = 0.45, RB = 0.42 },
-		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 3.3, 0.7 }, B = { 0, 3.85, -0.1 }, RA = 0.42, RB = 0.4 },
-		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 1.3, 0.8 }, B = { 0, 2.35, 0.9 }, R = 0.32 },
-		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 2.35, 0.9 }, B = { 0, 3.05, 0.45 }, R = 0.3 },
-		{ Group = "Neck", Color = "Star", Kind = "Ellipsoid", C = { 0.4, 2.7, 1.35 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
-		{ Group = "Neck", Color = "Star", Kind = "Ellipsoid", C = { -0.35, 3.45, 0.75 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
-		{ Group = "Head", Color = "Scale", Kind = "Ellipsoid", C = { 0, 4.3, -0.5 }, R = { 0.8, 0.68, 0.75 } },
-		{ Group = "Head", Color = "Scale", Kind = "Box", C = { 0, 4.0, -1.2 }, S = { 0.85, 0.5, 0.75 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 3.7, -1.1 }, S = { 0.8, 0.3, 0.7 } },
-		{ Group = "Tail", Color = "Scale", Kind = "Capsule", A = { 0.75, 0.4, 1.6 }, B = { 1.45, 0.35, 2.3 }, RA = 0.32, RB = 0.2 },
+		{ Group = "Seg1", Color = "Star", Kind = "Ellipsoid", C = { 0.4, 0.95, 0.6 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
+		{ Group = "Seg1", Color = "Star", Kind = "Ellipsoid", C = { -0.4, 0.6, 1.7 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
+		{ Group = "Seg1", Color = "Star", Kind = "Ellipsoid", C = { 0.4, 0.6, 2.7 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
+		{ Group = "Seg1", Color = "Star", Kind = "Ellipsoid", C = { -0.4, 0.6, 3.5 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
+		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 0.6, 0 }, B = { 0, 1.45, -0.55 }, RA = 0.55, RB = 0.5 },
+		{ Group = "Neck", Color = "Scale", Kind = "Capsule", A = { 0, 1.45, -0.55 }, B = { 0, 2.15, -1.0 }, RA = 0.5, RB = 0.45 },
+		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 0.7, -0.4 }, B = { 0, 1.4, -0.85 }, R = 0.32 },
+		{ Group = "Neck", Color = "Belly", Kind = "Capsule", A = { 0, 1.4, -0.85 }, B = { 0, 1.95, -1.25 }, R = 0.3 },
+		{ Group = "Neck", Color = "Star", Kind = "Ellipsoid", C = { 0.4, 1.5, -0.3 }, R = { 0.22, 0.22, 0.22 }, Paint = true },
+		-- round head
+		{ Group = "Head", Color = "Scale", Kind = "Ellipsoid", C = { 0, 2.55, -1.3 }, R = { 0.78, 0.66, 0.74 } },
+		{ Group = "Head", Color = "Scale", Kind = "Box", C = { 0, 2.3, -1.95 }, S = { 0.85, 0.7, 0.7 } },
+		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 1.85, -1.85 }, S = { 0.8, 0.3, 0.66 } },
 	},
 	Details = {
-		{ Name = "Eye", Group = "Head", Color = "White", X = 0.34, Y = 4.55, W = 0.58, H = 0.52, D = 0.12, Mirror = true },
-		{ Name = "Pupil", Group = "Head", Color = "Ink", X = 0.3, Y = 4.52, W = 0.3, H = 0.38, D = 0.16, Mirror = true },
-		{ Name = "Glint", Group = "Head", Color = "Aurora1", X = 0.24, Y = 4.62, W = 0.12, H = 0.12, D = 0.2, Mirror = true },
-		{ Name = "Cheek", Group = "Head", Color = "Aurora3", X = 0.6, Y = 4.12, W = 0.18, H = 0.18, D = 0.1, Mirror = true },
-		{ Name = "Mouth", Group = "Head", Color = "Mouth", X = 0, Y = 3.85, W = 0.7, H = 0.1, D = 0.07 },
+		{ Name = "Eye", Group = "Head", Color = "White", X = 0.34, Y = 2.95, W = 0.58, H = 0.52, D = 0.12, Mirror = true },
+		{ Name = "Pupil", Group = "Head", Color = "Ink", X = 0.3, Y = 2.92, W = 0.3, H = 0.38, D = 0.16, Mirror = true },
+		{ Name = "Glint", Group = "Head", Color = "Aurora1", X = 0.24, Y = 3.02, W = 0.12, H = 0.12, D = 0.2, Mirror = true },
+		{ Name = "Cheek", Group = "Head", Color = "Aurora3", X = 0.42, Y = 2.5, W = 0.16, H = 0.16, D = 0.1, Mirror = true },
+		{ Name = "Mouth", Group = "Head", Color = "Mouth", X = 0, Y = 2.0, W = 0.7, H = 0.1, D = 0.07 },
 	},
 	Bits = {
 		-- glowing antennae and crest
-		{ Name = "Antenna", Group = "Head", Color = "Horn", C = { 0.35, 5.05, -0.6 }, S = { 0.1, 0.65, 0.1 }, Rot = { -25, 0, -20 }, Mirror = true },
-		{ Name = "AntennaTip", Group = "Head", Color = "Aurora3", C = { 0.47, 5.36, -0.75 }, S = { 0.22, 0.22, 0.22 }, Mirror = true },
-		{ Name = "Crest", Group = "Head", Color = "Aurora1", C = { 0, 5.0, -0.2 }, S = { 0.18, 0.65, 0.42 }, Rot = { -20, 0, 0 } },
-		{ Name = "Crest", Group = "Head", Color = "Aurora2", C = { 0, 4.95, 0.2 }, S = { 0.18, 0.55, 0.4 }, Rot = { 25, 0, 0 } },
-		-- aurora ribbon fins
-		{ Name = "Fin", Group = "Fins", Color = "Aurora1", C = { 0, 2.0, 1.78 }, S = { 0.18, 0.7, 0.55 } },
-		{ Name = "Fin", Group = "Fins", Color = "Aurora2", C = { 0, 2.85, 1.68 }, S = { 0.18, 0.7, 0.55 }, Rot = { -25, 0, 0 } },
-		{ Name = "Fin", Group = "Fins", Color = "Aurora3", C = { 0, 3.55, 1.08 }, S = { 0.18, 0.65, 0.5 }, Rot = { -45, 0, 0 } },
-		{ Name = "Ribbon", Group = "Fins", Color = "Aurora2", C = { 0.62, 2.55, 1.2 }, S = { 0.65, 0.12, 0.42 }, Rot = { 0, 0, -30 }, Mirror = true },
-		{ Name = "Ribbon", Group = "Fins", Color = "Aurora1", C = { 0.55, 3.3, 0.7 }, S = { 0.55, 0.12, 0.36 }, Rot = { 0, 0, -30 }, Mirror = true },
-		{ Name = "TailFin", Group = "Tail", Color = "Aurora1", C = { 1.62, 0.5, 2.48 }, S = { 0.2, 0.55, 0.45 }, Rot = { 0, 45, 0 } },
-		{ Name = "TailFin", Group = "Tail", Color = "Aurora3", C = { 1.72, 0.85, 2.58 }, S = { 0.18, 0.4, 0.35 }, Rot = { 0, 45, 0 } },
+		{ Name = "Antenna", Group = "Head", Color = "Horn", C = { 0.33, 3.3, -1.25 }, S = { 0.1, 0.65, 0.1 }, Rot = { -25, 0, -20 }, Mirror = true },
+		{ Name = "AntennaTip", Group = "Head", Color = "Aurora3", C = { 0.45, 3.6, -1.4 }, S = { 0.22, 0.22, 0.22 }, Mirror = true },
+		{ Name = "Crest", Group = "Head", Color = "Aurora1", C = { 0, 3.25, -0.95 }, S = { 0.18, 0.65, 0.42 }, Rot = { -20, 0, 0 } },
+		{ Name = "Crest", Group = "Head", Color = "Aurora2", C = { 0, 3.15, -0.55 }, S = { 0.18, 0.55, 0.4 }, Rot = { 25, 0, 0 } },
+		{ Name = "Tongue", Group = "Tongue", Color = "Tongue", C = { 0, 2.0, -2.25 }, S = { 0.12, 0.06, 0.5 } },
+		{ Name = "Fork", Group = "Tongue", Color = "Tongue", C = { 0.07, 2.0, -2.52 }, S = { 0.06, 0.05, 0.16 }, Rot = { 0, -30, 0 } },
+		{ Name = "Fork", Group = "Tongue", Color = "Tongue", C = { -0.07, 2.0, -2.52 }, S = { 0.06, 0.05, 0.16 }, Rot = { 0, 30, 0 } },
+		-- aurora ribbon fins, one per segment
+		{ Name = "Fin", Group = "Neck", Color = "Aurora3", C = { 0, 1.5, 0.05 }, S = { 0.18, 0.6, 0.5 }, Rot = { -30, 0, 0 } },
+		{ Name = "Fin", Group = "Neck", Color = "Aurora2", C = { 0, 2.2, -0.45 }, S = { 0.18, 0.5, 0.45 }, Rot = { -45, 0, 0 } },
+		{ Name = "Fin", Group = "Seg1", Color = "Aurora1", C = { 0, 1.42, 0.65 }, S = { 0.18, 0.6, 0.55 } },
+		{ Name = "Fin", Group = "Seg2", Color = "Aurora2", C = { 0, 1.38, 1.65 }, S = { 0.18, 0.6, 0.55 } },
+		{ Name = "Fin", Group = "Seg3", Color = "Aurora3", C = { 0, 1.28, 2.6 }, S = { 0.18, 0.5, 0.5 } },
+		{ Name = "Fin", Group = "Seg4", Color = "Aurora1", C = { 0, 1.12, 3.5 }, S = { 0.16, 0.45, 0.42 } },
+		{ Name = "Ribbon", Group = "Seg2", Color = "Aurora2", C = { 0.68, 0.85, 1.65 }, S = { 0.55, 0.1, 0.4 }, Rot = { 0, 0, -25 }, Mirror = true },
+		{ Name = "Ribbon", Group = "Seg3", Color = "Aurora1", C = { 0.6, 0.8, 2.6 }, S = { 0.5, 0.1, 0.36 }, Rot = { 0, 0, -25 }, Mirror = true },
+		{ Name = "TailFin", Group = "Tail", Color = "Aurora1", C = { 0, 0.75, 5.0 }, S = { 0.18, 0.6, 0.5 } },
+		{ Name = "TailFin", Group = "Tail", Color = "Aurora3", C = { 0, 1.15, 5.12 }, S = { 0.16, 0.4, 0.36 } },
 	},
 }
 
 -- Secret / Any / lizard: pearl-white crystal lizard with a rainbow of glowing crystal plates and a forehead gem.
 specs.Prismling = {
 	Voxel = 0.4,
+	Gait = "Biped",
+	Emotes = { "Look", "Hop", "HopSpin", "Roar" },
 	Palette = {
 		Body = "F4F1FF",
 		Shade = "DCD4FF",
@@ -1188,19 +1247,21 @@ specs.Prismling = {
 	},
 	Joints = {
 		Head = { 0, 2.3, -0.2 },
+		Jaw = { 0, 2.42, -0.45 },
 		LegL = { 0.6, 0.95, 0.15 },
 		LegR = { -0.6, 0.95, 0.15 },
 		ArmL = { 0.95, 1.75, -0.25 },
 		ArmR = { -0.95, 1.75, -0.25 },
 		Tail = { 0, 1.0, 0.8 },
 	},
+	Parents = { Jaw = "Head" },
 	Shapes = {
 		{ Group = "Body", Color = "Body", Kind = "Ellipsoid", C = { 0, 1.45, 0.15 }, R = { 1.05, 1.05, 0.95 } },
 		{ Group = "Body", Color = "Belly", Kind = "Ellipsoid", C = { 0, 1.3, -0.45 }, R = { 0.8, 0.85, 0.5 } },
 		{ Group = "Body", Color = "Shade", Kind = "Box", C = { 0, 0.6, 0.15 }, S = { 2.4, 0.4, 2.2 }, Paint = true },
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.95, -0.25 }, R = { 1.1, 0.95, 0.95 } },
 		{ Group = "Head", Color = "Body", Kind = "Ellipsoid", C = { 0, 2.55, -0.95 }, R = { 0.8, 0.45, 0.55 } },
-		{ Group = "Head", Color = "Belly", Kind = "Box", C = { 0, 2.3, -0.95 }, S = { 1.3, 0.3, 1.0 } },
+		{ Group = "Jaw", Color = "Belly", Kind = "Box", C = { 0, 2.3, -0.95 }, S = { 1.3, 0.3, 1.0 } },
 		{ Group = "LegL", Color = "Body", Kind = "Capsule", A = { 0.6, 0.95, 0.15 }, B = { 0.62, 0.4, 0 }, RA = 0.48, RB = 0.42, Mirror = true },
 		{ Group = "LegL", Color = "Shade", Kind = "Box", C = { 0.62, 0.2, -0.2 }, S = { 1.0, 0.4, 1.2 }, Mirror = true },
 		{ Group = "ArmL", Color = "Body", Kind = "Capsule", A = { 0.95, 1.75, -0.25 }, B = { 1.05, 1.35, -0.7 }, R = 0.28, Mirror = true },

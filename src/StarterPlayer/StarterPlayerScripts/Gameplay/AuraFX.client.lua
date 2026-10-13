@@ -1,10 +1,10 @@
 -- Player auras, client-only and cosmetic. Every player wearing a trail (attribute EquippedTrail, set by TrailService)
 -- gets that trail's aura from Shared.Config.AuraConfig: a list of layer recipes (RECIPES below) in the trail's theme -
--- dust and pebbles, leaves and fireflies, frost, void plasma, lightning, fire, rainbow light, or the Shadow Monarch's
--- black flames and glowing eyes. Auras idle quietly while the player moves and power up when they stand still ("aura
+-- levitating rocks, a leaf whirlwind, frost and snowflakes, a void portal, a storm cloud, real fire, rainbow light, or
+-- the Shadow Monarch's spiky black aura and glowing eyes. Every aura has its own textures. Auras idle quietly while the player moves and power up when they stand still ("aura
 -- farming"), with a burst when they reach full power. On top of the layers: a glowing outline (Highlight, on you and the
--- nearest few players) that can also tint the body, energy ribbons spiralling round the body, a coloured light and, for
--- the Monarch, glowing eye slits.
+-- nearest few players) that can also tint the body, energy ribbons spiralling round the body, a glowing sigil on the
+-- ground while farming, a coloured light and, for the Monarch, glowing eye slits.
 -- Rainbow styles cycle every colour, and the wearer's trail itself scrolls through the rainbow on every screen (even
 -- with auras turned off). Respects the Player Auras and Reduced Effects settings; auras fade with distance and sleep
 -- beyond AuraConfig.Range.
@@ -57,7 +57,8 @@ local function lerp(a, b, t)
 end
 
 local function range(a, b)
-	return NumberRange.new(a, b)
+	b = b or a
+	return NumberRange.new(math.min(a, b), math.max(a, b)) -- order-safe (negative spins)
 end
 
 local function colorSeq(colors)
@@ -154,6 +155,7 @@ local function layer(a, pes, role, moving, farming, opts)
 		farming = override and override[2] or farming,
 		burst = opts and opts.burst,
 		pulse = opts and opts.pulse,
+		pulseCount = opts and opts.pulseCount,
 		nextPulse = 0,
 	}
 	local c = roleColor(role, a.pal)
@@ -179,79 +181,95 @@ local function onBody(a, which, props)
 	return pes
 end
 
-local function flatSwirl(a, s, role, dir, lightEmission)
-	layer(a, { newEmitter(a.ground, {
-		Texture = TEX.Swirl,
-		LightEmission = lightEmission,
+local GRID2 = Enum.ParticleFlipbookLayout.Grid2x2
+local GRID4 = Enum.ParticleFlipbookLayout.Grid4x4
+local LOOP = Enum.ParticleFlipbookMode.Loop
+local ONESHOT = Enum.ParticleFlipbookMode.OneShot
+local UPRIGHT = Enum.ParticleOrientation.FacingCameraWorldUp
+local FRONT = Enum.NormalId.Front
+local NO_SPREAD = Vector2.new(0, 0)
+
+local function cs(c0, c1)
+	return ColorSequence.new(Color3.fromHex(c0), Color3.fromHex(c1 or c0))
+end
+
+-- Sprite sheets: fps 0 = every particle shows one random frame of the sheet (variety); OneShot plays the sheet once
+-- over the particle's life.
+local function flipbook(props, layout, mode, fps, startRandom)
+	props.FlipbookLayout = layout
+	props.FlipbookMode = mode or LOOP
+	props.FlipbookFramerate = range(fps or 0, fps or 0)
+	props.FlipbookStartRandom = startRandom or (fps or 0) == 0
+	return props
+end
+
+-- A layer with one emitter
+local function one(a, parent, props, role, moving, farming, opts)
+	return layer(a, { newEmitter(parent, props) }, role, moving, farming, opts)
+end
+
+-- An attachment circling the body (update moves it); emitters on it draw a trail as it goes round
+local function orbiter(a, radius, speed, phase, height, bob)
+	local att = a.attach(a.shell, "AuraOrbit")
+	table.insert(a.orbits, { att = att, r = radius, speed = speed, phase = phase, y = height or 0, bob = bob or 0 })
+	return att
+end
+
+-- An attachment at a fixed spot relative to the body's centre (storm cloud, halo, bolt sources)
+local function point(a, name, pos)
+	local att = a.attach(a.shell, name)
+	att.Position = pos
+	return att
+end
+
+-- One big image on the body's centre, facing the camera and drawn behind it (silhouettes, portals, bursts)
+local function behind(a, props, role, moving, farming, opts)
+	props.Speed = props.Speed or range(0, 0)
+	props.LockedToPart = true
+	props.ZOffset = props.ZOffset or -2.5
+	return one(a, a.centre, props, role, moving, farming, opts)
+end
+
+-- An expanding ring on the ground, pulsing while farming
+local function groundRing(a, s, texture, role, color, light, every, size)
+	return one(a, a.ground, {
+		Texture = texture,
+		Color = color,
+		LightEmission = light,
 		Orientation = FLAT,
-		Size = numSeq({ { 0, 4 * s }, { 1, 6 * s } }),
-		Transparency = numSeq({ { 0, 1 }, { 0.25, 0.4 }, { 1, 1 } }),
+		Size = numSeq({ { 0, 1 * s }, { 1, size * s } }),
+		Transparency = numSeq({ { 0, 0.05 }, { 1, 1 } }),
+		Lifetime = range(0.75, 0.75),
+		Speed = range(0.01, 0.01),
+		SpreadAngle = NO_SPREAD,
+		Rotation = range(0, 360),
+		EmissionDirection = TOP,
+	}, role, 0, 0, { burst = 2, pulse = every })
+end
+
+-- A spinning disc flat on the ground (vortexes, wind)
+local function groundSpin(a, s, texture, role, color, light, size, spin, alpha)
+	return one(a, a.ground, {
+		Texture = texture,
+		Color = color,
+		LightEmission = light,
+		Orientation = FLAT,
+		Size = numSeq({ { 0, size * 0.8 * s }, { 1, size * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.25, alpha or 0.35 }, { 1, 1 } }),
 		Lifetime = range(1, 1.4),
 		Speed = range(0.01, 0.01),
-		SpreadAngle = Vector2.new(0, 0),
+		SpreadAngle = NO_SPREAD,
 		Rotation = range(0, 360),
-		RotSpeed = dir > 0 and range(80, 140) or range(-140, -80),
+		RotSpeed = spin > 0 and range(spin * 0.7, spin) or range(spin, spin * 0.7),
 		EmissionDirection = TOP,
 		LockedToPart = true,
-	}) }, role, 0, 1.6)
-end
-
-local function ringPulse(a, s, role, every)
-	layer(a, { newEmitter(a.ground, {
-		Texture = TEX.Ring,
-		LightEmission = 1,
-		Orientation = FLAT,
-		Size = numSeq({ { 0, 1 * s }, { 1, 9 * s } }),
-		Transparency = numSeq({ { 0, 0.05 }, { 1, 1 } }),
-		Lifetime = range(0.7, 0.7),
-		Speed = range(0.01, 0.01),
-		SpreadAngle = Vector2.new(0, 0),
-		Rotation = range(0, 360),
-		EmissionDirection = TOP,
-	}) }, role, 0, 0, { burst = 2, pulse = every })
-end
-
-local function risingLines(a, s, role)
-	layer(a, { newEmitter(a.base, {
-		Texture = TEX.Streak,
-		LightEmission = 1,
-		Orientation = STREAK,
-		Size = numSeq({ { 0, 0.6 * s }, { 0.5, 1.6 * s }, { 1, 0.4 * s } }),
-		Transparency = numSeq({ { 0, 0.15 }, { 1, 1 } }),
-		Lifetime = range(0.4, 0.65),
-		Speed = range(8, 14),
-		SpreadAngle = Vector2.new(3, 3),
-		EmissionDirection = TOP,
-	}) }, role, 0, 28, { burst = 30 })
+	}, role, 0, 1.6)
 end
 
 -- Layer recipes, named in AuraConfig.Styles[...].Layers. s = character scale (1 for a normal character).
 local RECIPES = {}
 
--- Backdrop: big flames behind the body in the style's Back colours (black for the Shadow Monarch, dark red for magma,
--- storm grey for thunder...). The fire texture renders dark, which is what makes the bright tongues in front pop in
--- daylight.
-function RECIPES.Backdrop(a, s)
-	layer(a, onBody(a, "Big", {
-		Name = "AuraBackdrop",
-		Texture = FIRE,
-		LightEmission = 0,
-		Size = numSeq({ { 0, 0.6 * s }, { 0.3, 2.6 * s }, { 1, 0.8 * s } }),
-		Squash = NumberSequence.new(0.4),
-		Transparency = numSeq({ { 0, 0.15 }, { 0.3, 0 }, { 1, 1 } }),
-		Lifetime = range(0.45, 0.75),
-		Speed = range(1, 2.5),
-		SpreadAngle = Vector2.new(25, 25),
-		Acceleration = Vector3.new(0, 6 * s, 0),
-		Drag = 1,
-		Rotation = range(-20, 20),
-		RotSpeed = range(-40, 40),
-		ZOffset = -1.6,
-		EmissionDirection = TOP,
-	}), "Dark", 5, 26, { burst = 3 })
-end
-
--- Tongues: bright flame tongues in the style's Tongue colours (soft discs stretched upward, additive)
+-- Fallback aura (a trail with no style): glowing tongues + energy lines in the trail's colour
 function RECIPES.Tongues(a, s)
 	layer(a, onBody(a, "All", {
 		Name = "AuraTongue",
@@ -271,33 +289,509 @@ function RECIPES.Tongues(a, s)
 	}), "Flame", 8, 45, { burst = 4 })
 end
 
-function RECIPES.SmokePool(a, s)
-	layer(a, { newEmitter(a.base, {
-		Texture = TEX.Smoke,
+function RECIPES.EnergyLines(a, s)
+	one(a, a.base, {
+		Texture = TEX.Streak,
+		LightEmission = 1,
+		Orientation = STREAK,
+		Size = numSeq({ { 0, 0.6 * s }, { 0.5, 1.6 * s }, { 1, 0.4 * s } }),
+		Transparency = numSeq({ { 0, 0.15 }, { 1, 1 } }),
+		Lifetime = range(0.4, 0.65),
+		Speed = range(8, 14),
+		SpreadAngle = Vector2.new(3, 3),
+		EmissionDirection = TOP,
+	}, "Glow", 0, 28, { burst = 30 })
+end
+
+-- Pebble Dust ---------------------------------------------------------------------------------------------------------
+function RECIPES.DustCloud(a, s)
+	one(a, a.base, {
+		Texture = TEX.DustCloud,
+		Color = cs("E6DAC0", "A89A7C"),
 		LightEmission = 0,
-		Size = numSeq({ { 0, 1.5 * s }, { 1, 3.2 * s } }),
-		Transparency = numSeq({ { 0, 1 }, { 0.3, 0.45 }, { 1, 1 } }),
-		Lifetime = range(1, 1.6),
-		Speed = range(0.3, 1),
+		Size = numSeq({ { 0, 1 * s }, { 1, 3 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.3, 0.35 }, { 1, 1 } }),
+		Lifetime = range(1.2, 1.8),
+		Speed = range(0.4, 1.2),
 		SpreadAngle = Vector2.new(70, 70),
+		Acceleration = Vector3.new(0, 0.8, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-25, 25),
+		EmissionDirection = TOP,
+	}, "Fixed", 2, 10, { burst = 8 })
+end
+
+-- rocks lifting off the ground and hovering round you
+function RECIPES.Boulders(a, s)
+	one(a, a.base, flipbook({
+		Texture = TEX.Boulders,
+		Color = cs("C9C2B2", "8E8676"),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 0 }, { 0.12, 0.8 * s }, { 0.85, 0.7 * s }, { 1, 0 } }),
+		Lifetime = range(2, 2.8),
+		Speed = range(1, 1.8),
+		SpreadAngle = Vector2.new(10, 10),
+		Drag = 0.9,
+		Rotation = range(0, 360),
+		RotSpeed = range(-45, 45),
+		EmissionDirection = TOP,
+	}, GRID4), "Fixed", 0.8, 6, { burst = 8 })
+end
+
+function RECIPES.Gravel(a, s)
+	one(a, a.base, flipbook({
+		Texture = TEX.Gravel,
+		Color = ColorSequence.new(Color3.fromHex("D8CDB8")),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 0.5 * s }, { 1, 0.4 * s } }),
+		Lifetime = range(0.6, 0.9),
+		Speed = range(3.5, 5.5),
+		SpreadAngle = Vector2.new(28, 28),
+		Acceleration = Vector3.new(0, -16, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-300, 300),
+		EmissionDirection = TOP,
+	}, GRID2), "Fixed", 1.5, 9, { burst = 14 })
+end
+
+function RECIPES.Debris(a, s)
+	one(a, a.shell, {
+		Texture = TEX.Debris,
+		Color = cs("B3A382", "7A6A52"),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 1.1 * s }, { 1, 1.4 * s } }),
+		Transparency = numSeq({ { 0, 0.1 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.8),
+		Speed = range(1, 2),
+		Rotation = range(0, 360),
+		RotSpeed = range(-60, 60),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}, "Fixed", 0, 2.5, { burst = 6 })
+end
+
+-- Jungle Leaf ---------------------------------------------------------------------------------------------------------
+function RECIPES.WindSwirl(a, s)
+	groundSpin(a, s, TEX.WindSwirl, "Fixed", cs("C8FF9A", "6CDF4A"), 0.35, 6, 160, 0.4)
+end
+
+-- grass sprouting round your feet
+function RECIPES.Grass(a, s)
+	one(a, a.base, {
+		Texture = TEX.Grass,
+		Color = cs("9CFF5A", "2C8A1E"),
+		LightEmission = 0,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 0 }, { 0.25, 1.6 * s }, { 0.8, 1.6 * s }, { 1, 0 } }),
+		Lifetime = range(1.4, 2),
+		Speed = range(0.01, 0.01),
+		SpreadAngle = NO_SPREAD,
+		Rotation = range(-8, 8),
+		EmissionDirection = TOP,
+	}, "Fixed", 0, 7, { burst = 10 })
+end
+
+-- a whirlwind of leaves: three orbiting points shedding leaves, plus a few drifting off the body
+function RECIPES.LeafWhirl(a, s)
+	local function leaf(parent, extra)
+		local props = {
+			Texture = TEX.Leaf,
+			Color = cs("C8FF6A", "2FA02A"),
+			LightEmission = 0,
+			Size = numSeq({ { 0, 0 }, { 0.15, 0.55 * s }, { 0.85, 0.5 * s }, { 1, 0 } }),
+			Lifetime = range(0.9, 1.3),
+			Speed = range(0.2, 0.6),
+			SpreadAngle = Vector2.new(180, 180),
+			Drag = 1,
+			Rotation = range(0, 360),
+			RotSpeed = range(-220, 220),
+		}
+		for k, v in extra or {} do
+			props[k] = v
+		end
+		return newEmitter(parent, props)
+	end
+	local orbit = {}
+	for i = 1, 3 do
+		table.insert(orbit, leaf(orbiter(a, 1.9 * s, 3, (i - 1) / 3 * math.pi * 2, (i - 2) * 0.9 * s, a.halfH * 0.3)))
+	end
+	layer(a, orbit, "Fixed", 0, 14, { burst = 5 })
+	layer(a, { leaf(a.shell, {
+		Lifetime = range(1.4, 2),
+		Speed = range(0.6, 1.4),
+		Acceleration = Vector3.new(0, -1.2, 0),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}) }, "Fixed", 1.5, 4)
+end
+
+function RECIPES.Butterflies(a, s)
+	one(a, a.shell, flipbook({
+		Texture = TEX.Butterfly,
+		Color = cs("FFF06A", "8CFF5A"),
+		LightEmission = 0.15,
+		Size = numSeq({ { 0, 0 }, { 0.15, 0.75 * s }, { 0.85, 0.75 * s }, { 1, 0 } }),
+		Lifetime = range(2.2, 3),
+		Speed = range(0.5, 1.1),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, 0.4, 0),
+		Drag = 0.8,
+		Rotation = range(-20, 20),
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, GRID4, LOOP, 22, true), "Fixed", 0, 2, { burst = 3 })
+end
+
+function RECIPES.Fireflies(a, s)
+	one(a, a.shell, {
+		Texture = TEX.Firefly,
+		Color = cs("F4FF8A", "C8FF4A"),
+		LightEmission = 1,
+		Brightness = 2,
+		Size = numSeq({
+			{ 0, 0 }, { 0.15, 0.5 * s }, { 0.3, 0.2 * s }, { 0.5, 0.5 * s }, { 0.7, 0.2 * s }, { 0.85, 0.5 * s }, { 1, 0 },
+		}),
+		Lifetime = range(2, 3),
+		Speed = range(0.3, 0.8),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, 0.3, 0),
+		Drag = 1,
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, "Fixed", 1, 7)
+end
+
+-- Frost Breath --------------------------------------------------------------------------------------------------------
+-- an icy blue cloud behind you, so the white frost reads on any floor
+function RECIPES.FrostBack(a, s)
+	behind(a, {
+		Texture = TEX.FrostMist,
+		Color = cs("8FD8FF", "3D8FE0"),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 4 * s }, { 1, 5.5 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.3, 0.3 }, { 1, 1 } }),
+		Lifetime = range(0.9, 1.3),
 		Rotation = range(0, 360),
 		RotSpeed = range(-20, 20),
+		ZOffset = -2.5,
+	}, "Fixed", 1, 4, { burst = 2 })
+end
+
+function RECIPES.FrostMist(a, s)
+	one(a, a.base, {
+		Texture = TEX.FrostMist,
+		Color = cs("FFFFFF", "DFF4FF"),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 1.6 * s }, { 1, 3.6 * s } }),
+		Transparency = numSeq({ { 0, 0.4 }, { 1, 1 } }),
+		Lifetime = range(1.4, 2),
+		Speed = range(0.4, 1),
+		SpreadAngle = Vector2.new(85, 85),
+		Acceleration = Vector3.new(0, 0.1, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-15, 15),
 		EmissionDirection = TOP,
-	}) }, "Dark", 0, 5)
+	}, "Fixed", 2, 9)
 end
 
-function RECIPES.GroundSwirl(a, s)
-	flatSwirl(a, s, "Glow", 1, 1)
+-- cold vapour steaming off the body, like dry ice
+function RECIPES.FrostVapor(a, s)
+	layer(a, onBody(a, "Big", {
+		Name = "AuraFrostVapor",
+		Texture = SMOKE,
+		Color = cs("FFFFFF", "CFF0FF"),
+		LightEmission = 0.1,
+		Size = numSeq({ { 0, 0.5 * s }, { 1, 1.6 * s } }),
+		Transparency = numSeq({ { 0, 0.55 }, { 1, 1 } }),
+		Lifetime = range(0.7, 1),
+		Speed = range(1, 2),
+		SpreadAngle = Vector2.new(30, 30),
+		Acceleration = Vector3.new(0, 2, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-30, 30),
+		EmissionDirection = TOP,
+	}), "Fixed", 1, 5)
 end
 
-function RECIPES.EnergyLines(a, s)
-	risingLines(a, s, "Glow")
+-- ice crystals: two orbiting crystal rings while farming, a few glinting on the body otherwise
+function RECIPES.IceCrystals(a, s)
+	local function crystal(parent, extra)
+		local props = {
+			Texture = TEX.IceCrystal,
+			Color = cs("CFF4FF", "4FB8FF"),
+			LightEmission = 0.2,
+			Size = numSeq({ { 0, 0 }, { 0.2, 0.55 * s }, { 1, 0 } }),
+			Transparency = numSeq({ { 0, 0.05 }, { 1, 0.5 } }),
+			Lifetime = range(0.5, 0.7),
+			Speed = range(0, 0),
+			Rotation = range(-20, 20),
+		}
+		for k, v in extra or {} do
+			props[k] = v
+		end
+		return newEmitter(parent, props)
+	end
+	layer(a, {
+		crystal(orbiter(a, 1.8 * s, 2.2, 0, 0.6 * s, 0.2 * s)),
+		crystal(orbiter(a, 1.8 * s, -2.2, math.pi, -0.8 * s, 0.2 * s)),
+	}, "Fixed", 0, 12)
+	layer(a, { crystal(a.shell, {
+		Lifetime = range(1, 1.5),
+		Speed = range(0.3, 0.8),
+		SpreadAngle = Vector2.new(180, 180),
+		RotSpeed = range(-60, 60),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}) }, "Fixed", 2, 8, { burst = 12 })
+end
+
+function RECIPES.Snowflakes(a, s)
+	one(a, a.shell, {
+		Texture = TEX.Snowflake,
+		Color = cs("E0F6FF", "8FD4FF"),
+		LightEmission = 0.15,
+		Size = numSeq({ { 0, 0.6 * s }, { 1, 0.4 * s } }),
+		Transparency = numSeq({ { 0, 0 }, { 0.8, 0.1 }, { 1, 1 } }),
+		Lifetime = range(1.6, 2.4),
+		Speed = range(0.2, 0.5),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, -1.2, 0),
+		Drag = 0.5,
+		Rotation = range(0, 360),
+		RotSpeed = range(-60, 60),
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, "Fixed", 2, 10)
+end
+
+-- frosty breath puffing from the mouth
+function RECIPES.FrostBreathPuff(a, s)
+	local head = a.char:FindFirstChild("Head")
+	if not (head and head:IsA("BasePart")) then
+		return
+	end
+	local mouth = a.attach(head, "AuraBreath")
+	mouth.Position = Vector3.new(0, -head.Size.Y * 0.15, -head.Size.Z / 2 - 0.05)
+	one(a, mouth, {
+		Texture = TEX.Breath,
+		Color = cs("FFFFFF", "D8F3FF"),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 0.3 * s }, { 1, 1.5 * s } }),
+		Transparency = numSeq({ { 0, 0.25 }, { 1, 1 } }),
+		Lifetime = range(0.8, 1.1),
+		Speed = range(2.5, 3.5),
+		SpreadAngle = Vector2.new(14, 14),
+		Drag = 2,
+		Acceleration = Vector3.new(0, 0.5, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-40, 40),
+		EmissionDirection = FRONT,
+	}, "Fixed", 0.5, 0, { pulse = 1.6, pulseCount = 7, burst = 8 })
+end
+
+function RECIPES.IceRing(a, s)
+	groundRing(a, s, TEX.IceRing, "Fixed", cs("8FDFFF", "2E8FFF"), 0.3, 1.6, 8)
+end
+
+-- the ice cracks off you when the aura reaches full power (and every few seconds after)
+function RECIPES.IceShatter(a, s)
+	one(a, a.shell, flipbook({
+		Texture = TEX.IceShatter,
+		Color = cs("F0FCFF", "8FD8FF"),
+		LightEmission = 0.2,
+		Size = numSeq({ { 0, 0.5 * s }, { 1, 0.35 * s } }),
+		Lifetime = range(0.6, 0.9),
+		Speed = range(4, 7),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, -12, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-240, 240),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}, GRID4), "Fixed", 0, 0, { burst = 18, pulse = 2.6, pulseCount = 6 })
+end
+
+-- Void Plasma ---------------------------------------------------------------------------------------------------------
+-- a spiral galaxy portal opening behind you
+function RECIPES.VoidRift(a, s)
+	behind(a, {
+		Texture = TEX.VoidRift,
+		Color = cs("C48CFF", "7A2CFF"),
+		LightEmission = 0.6,
+		Brightness = 1.6,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 7 * s }, { 1, 8.5 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.25, 0.12 }, { 0.75, 0.12 }, { 1, 1 } }),
+		Lifetime = range(2.4, 2.4),
+		Rotation = range(0, 360),
+		RotSpeed = range(-70, -50),
+		ZOffset = -3,
+	}, "Fixed", 0, 0.9, { burst = 1 })
+end
+
+function RECIPES.VoidWisps(a, s)
+	layer(a, onBody(a, "Big", {
+		Name = "AuraVoidWisp",
+		Texture = TEX.VoidWisp,
+		LightEmission = 0,
+		Size = numSeq({ { 0, 0.8 * s }, { 1, 2.4 * s } }),
+		Transparency = numSeq({ { 0, 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.8),
+		Speed = range(1, 2),
+		SpreadAngle = Vector2.new(25, 25),
+		Acceleration = Vector3.new(0, 4 * s, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-60, 60),
+		ZOffset = -1.5,
+		EmissionDirection = TOP,
+	}), "Dark", 2, 12, { burst = 3 })
+end
+
+-- three plasma orbs circling you, leaving glowing comet tails
+function RECIPES.PlasmaOrbs(a, s)
+	local pes = {}
+	for i = 1, 3 do
+		local att = orbiter(a, 2 * s, (i % 2 == 0) and -2.4 or 2.4, (i - 1) / 3 * math.pi * 2, (i - 2) * 1.1 * s, 0.3 * s)
+		table.insert(pes, newEmitter(att, {
+			Texture = TEX.PlasmaOrb,
+			Color = ColorSequence.new(WHITE),
+			LightEmission = 1,
+			Size = numSeq({ { 0, 1 * s }, { 1, 0 } }),
+			Transparency = numSeq({ { 0, 0 }, { 1, 0.4 } }),
+			Lifetime = range(0.35, 0.5),
+			Speed = range(0, 0),
+			Rotation = range(0, 360),
+		}))
+	end
+	layer(a, pes, "Fixed", 0, 24)
+	-- a few plasma bubbles on the body while moving
+	one(a, a.shell, {
+		Texture = TEX.PlasmaOrb,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 1,
+		Size = numSeq({ { 0, 0 }, { 0.3, 0.8 * s }, { 1, 0 } }),
+		Lifetime = range(0.6, 0.9),
+		Speed = range(0.5, 1.2),
+		SpreadAngle = Vector2.new(180, 180),
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, "Fixed", 2, 4, { burst = 8 })
+end
+
+-- dark stars sucked into the body
+function RECIPES.DarkStars(a, s)
+	one(a, a.shell, {
+		Texture = TEX.DarkStar,
+		Color = ColorSequence.new(Color3.fromHex("2A0A4A")),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 0.5 * s }, { 1, 0 } }),
+		Lifetime = range(0.45, 0.6),
+		Speed = range(4, 6),
+		Rotation = range(0, 360),
+		RotSpeed = range(-180, 180),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+		ShapeInOut = Enum.ParticleEmitterShapeInOut.Inward,
+	}, "Fixed", 3, 16)
+end
+
+-- ornate crescent moons spinning round the body
+function RECIPES.Moons(a, s)
+	one(a, a.centre, {
+		Texture = TEX.Moon,
+		Color = cs("E6CCFF", "B05CFF"),
+		LightEmission = 0.6,
+		Size = numSeq({ { 0, 2.6 * s }, { 1, 3.3 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.25, 0.3 }, { 1, 1 } }),
+		Lifetime = range(0.6, 0.8),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-300, 300),
+		LockedToPart = true,
+		ZOffset = -0.5,
+	}, "Fixed", 0, 2.5)
+end
+
+-- Thunder Gold --------------------------------------------------------------------------------------------------------
+-- a Super-Saiyan style golden power column
+function RECIPES.GoldColumn(a, s)
+	behind(a, {
+		Texture = TEX.GoldColumn,
+		LightEmission = 0.2,
+		Brightness = 3,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 5.5 * s }, { 1, 7 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.3, 0 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.7),
+		Rotation = range(-4, 4),
+		ZOffset = -2,
+		Color = cs("FFE45A", "FFAA00"),
+	}, "Fixed", 0.5, 6, { burst = 3 })
+end
+
+-- a storm cloud rolling over your head
+function RECIPES.StormCloud(a, s)
+	one(a, point(a, "AuraCloud", Vector3.new(0, a.halfH + 2.1 * s, 0)), {
+		Texture = TEX.StormCloud,
+		Color = cs("767C96", "3A3F55"),
+		LightEmission = 0,
+		Size = numSeq({ { 0, 1.4 * s }, { 1, 2.2 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.2, 0.05 }, { 0.8, 0.05 }, { 1, 1 } }),
+		Lifetime = range(1.6, 2.2),
+		Speed = range(0.5, 0.9),
+		SpreadAngle = Vector2.new(180, 25),
+		Drag = 1,
+		Rotation = range(-10, 10),
+		RotSpeed = range(-8, 8),
+		EmissionDirection = Enum.NormalId.Right,
+	}, "Fixed", 0, 6, { burst = 6 })
+end
+
+-- lightning striking down from the cloud on either side of you
+function RECIPES.CloudBolts(a, s)
+	local cloudY = a.halfH + 2.1 * s
+	local length = cloudY + a.halfH
+	local y = (cloudY - a.halfH) / 2
+	for i, side in { -1, 1 } do
+		one(a, point(a, "AuraBolt", Vector3.new(side * 1.2 * s, y, 0)), {
+			Texture = TEX.Bolt,
+			Color = cs("FFE45A", "FFB000"),
+			LightEmission = 0.25,
+			Brightness = 3,
+			Orientation = UPRIGHT,
+			Size = NumberSequence.new(length),
+			Transparency = numSeq({ { 0, 0 }, { 0.6, 0.1 }, { 1, 1 } }),
+			Lifetime = range(0.22, 0.3),
+			Speed = range(0, 0),
+			Rotation = range(-6, 6),
+			LockedToPart = true,
+			ZOffset = -1,
+		}, "Fixed", 0, 0, { burst = 1, pulse = i == 1 and 0.9 or 1.35 })
+	end
+end
+
+function RECIPES.Lightning(a, s)
+	one(a, a.shell, flipbook({
+		Texture = TEX.Lightning,
+		Color = cs("FFE45A", "FFB000"),
+		LightEmission = 0.3,
+		Brightness = 3,
+		Size = numSeq({ { 0, 1.7 * s }, { 1, 2.3 * s } }),
+		Lifetime = range(0.25, 0.35),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		LockedToPart = true,
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, GRID4, ONESHOT), "Fixed", 2, 10, { burst = 5 })
 end
 
 function RECIPES.Crackle(a, s)
-	layer(a, { newEmitter(a.shell, {
+	one(a, a.shell, {
 		Texture = TEX.Crackle,
-		LightEmission = 1,
+		Color = cs("FFD84A", "FFA000"),
+		LightEmission = 0.3,
+		Brightness = 3,
 		Size = numSeq({ { 0, 0.9 * s }, { 1, 1.4 * s } }),
 		Transparency = numSeq({ { 0, 0.1 }, { 1, 1 } }),
 		Lifetime = range(0.12, 0.2),
@@ -307,11 +801,349 @@ function RECIPES.Crackle(a, s)
 		ZOffset = 0.5,
 		Shape = SPHERE,
 		ShapeStyle = SURFACE,
-	}) }, "Glow", 1, 11, { burst = 6 })
+	}, "Fixed", 1, 10, { burst = 6 })
+end
+
+function RECIPES.Sparks(a, s)
+	one(a, a.shell, {
+		Texture = TEX.Spark,
+		Color = cs("FFE45A", "FFA000"),
+		LightEmission = 0.3,
+		Brightness = 3,
+		Orientation = STREAK,
+		Size = numSeq({ { 0, 0.7 * s }, { 1, 0 } }),
+		Lifetime = range(0.15, 0.3),
+		Speed = range(6, 10),
+		SpreadAngle = Vector2.new(180, 180),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}, "Fixed", 2, 14, { burst = 12 })
+end
+
+function RECIPES.GoldRing(a, s)
+	groundRing(a, s, TEX.GoldRing, "Fixed", ColorSequence.new(WHITE), 0.8, 1.2, 9)
+end
+
+-- a radial lightning blast behind you every few seconds at full power
+function RECIPES.ThunderBurst(a, s)
+	behind(a, {
+		Texture = TEX.ThunderBurst,
+		Color = cs("FFE45A", "FFB000"),
+		LightEmission = 0.3,
+		Brightness = 3,
+		Size = numSeq({ { 0, 2 * s }, { 1, 8 * s } }),
+		Transparency = numSeq({ { 0, 0 }, { 1, 1 } }),
+		Lifetime = range(0.35, 0.35),
+		Rotation = range(0, 360),
+		ZOffset = -1.5,
+	}, "Fixed", 0, 0, { burst = 1, pulse = 3.4 })
+end
+
+-- Magma Roar ----------------------------------------------------------------------------------------------------------
+-- dark red flames behind the body; the fire texture renders dark, so the bright flames in front pop in daylight
+function RECIPES.MagmaBack(a, s)
+	layer(a, onBody(a, "Big", {
+		Name = "AuraMagmaBack",
+		Texture = TEX.MagmaFire,
+		LightEmission = 0,
+		Size = numSeq({ { 0, 0.6 * s }, { 0.3, 2.6 * s }, { 1, 0.8 * s } }),
+		Squash = NumberSequence.new(0.4),
+		Transparency = numSeq({ { 0, 0.15 }, { 0.3, 0 }, { 1, 1 } }),
+		Lifetime = range(0.45, 0.75),
+		Speed = range(1, 2.5),
+		SpreadAngle = Vector2.new(25, 25),
+		Acceleration = Vector3.new(0, 6 * s, 0),
+		Drag = 1,
+		Rotation = range(-20, 20),
+		RotSpeed = range(-40, 40),
+		ZOffset = -1.6,
+		EmissionDirection = TOP,
+	}), "Dark", 4, 22, { burst = 3 })
+end
+
+-- real flames (a hand-drawn fire flipbook) licking off the body
+function RECIPES.FireFlames(a, s)
+	layer(a, onBody(a, "Big", flipbook({
+		Name = "AuraFireFlame",
+		Texture = TEX.FireFlip,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.45,
+		Brightness = 1.6,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 1.6 * s }, { 1, 2.6 * s } }),
+		Transparency = numSeq({ { 0, 0 }, { 0.8, 0.1 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.7),
+		Speed = range(1.5, 3),
+		SpreadAngle = Vector2.new(20, 20),
+		Acceleration = Vector3.new(0, 5 * s, 0),
+		Drag = 1,
+		Rotation = range(-10, 10),
+		ZOffset = -0.6,
+		EmissionDirection = TOP,
+	}, GRID4, ONESHOT)), "Fixed", 3, 12, { burst = 3 })
+end
+
+-- fire geysers bursting out of the ground
+function RECIPES.FireGeysers(a, s)
+	one(a, a.base, flipbook({
+		Texture = TEX.FirePuff,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.4,
+		Size = numSeq({ { 0, 1.2 * s }, { 1, 3 * s } }),
+		Transparency = numSeq({ { 0, 0 }, { 0.7, 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.8),
+		Speed = range(3, 6),
+		SpreadAngle = Vector2.new(15, 15),
+		Acceleration = Vector3.new(0, 4, 0),
+		Drag = 1,
+		Rotation = range(0, 360),
+		RotSpeed = range(-60, 60),
+		EmissionDirection = TOP,
+	}, GRID2), "Fixed", 0, 6, { burst = 8 })
+end
+
+function RECIPES.Embers(a, s)
+	one(a, a.base, {
+		Texture = TEX.Embers,
+		Color = ColorSequence.new(Color3.fromHex("FFE24A"), Color3.fromHex("FF4A1A")),
+		LightEmission = 1,
+		Size = numSeq({ { 0, 0.35 * s }, { 1, 0 } }),
+		Lifetime = range(0.7, 1.2),
+		Speed = range(4, 9),
+		SpreadAngle = Vector2.new(25, 25),
+		Acceleration = Vector3.new(0, 5, 0),
+		Drag = 0.8,
+		EmissionDirection = TOP,
+	}, "Fixed", 6, 30, { burst = 20 })
+end
+
+function RECIPES.RoarWave(a, s)
+	groundRing(a, s, TEX.RoarRing, "Fixed", cs("FFD25A", "FF3A0F"), 0.7, 1.3, 10)
+end
+
+-- a magma explosion behind you, the roar
+function RECIPES.MagmaBurst(a, s)
+	behind(a, {
+		Texture = TEX.MagmaBurst,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.5,
+		Brightness = 1.4,
+		Size = numSeq({ { 0, 2 * s }, { 1, 7 * s } }),
+		Transparency = numSeq({ { 0, 0 }, { 0.6, 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.45, 0.45),
+		Rotation = range(0, 360),
+		RotSpeed = range(-60, 60),
+		ZOffset = -2,
+	}, "Fixed", 0, 0, { burst = 1, pulse = 2.6 })
+end
+
+-- Prism Rainbow -------------------------------------------------------------------------------------------------------
+-- rays of light fanning out from behind you in every direction
+function RECIPES.LightRays(a, s)
+	behind(a, {
+		Texture = TEX.LightRays,
+		LightEmission = 0.35,
+		Brightness = 1.5,
+		Size = numSeq({ { 0, 5 * s }, { 1, 6.5 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.3, 0.15 }, { 1, 1 } }),
+		Lifetime = range(0.9, 1.2),
+		Rotation = range(0, 360),
+		RotSpeed = range(-30, 30),
+		ZOffset = -2.5,
+	}, "Trail", 0, 4, { burst = 3 })
+end
+
+-- a spinning rainbow halo behind your head
+function RECIPES.RainbowHalo(a, s)
+	one(a, point(a, "AuraHalo", Vector3.new(0, a.halfH - 0.9 * s, 0)), {
+		Texture = TEX.RainbowHalo,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.5,
+		Brightness = 1.8,
+		ZOffset = -1.2,
+		Size = NumberSequence.new(2.8 * s),
+		Transparency = numSeq({ { 0, 1 }, { 0.25, 0.1 }, { 0.75, 0.1 }, { 1, 1 } }),
+		Lifetime = range(1.6, 1.6),
+		Speed = range(0.01, 0.01),
+		SpreadAngle = NO_SPREAD,
+		Rotation = range(0, 360),
+		RotSpeed = range(90, 90),
+		EmissionDirection = TOP,
+		LockedToPart = true,
+	}, "Fixed", 0.8, 1.6, { burst = 1 })
+end
+
+function RECIPES.PrismOrbs(a, s)
+	one(a, a.shell, {
+		Texture = TEX.PrismOrb,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.4,
+		Size = numSeq({ { 0, 0 }, { 0.3, 0.7 * s }, { 1, 0 } }),
+		Lifetime = range(0.8, 1.2),
+		Speed = range(0.5, 1.2),
+		SpreadAngle = Vector2.new(180, 180),
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, "Fixed", 2, 10)
+end
+
+function RECIPES.PrismStars(a, s)
+	one(a, a.shell, {
+		Texture = TEX.PrismStar,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.5,
+		Brightness = 1.5,
+		Size = numSeq({ { 0, 0.8 * s }, { 1, 0 } }),
+		Lifetime = range(0.5, 0.8),
+		Speed = range(1, 2),
+		SpreadAngle = Vector2.new(180, 180),
+		Rotation = range(0, 360),
+		RotSpeed = range(-90, 90),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}, "Fixed", 2, 14, { burst = 14 })
+end
+
+function RECIPES.RainbowCrescents(a, s)
+	one(a, a.centre, {
+		Texture = TEX.RainbowCrescent,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 1,
+		Brightness = 1.5,
+		Size = numSeq({ { 0, 3.4 * s }, { 1, 4.2 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.2, 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.4, 0.55),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-420, 420),
+		LockedToPart = true,
+		ZOffset = -0.5,
+	}, "Fixed", 0, 3.5)
+end
+
+-- glass shards flying off when the light breaks
+function RECIPES.GlassShards(a, s)
+	one(a, a.shell, {
+		Texture = TEX.GlassShards,
+		LightEmission = 0.4,
+		Size = numSeq({ { 0, 0.7 * s }, { 1, 0.4 * s } }),
+		Lifetime = range(0.6, 0.9),
+		Speed = range(3, 6),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, -8, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-200, 200),
+		Shape = SPHERE,
+		ShapeStyle = SURFACE,
+	}, "Trail", 0, 0, { burst = 10, pulse = 2.2, pulseCount = 4 })
+end
+
+function RECIPES.PrismBurst(a, s)
+	behind(a, {
+		Texture = TEX.PrismBurst,
+		Color = ColorSequence.new(WHITE),
+		LightEmission = 0.8,
+		Brightness = 1.5,
+		Size = numSeq({ { 0, 2 * s }, { 1, 7 * s } }),
+		Transparency = numSeq({ { 0, 0 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.5),
+		Rotation = range(0, 360),
+		ZOffset = -1.5,
+	}, "Fixed", 0, 0, { burst = 1, pulse = 3 })
+end
+
+-- Shadow Monarch ------------------------------------------------------------------------------------------------------
+-- a huge black spiky aura silhouette behind you
+function RECIPES.ShadowSpikes(a, s)
+	behind(a, {
+		Texture = TEX.ShadowSpikes,
+		LightEmission = 0,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 5.5 * s }, { 1, 7 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.2, 0 }, { 1, 1 } }),
+		Lifetime = range(0.45, 0.6),
+		Rotation = range(-6, 6),
+		ZOffset = -3,
+	}, "Dark", 1.5, 7, { burst = 3 })
+end
+
+function RECIPES.ShadowSmoke(a, s)
+	one(a, a.base, {
+		Texture = TEX.ShadowSmoke,
+		LightEmission = 0,
+		Size = numSeq({ { 0, 1.5 * s }, { 1, 3.2 * s } }),
+		Transparency = numSeq({ { 0, 1 }, { 0.3, 0.45 }, { 1, 1 } }),
+		Lifetime = range(1, 1.6),
+		Speed = range(0.3, 1),
+		SpreadAngle = Vector2.new(70, 70),
+		Rotation = range(0, 360),
+		RotSpeed = range(-20, 20),
+		EmissionDirection = TOP,
+	}, "Dark", 0, 5)
+end
+
+function RECIPES.ShadowVortex(a, s)
+	groundSpin(a, s, TEX.ShadowVortex, "Fixed", cs("2A1446", "07040C"), 0, 6.5, -90, 0.25)
+end
+
+-- violet spiky flames engulfing the body
+function RECIPES.BlueFlames(a, s)
+	layer(a, onBody(a, "Big", {
+		Name = "AuraBlueFlame",
+		Texture = TEX.BlueFlame,
+		LightEmission = 1,
+		Brightness = 1.5,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 0.6 * s }, { 0.3, 1.5 * s }, { 1, 1.2 * s } }),
+		Transparency = numSeq({ { 0, 0.3 }, { 0.3, 0.05 }, { 1, 1 } }),
+		Lifetime = range(0.35, 0.5),
+		Speed = range(1, 2),
+		SpreadAngle = Vector2.new(15, 15),
+		Acceleration = Vector3.new(0, 5 * s, 0),
+		Drag = 1,
+		Rotation = range(-8, 8),
+		ZOffset = -0.8,
+		EmissionDirection = TOP,
+	}), "Glow", 2, 10, { burst = 3 })
+end
+
+-- black smoke tendrils rising from the shadows
+function RECIPES.ShadowTendrils(a, s)
+	one(a, a.base, {
+		Texture = TEX.Tendril,
+		Color = cs("0C0814", "33195E"),
+		LightEmission = 0,
+		Orientation = UPRIGHT,
+		Size = numSeq({ { 0, 0.8 * s }, { 1, 2.4 * s } }),
+		Transparency = numSeq({ { 0, 0.1 }, { 1, 1 } }),
+		Lifetime = range(0.7, 1),
+		Speed = range(2, 4),
+		SpreadAngle = Vector2.new(10, 10),
+		Acceleration = Vector3.new(0, 3, 0),
+		Rotation = range(-20, 20),
+		EmissionDirection = TOP,
+	}, "Fixed", 1, 10, { burst = 6 })
+end
+
+function RECIPES.ShadowBolts(a, s)
+	one(a, a.shell, {
+		Texture = TEX.ShadowBolt,
+		LightEmission = 1,
+		Brightness = 1.5,
+		Size = numSeq({ { 0, 1.4 * s }, { 1, 2 * s } }),
+		Transparency = numSeq({ { 0, 0.05 }, { 1, 1 } }),
+		Lifetime = range(0.12, 0.2),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		LockedToPart = true,
+		ZOffset = 0.5,
+		Shape = SPHERE,
+		ShapeStyle = VOLUME,
+	}, "Glow", 0.5, 8, { burst = 6 })
 end
 
 function RECIPES.Crescents(a, s)
-	layer(a, { newEmitter(a.centre, {
+	one(a, a.centre, {
 		Texture = TEX.Crescent,
 		LightEmission = 1,
 		Size = numSeq({ { 0, 3.2 * s }, { 1, 4.2 * s } }),
@@ -322,263 +1154,89 @@ function RECIPES.Crescents(a, s)
 		RotSpeed = range(-420, 420),
 		LockedToPart = true,
 		ZOffset = -0.5,
-	}) }, "Glow", 0, 3.5)
+	}, "Glow", 0, 3.5)
 end
 
-function RECIPES.Shockwave(a, s)
-	ringPulse(a, s, "Glow", 1.15)
-end
-
--- Pebble Dust
-function RECIPES.Dust(a, s)
-	layer(a, { newEmitter(a.base, {
-		Texture = TEX.Smoke,
-		Color = ColorSequence.new(Color3.fromHex("E2D6BA"), Color3.fromHex("A89A7C")),
-		LightEmission = 0,
-		Size = numSeq({ { 0, 0.8 * s }, { 1, 2.6 * s } }),
-		Transparency = numSeq({ { 0, 1 }, { 0.3, 0.3 }, { 1, 1 } }),
-		Lifetime = range(1, 1.6),
-		Speed = range(0.4, 1.2),
-		SpreadAngle = Vector2.new(60, 60),
-		Acceleration = Vector3.new(0, 1.2, 0),
-		Rotation = range(0, 360),
-		RotSpeed = range(-30, 30),
-		EmissionDirection = TOP,
-	}) }, "Fixed", 2, 12)
-end
-
-function RECIPES.Pebbles(a, s)
-	layer(a, { newEmitter(a.base, {
-		Texture = SQUARE,
-		Color = ColorSequence.new(Color3.fromHex("B7B9C4"), Color3.fromHex("7E8190")),
-		LightEmission = 0,
-		Size = numSeq({ { 0, 0.32 * s }, { 0.85, 0.26 * s }, { 1, 0 } }),
-		Lifetime = range(1.4, 2),
-		Speed = range(1.2, 2.6),
-		SpreadAngle = Vector2.new(12, 12),
-		Acceleration = Vector3.new(0, 0.4, 0),
-		Drag = 1.4,
-		Rotation = range(0, 360),
-		RotSpeed = range(-120, 120),
-		EmissionDirection = TOP,
-	}) }, "Fixed", 0, 9, { burst = 10 })
-end
-
--- Jungle Leaf
-function RECIPES.Leaves(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SQUARE,
-		Color = ColorSequence.new(Color3.fromHex("B6FF5A"), Color3.fromHex("1F8A1F")),
-		LightEmission = 0,
-		Size = numSeq({ { 0, 0.36 * s }, { 0.8, 0.32 * s }, { 1, 0 } }),
-		Squash = NumberSequence.new(-0.4),
-		Transparency = numSeq({ { 0, 0.1 }, { 1, 0.6 } }),
-		Lifetime = range(0.9, 1.4),
-		Speed = range(1.5, 3.5),
-		SpreadAngle = Vector2.new(180, 180),
-		Acceleration = Vector3.new(0, 2.2, 0),
-		Drag = 1.2,
-		Rotation = range(0, 360),
-		RotSpeed = range(-220, 220),
-		Shape = SPHERE,
-		ShapeStyle = SURFACE,
-	}) }, "Fixed", 2, 14, { burst = 12 })
-end
-
-function RECIPES.Fireflies(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SPARKLE,
-		Color = ColorSequence.new(Color3.fromHex("F4FF8A"), Color3.fromHex("B6FF4A")),
+-- the Monarch's eye flashes open behind you ("Arise")
+function RECIPES.MonarchEye(a, s)
+	behind(a, {
+		Texture = TEX.MonarchEye,
 		LightEmission = 1,
-		Size = numSeq({ { 0, 0 }, { 0.2, 0.32 * s }, { 0.8, 0.32 * s }, { 1, 0 } }),
-		Lifetime = range(1.4, 2.2),
-		Speed = range(0.3, 0.8),
-		SpreadAngle = Vector2.new(180, 180),
-		Acceleration = Vector3.new(0, 0.3, 0),
-		Drag = 1,
-		Shape = SPHERE,
-		ShapeStyle = VOLUME,
-	}) }, "Fixed", 1, 8)
+		Brightness = 2,
+		Size = numSeq({ { 0, 3 * s }, { 1, 5.5 * s } }),
+		Transparency = numSeq({ { 0, 0.05 }, { 0.5, 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.8, 0.8),
+		Rotation = range(0, 0),
+		ZOffset = -2,
+	}, "Glow", 0, 0, { burst = 1, pulse = 4 })
 end
 
--- Frost Breath
-function RECIPES.FrostMist(a, s)
-	layer(a, { newEmitter(a.base, {
-		Texture = SMOKE,
-		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHex("DFF4FF")),
-		LightEmission = 0,
-		Size = numSeq({ { 0, 1.5 * s }, { 1, 3.5 * s } }),
-		Transparency = numSeq({ { 0, 0.35 }, { 1, 1 } }),
-		Lifetime = range(1.2, 1.8),
-		Speed = range(0.4, 1),
-		SpreadAngle = Vector2.new(85, 85),
-		Acceleration = Vector3.new(0, 0.15, 0),
-		Rotation = range(0, 360),
-		RotSpeed = range(-15, 15),
-		EmissionDirection = TOP,
-	}) }, "Fixed", 2, 10)
-end
-
-function RECIPES.IceShards(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SQUARE,
-		Color = ColorSequence.new(WHITE, Color3.fromHex("7FD0FF")),
-		LightEmission = 0.1,
-		Size = numSeq({ { 0, 0.45 * s }, { 1, 0.3 * s } }),
-		Squash = NumberSequence.new(1.6),
-		Transparency = numSeq({ { 0, 0 }, { 1, 0.6 } }),
-		Lifetime = range(1, 1.6),
-		Speed = range(0.5, 1.5),
-		SpreadAngle = Vector2.new(180, 180),
-		Drag = 1,
-		Rotation = range(0, 360),
-		RotSpeed = range(-90, 90),
-		Shape = SPHERE,
-		ShapeStyle = SURFACE,
-	}) }, "Fixed", 3, 18, { burst = 14 })
-end
-
-function RECIPES.Snowfall(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SPARKLE,
-		Color = ColorSequence.new(WHITE),
-		LightEmission = 0.4,
-		Size = numSeq({ { 0, 0.4 * s }, { 1, 0.2 * s } }),
-		Lifetime = range(1.2, 1.8),
-		Speed = range(0.2, 0.6),
-		SpreadAngle = Vector2.new(180, 180),
-		Acceleration = Vector3.new(0, -1.5, 0),
-		Drag = 0.5,
-		Shape = SPHERE,
-		ShapeStyle = VOLUME,
-	}) }, "Fixed", 2, 12)
-end
-
-function RECIPES.FrostRing(a, s)
-	ringPulse(a, s, "Glow", 1.7)
-end
-
--- Void Plasma
-function RECIPES.VoidVortex(a, s)
-	flatSwirl(a, s, "Dark", -1, 0)
-end
-
-function RECIPES.PlasmaOrbs(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = TEX.Blob,
-		LightEmission = 1,
-		Size = numSeq({ { 0, 0 }, { 0.3, 0.9 * s }, { 1, 0 } }),
-		Transparency = numSeq({ { 0, 0.3 }, { 1, 0.6 } }),
-		Lifetime = range(0.6, 0.9),
-		Speed = range(0.5, 1.5),
-		SpreadAngle = Vector2.new(180, 180),
-		Acceleration = Vector3.new(0, 1.5, 0),
-		Drag = 1,
-		ZOffset = -0.5,
-		Shape = SPHERE,
-		ShapeStyle = VOLUME,
-	}) }, "Flame", 6, 34, { burst = 10 })
-end
-
-function RECIPES.VoidMotes(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SQUARE,
-		Color = ColorSequence.new(Color3.fromHex("2A0A4A"), Color3.fromHex("8A3CFF")),
-		LightEmission = 0,
-		Size = numSeq({ { 0, 0.28 * s }, { 1, 0 } }),
-		Transparency = numSeq({ { 0, 0.15 }, { 1, 0.4 } }),
-		Lifetime = range(0.45, 0.6),
-		Speed = range(4, 6),
-		Rotation = range(0, 360),
-		RotSpeed = range(-180, 180),
-		Shape = SPHERE,
-		ShapeStyle = SURFACE,
-		ShapeInOut = Enum.ParticleEmitterShapeInOut.Inward,
-	}) }, "Fixed", 4, 26)
-end
-
-function RECIPES.Stars(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SPARKLE,
-		Color = ColorSequence.new(WHITE, Color3.fromHex("E6CCFF")),
-		LightEmission = 1,
-		Size = numSeq({ { 0, 0.35 * s }, { 1, 0 } }),
-		Lifetime = range(0.5, 0.9),
-		Speed = range(0.2, 0.6),
-		SpreadAngle = Vector2.new(180, 180),
-		Shape = SPHERE,
-		ShapeStyle = VOLUME,
-	}) }, "Fixed", 2, 10)
-end
-
--- Thunder Gold
-function RECIPES.Lightning(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = TEX.Lightning,
-		FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4,
-		FlipbookMode = Enum.ParticleFlipbookMode.OneShot,
-		Color = ColorSequence.new(WHITE, Color3.fromHex("FFE24A")),
-		LightEmission = 1,
-		Size = numSeq({ { 0, 1.7 * s }, { 1, 2.3 * s } }),
-		Lifetime = range(0.25, 0.35),
-		Speed = range(0, 0),
-		Rotation = range(0, 360),
-		LockedToPart = true,
-		Shape = SPHERE,
-		ShapeStyle = VOLUME,
-	}) }, "Fixed", 2, 12, { burst = 5 })
-end
-
-function RECIPES.Sparks(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SPARKS,
-		Color = ColorSequence.new(WHITE, Color3.fromHex("FFD23F")),
-		LightEmission = 1,
-		Size = numSeq({ { 0, 0.3 * s }, { 1, 0 } }),
-		Lifetime = range(0.15, 0.3),
-		Speed = range(4, 8),
-		SpreadAngle = Vector2.new(180, 180),
-		Shape = SPHERE,
-		ShapeStyle = SURFACE,
-	}) }, "Fixed", 2, 16, { burst = 12 })
-end
-
--- Magma Roar
-function RECIPES.Embers(a, s)
-	layer(a, { newEmitter(a.base, {
-		Texture = SPARKS,
-		Color = ColorSequence.new(Color3.fromHex("FFE24A"), Color3.fromHex("FF4A1A")),
-		LightEmission = 1,
-		Size = numSeq({ { 0, 0.35 * s }, { 1, 0 } }),
-		Lifetime = range(0.7, 1.2),
-		Speed = range(4, 9),
-		SpreadAngle = Vector2.new(25, 25),
-		Acceleration = Vector3.new(0, 5, 0),
-		Drag = 0.8,
-		EmissionDirection = TOP,
-	}) }, "Fixed", 6, 34, { burst = 20 })
-end
-
-function RECIPES.LavaSwirl(a, s)
-	flatSwirl(a, s, "Trail", 1, 1)
-end
-
--- Prism Rainbow
-function RECIPES.Prisms(a, s)
-	layer(a, { newEmitter(a.shell, {
-		Texture = SPARKLE,
-		LightEmission = 1,
-		Size = numSeq({ { 0, 0.45 * s }, { 1, 0 } }),
-		Lifetime = range(0.6, 1),
-		Speed = range(1, 2.5),
-		SpreadAngle = Vector2.new(180, 180),
-		Shape = SPHERE,
-		ShapeStyle = SURFACE,
-	}) }, "Trail", 4, 22, { burst = 16 })
-end
-
-function RECIPES.LightRays(a, s)
-	risingLines(a, s, "Trail")
+-- Playbook extras (AuraConfig.Styles[...].Plus, from the VFX reference playbook), drawn on top of the recipes:
+--   Base    dark light-balancing smoke flat under the feet (so the bright layers read on bright grass)
+--   Circle  a magic circle spinning flat on the ground while farming (Spin degrees/s, Alpha at full power)
+--   Glitter sparkles rising out of the body volume (Box, Outward)
+--   Flare   4-point lens-flare stars with an anamorphic streak popping on the body while farming
+--   Halo    stacked flat halo rings climbing the body (top tiers)
+local ANAMORPHIC = "rbxassetid://114278596683627"
+local function plusLayers(a, s, plus)
+	if plus.Base then
+		a.recipe = "PlusBase"
+		one(a, a.ground, {
+			Name = "AuraPlusBase", Texture = TEX[plus.Base] or plus.Base, LightEmission = 0, LightInfluence = 0.6,
+			Orientation = FLAT, EmissionDirection = TOP, Speed = range(0.01, 0.01), LockedToPart = true,
+			Size = numSeq({ { 0, 4.5 * s }, { 1, 6.5 * s } }), Transparency = numSeq({ { 0, 1 }, { 0.3, plus.BaseAlpha or 0.5 }, { 1, 1 } }),
+			Rotation = range(0, 360), RotSpeed = range(-12, 12), Lifetime = range(1.6, 2.4), ZOffset = -0.5,
+		}, "Dark", 0.6, 3)
+	end
+	if plus.Circle then
+		a.recipe = "PlusCircle"
+		local spin = plus.Spin or 16
+		one(a, a.ground, {
+			Name = "AuraPlusCircle", Texture = TEX[plus.Circle] or plus.Circle, LightEmission = 1, Brightness = 3,
+			Orientation = FLAT, EmissionDirection = TOP, Speed = range(0.01, 0.01), LockedToPart = true,
+			Size = numSeq({ { 0, (plus.CircleSize or 6.5) * s }, { 1, (plus.CircleSize or 6.5) * 1.04 * s } }),
+			Transparency = numSeq({ { 0, 1 }, { 0.25, plus.Alpha or 0.45 }, { 0.75, plus.Alpha or 0.45 }, { 1, 1 } }),
+			Rotation = range(0, 360), RotSpeed = range(spin * 0.85, spin), Lifetime = range(2.4, 2.8),
+		}, "Glow", 0, 0.9)
+	end
+	if plus.Glitter then
+		a.recipe = "PlusGlitter"
+		one(a, a.shell, {
+			Name = "AuraPlusGlitter", Texture = TEX[plus.Glitter] or plus.Glitter, LightEmission = 1, Brightness = 2,
+			Shape = Enum.ParticleEmitterShape.Box, ShapeStyle = VOLUME, ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward,
+			EmissionDirection = TOP, Speed = range(0.5, 2), Acceleration = Vector3.new(0, 4 * s, 0), Drag = 1.5,
+			Size = numSeq({ { 0, 0 }, { 0.25, 0.7 * s }, { 1, 0 } }), Transparency = numSeq({ { 0, 0.1 }, { 1, 0.6 } }),
+			Rotation = range(0, 45), Lifetime = range(0.8, 1.4),
+		}, plus.GlitterRole or "Glow", 2, 16)
+	end
+	if plus.Flare then
+		local att = a.attach(a.shell, "AuraPlusPop")
+		local function pop(tex, size, life, alpha)
+			local pe = newEmitter(att, {
+				Name = "AuraPlusFlare", Texture = tex, LightEmission = 1, Brightness = 4, Speed = range(0, 0),
+				Size = numSeq({ { 0, 0 }, { 0.3, size * s }, { 1, 0 } }), Transparency = numSeq({ { 0, alpha or 0 }, { 1, alpha or 0 } }),
+				Lifetime = range(life, life), Rotation = range(0, 15),
+			})
+			table.insert(a.instances, pe)
+			return pe
+		end
+		local pes = { pop(TEX[plus.Flare] or plus.Flare, 2.2, 0.4), pop(ANAMORPHIC, 4.6, 0.32, 0.15) }
+		a.recipe = "PlusFlare"
+		layer(a, pes, plus.FlareRole or "Glow", 0, 0)
+		a.pops = { att = att, pes = pes, every = plus.FlareEvery or 0.9, next = 0 }
+	end
+	if plus.Halo then
+		a.recipe = "PlusHalo"
+		for i, h in { 0.2, 0.55, 0.9 } do
+			local att = point(a, "AuraPlusHalo" .. i, Vector3.new(0, a.feet - a.midY + (a.halfH * 2) * h, 0))
+			one(a, att, {
+				Name = "AuraPlusHalo", Texture = TEX[plus.Halo] or plus.Halo, LightEmission = 1, Brightness = 2,
+				Orientation = FLAT, EmissionDirection = TOP, Speed = range(0.01, 0.01), LockedToPart = true,
+				Size = numSeq({ { 0, (3.4 - h) * s }, { 1, (3.9 - h) * s } }), Transparency = numSeq({ { 0, 1 }, { 0.3, 0.3 }, { 1, 1 } }),
+				Rotation = range(0, 360), RotSpeed = range(i % 2 == 0 and -50 or 50, i % 2 == 0 and -50 or 50), Lifetime = range(1.2, 1.2),
+			}, "Glow", 0, 1.3)
+		end
+	end
 end
 
 local function build(other, char, trailId)
@@ -627,6 +1285,8 @@ local function build(other, char, trailId)
 	a.base = own(anchoredPart("AuraBase", Vector3.new(4.6 * s, 0.1, 4.6 * s)))
 	a.centre = attachment(a.shell, "AuraCentre")
 	a.ground = attachment(a.base, "AuraGround")
+	a.attach = attachment
+	a.orbits = {}
 
 	for _, name in style.Layers do
 		local recipe = RECIPES[name]
@@ -636,6 +1296,32 @@ local function build(other, char, trailId)
 		else
 			warn("[AuraFX] unknown aura layer", name)
 		end
+	end
+
+	if style.Plus then
+		plusLayers(a, s, style.Plus)
+	end
+
+	-- a sigil on the ground (SurfaceGui, so it can glow and spin as one crisp image)
+	local sc = style.Sigil
+	if sc and TEX[sc.Texture] then
+		local size = sc.Size * s
+		local p = own(anchoredPart("AuraSigil", Vector3.new(size, 0.05, size)))
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = TOP
+		gui.LightInfluence = sc.Lit and 1 or 0
+		gui.Brightness = sc.Brightness or 1
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.Parent = p
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.Image = TEX[sc.Texture]
+		img.ImageColor3 = sc.Color == "Glow" and a.pal.glow or Color3.fromHex(sc.Color or "FFFFFF")
+		img.ImageTransparency = 1
+		img.Parent = gui
+		a.sigil = { part = p, img = img, glow = sc.Color == "Glow", alpha = sc.Alpha or 0.25, spin = sc.Spin or 0, angle = 0 }
 	end
 
 	-- energy ribbons spiralling round the body
@@ -654,6 +1340,10 @@ local function build(other, char, trailId)
 		tr.Lifetime = 0.4
 		tr.MinLength = 0.02
 		tr.FaceCamera = true
+		if style.RibbonTexture and TEX[style.RibbonTexture] then
+			tr.Texture = TEX[style.RibbonTexture]
+			tr.TextureMode = Enum.TextureMode.Stretch
+		end
 		tr.Enabled = false
 		tr.Parent = hrp
 		table.insert(a.ribbons, {
@@ -735,6 +1425,9 @@ local function applyPalette(a)
 		eye.light.Color = pal.glow
 	end
 	a.light.Color = pal.glow
+	if a.sigil and a.sigil.glow then
+		a.sigil.img.ImageColor3 = pal.glow
+	end
 end
 
 local function powerUp(a, scale)
@@ -800,6 +1493,20 @@ local function update(a, dt, t, camPos, reduced)
 			table.insert(cfs, a.head.CFrame * eye.offset)
 		end
 	end
+	for _, o in a.orbits do
+		local ang = t * o.speed + o.phase
+		o.att.Position = Vector3.new(math.cos(ang) * o.r, o.y + math.sin(t * 1.7 + o.phase) * o.bob, math.sin(ang) * o.r)
+	end
+	local sigil = a.sigil
+	if sigil then
+		local show = near and f or 0
+		sigil.img.ImageTransparency = lerp(1, sigil.alpha, show)
+		if show > 0 then
+			sigil.angle = (sigil.angle + sigil.spin * dt) % 360
+			table.insert(parts, sigil.part)
+			table.insert(cfs, root * CFrame.new(0, a.feet + 0.03, 0) * CFrame.Angles(0, math.rad(sigil.angle), 0))
+		end
+	end
 	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 
 	-- layers
@@ -811,8 +1518,17 @@ local function update(a, dt, t, camPos, reduced)
 		if L.pulse and near and f > 0.9 and t >= L.nextPulse then
 			L.nextPulse = t + L.pulse
 			for _, pe in L.pes do
-				pe:Emit(1)
+				pe:Emit(L.pulseCount or 1)
 			end
+		end
+	end
+	local pops = a.pops
+	if pops and near and f > 0.35 and t >= pops.next then
+		pops.next = t + pops.every * (1.6 - f) * (0.7 + math.random() * 0.6)
+		local sz = a.shell.Size
+		pops.att.Position = Vector3.new((math.random() - 0.5) * sz.X, (math.random() - 0.3) * sz.Y * 0.8, (math.random() - 0.5) * sz.Z)
+		for _, pe in pops.pes do
+			pe:Emit(1)
 		end
 	end
 	a.light.Brightness = near and (lerp(0.2, 0.8 + tier * 0.08, f) + a.flash * 2) or 0

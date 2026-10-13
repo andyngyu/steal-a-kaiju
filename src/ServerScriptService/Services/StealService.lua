@@ -50,6 +50,7 @@ local DevConfig = require(Config.DevConfig)
 local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
 local EggModel = require(ServerScriptService.Lib.EggModel)
 local KaijuModel = require(ServerScriptService.Lib.KaijuModel)
+local MutationVisuals = require(ReplicatedStorage.Shared.Util.MutationVisuals)
 local Ragdoll = require(ServerScriptService.Lib.Ragdoll)
 
 local DataService = require(script.Parent.DataService)
@@ -154,6 +155,7 @@ end
 -- A copy of the pen egg, carried like a nest egg (Gameplay.CarryPose bobs a character's "Egg" by its CarryWeld).
 local function carryEgg(entry, id, hrp)
 	local egg = EggModel.Build(entry.BiomeId, entry.Rarity, id, entry.Size)
+	EggModel.SetMutation(egg, entry.Mutation)
 	egg.Name = "Egg"
 	egg:SetAttribute("State", "Stolen")
 	local prompt = egg.PrimaryPart:FindFirstChild("Prompt")
@@ -177,6 +179,9 @@ end
 local function carryKaiju(entry, hrp)
 	local m = KaijuModel.Build(entry.Species, entry.Size or 1, entry.Level, entry.XP)
 	m.Name = "StolenKaiju"
+	if entry.Mutation then
+		MutationVisuals.Recolor(m, entry.Mutation)
+	end
 	for _, d in m:GetDescendants() do
 		if d:IsA("BillboardGui") or d:IsA("ProximityPrompt") or d:IsA("ParticleEmitter") or d:IsA("PointLight") then
 			d:Destroy()
@@ -258,7 +263,7 @@ local function check(thief, owner, id, slack)
 	end
 	local hrp = hrpOf(thief)
 	local entry, model = BaseService:GetItem(owner, id)
-	if not (hrp and entry and model) or entry.StolenBy then
+	if not (hrp and entry and model) or entry.StolenBy or entry.Unique then -- Unique: reward kaiju (GroupRewardService) can't be stolen
 		return nil, nil, nil, ""
 	end
 	if isLocked(owner) then
@@ -443,7 +448,7 @@ local function deliver(thief, c, hrp)
 	if entry.Kind == "Kaiju" then
 		local model = KaijuService:Spawn(thief, c.id, entry, hrp.Position, false)
 		BaseService:SetItem(thief, c.id, model, entry)
-		IndexService:Record(thief, entry.Species, entry.Size or 1) -- a stolen species counts as discovered
+		IndexService:Record(thief, entry.Species, entry.Size or 1, entry.Mutation) -- a stolen species counts as discovered
 	else
 		-- a few steps in from where they walked in, towards the middle (not in the doorway)
 		local depth = PenGeometry.Level(BaseService:GetLevel(thief)).Depth
@@ -739,7 +744,7 @@ end
 
 -- A steal prompt on a pen egg or kaiju (Gameplay.StealFX shows it only to other players and handles it).
 local function addPrompt(model, isKaiju)
-	if model:GetAttribute("Showcase") or not model.PrimaryPart or model.PrimaryPart:FindFirstChild("StealAttachment") then
+	if model:GetAttribute("Showcase") or model:GetAttribute("Unique") or not model.PrimaryPart or model.PrimaryPart:FindFirstChild("StealAttachment") then
 		return
 	end
 	local _, ext = model:GetBoundingBox()

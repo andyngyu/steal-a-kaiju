@@ -146,18 +146,10 @@ function TreadmillBuilder.Build(levelIndex)
 	l.Parent = gui
 	gui.Parent = screen
 
-	if th.Sparkles then
-		sparkles(crossbar, th.Trim, 6)
-	end
+	-- sparkles, flames and other tier VFX are drawn client-side (StarterPlayerScripts.Gameplay.SpeedFX)
 	if th.Fire then
 		for _, s in { -1, 1 } do
-			local jet = part(model, "Jet", Vector3.new(0.7, 0.7, 0.7), C(s * 2.0, 1.4, 5.9), BLACK)
-			local fire = Instance.new("Fire")
-			fire.Color = th.Trim
-			fire.SecondaryColor = Color3.fromHex("FFD23F")
-			fire.Heat = 4
-			fire.Size = 2.5
-			fire.Parent = jet
+			part(model, "Jet", Vector3.new(0.7, 0.7, 0.7), C(s * 2.0, 1.4, 5.9), BLACK) -- flames: SpeedFX
 		end
 	end
 	if th.Plates then
@@ -165,7 +157,6 @@ function TreadmillBuilder.Build(levelIndex)
 			local h = i == 2 and 1.9 or 1.3
 			part(model, "Plate", Vector3.new(0.4, h, 1.0), crossbar.CFrame * C(x, 0.5 + h / 2, 0) * A(math.rad(-12), 0, 0), th.Chevron, Enum.Material.Neon)
 		end
-		sparkles(screen, th.Chevron, 4)
 	end
 
 	local run = Instance.new("Attachment")

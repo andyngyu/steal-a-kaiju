@@ -624,10 +624,11 @@ local function pickWeighted(rng, picks)
 	return picks[#picks]
 end
 
--- Replaces the biome's old blocky Decor with brick art: a dirt trail to the nest, stone trim along both cliffs, trees
--- along the walls, bushes and boulders in the side bands, flowers / grass / mushrooms off the trail and the centre line,
--- vines down both cliff faces and a NEST sign. Keeps clear of the nest, the guardian's bed and the trail.
-local function dressProps(laneModel)
+-- Replaces the biome's old blocky Decor with brick art from specs.Dress_<BiomeId> (see the Pebble Plains entry in
+-- Tools.BiomeArtSpecs for the format): a trail to the nest, trim along both cliffs, props against the cliffs, along
+-- them, in the side bands and scattered off the path, and a NEST sign. Keeps clear of the nest, the guardian's bed and
+-- the trail. Counts scale with the biome's floor area (they're given for 120 x 80).
+local function dressProps(laneModel, dress)
 	local props = ServerStorage:FindFirstChild("Assets") and ServerStorage.Assets:FindFirstChild("Props")
 	if not props then
 		return "no Assets.Props - run BuildProps"
@@ -644,13 +645,50 @@ local function dressProps(laneModel)
 	local zone = laneModel.Zone
 	local x0, x1 = zone.Position.X - zone.Size.X / 2, zone.Position.X + zone.Size.X / 2
 	local halfZ = zone.Size.Z / 2
+	local area = (x1 - x0) * halfZ * 2 / (120 * 80)
 	local center = laneModel.NestSite.Center
 	local nest = Vector3.new(center.Position.X, 0, center.Position.Z)
 	local bed = center.GuardianSpawn.WorldPosition
 	bed = Vector3.new(bed.X, 0, bed.Z)
 	local rng = Random.new(9)
-	local ground, offTrail = dressTrail(decor, x0, x1, halfZ, nest, rng)
-	ground += dressWallTrim(decor, x0, x1, halfZ, rng)
+	local wallTop = MapConfig.Lane.WallHeight
+
+	-- props standing against the cliffs are planned first so the trim leaves room for them; floor-standing ones go first
+	-- and the rest skip the cliff above them
+	local wallPlan, gaps = {}, { [-1] = {}, [1] = {} }
+	local walls = table.clone(dress.Walls or {})
+	table.sort(walls, function(a, b)
+		return (a.Mode == "Floor" and 0 or 1) < (b.Mode == "Floor" and 0 or 1)
+	end)
+	local function inGap(s, x)
+		for _, g in gaps[s] do
+			if x > g[1] - 1 and x < g[2] + 1 then
+				return true
+			end
+		end
+		return false
+	end
+	for _, w in walls do
+		for _, s in { -1, 1 } do
+			local x = x0 + rng:NextNumber(2, 6) + (w.Mode == "Floor" and 10 or 0)
+			while x < x1 - (w.Mode == "Floor" and 10 or 2) do
+				local name = (w.Alt and rng:NextInteger(0, 1) == 1) and w.Alt or w.Name
+				local model = props:FindFirstChild(name)
+				if model and (w.Mode == "Floor" or not inGap(s, x)) then
+					local len = model:GetAttribute("Length") or 6
+					local y = w.Mode == "Hang" and wallTop - len or (w.Mode == "Band" and rng:NextNumber(w.Y[1], w.Y[2]) or 0)
+					table.insert(wallPlan, { name = name, x = x, y = y, s = s, floor = w.Mode == "Floor" })
+					if w.Mode == "Floor" then
+						table.insert(gaps[s], { x - 4, x + 4 })
+					end
+				end
+				x += rng:NextNumber(w.Every[1], w.Every[2])
+			end
+		end
+	end
+
+	local ground, offTrail = dressTrail(decor, x0, x1, halfZ, nest, rng, dress)
+	ground += dressWallTrim(decor, x0, x1, halfZ, rng, dress.Trim, gaps)
 	local taken = {}
 	local function free(pos, r)
 		if (pos - nest).Magnitude < 12.5 + r or (pos - bed).Magnitude < 10 + r or offTrail(pos) < r then
@@ -672,7 +710,9 @@ local function dressProps(laneModel)
 		m:PivotTo(cf)
 		for _, d in m:GetDescendants() do
 			if d:IsA("BasePart") then
-				d.CanCollide = collide
+				local fx = d.Name == "FxAnchor"
+				d.CanCollide = collide and not fx
+				d.CanQuery = collide and not fx
 			end
 		end
 		m.Parent = decor
@@ -684,82 +724,120 @@ local function dressProps(laneModel)
 	local function yaw()
 		return CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
 	end
+	local function scaleIn(range)
+		return rng:NextNumber(range[1], range[2])
+	end
+
 	-- NEST sign on the right of the trail just inside the entrance, turned towards players coming in so its arrow points
 	-- into the biome
-	put("NestSign", CFrame.new(x0 + 12, 0, -10) * CFrame.Angles(0, 2.53, 0), 1.5, true, 2)
-	-- trees along both walls
-	for _, s in { -1, 1 } do
-		local x = x0 + 14 + rng:NextNumber(0, 6)
-		while x < x1 - 8 do
-			local pos = Vector3.new(x, 0, s * (halfZ - 6.5))
-			if free(pos, 5) then
-				put("Tree", CFrame.new(pos) * yaw(), rng:NextNumber(0.9, 1.15), true, 5)
+	local sign = dress.Sign or "NestSign"
+	if props:FindFirstChild(sign) then
+		put(sign, CFrame.new(x0 + 12, 0, -10) * CFrame.Angles(0, 2.53, 0), 1.5, true, 2)
+	end
+	-- on the cliff faces (faces point into the lane)
+	for _, p in wallPlan do
+		local cf = CFrame.new(p.x, p.y, p.s * halfZ) * CFrame.Angles(0, p.s > 0 and 0 or math.pi, 0)
+		if p.floor then
+			put(p.name, cf, 1, false, nil)
+			table.insert(taken, { Vector3.new(p.x, 0, p.s * (halfZ - 3)), 4 })
+		else
+			put(p.name, cf, 1, false, nil)
+		end
+	end
+	-- along both cliffs
+	local E = dress.Edge
+	if E then
+		for _, s in { -1, 1 } do
+			local x = x0 + 14 + rng:NextNumber(0, 6)
+			while x < x1 - 8 do
+				local pick = pickWeighted(rng, E.Picks)
+				local pos = Vector3.new(x, 0, s * (halfZ - (E.Inset or 6.5)))
+				if props:FindFirstChild(pick[1]) and free(pos, E.Radius) then
+					put(pick[1], CFrame.new(pos) * yaw(), scaleIn(E.Scale), pick[3] == true, E.Radius)
+				end
+				x += rng:NextNumber(E.Every[1], E.Every[2])
 			end
-			x += rng:NextNumber(24, 32)
 		end
 	end
-	-- bushes and boulders in the side bands
-	local placed, tries = 0, 0
-	while placed < 14 and tries < 300 do
-		tries += 1
-		local s = rng:NextInteger(0, 1) == 0 and -1 or 1
-		local pos = Vector3.new(rng:NextNumber(x0 + 6, x1 - 6), 0, s * rng:NextNumber(17, halfZ - 3))
-		local roll = rng:NextNumber()
-		local name = roll < 0.38 and "Bush" or roll < 0.6 and "BerryBush" or "Boulder"
-		local scale = rng:NextNumber(0.8, 1.25)
-		if free(pos, 3 * scale) then
-			put(name, CFrame.new(pos) * yaw(), scale, name == "Boulder", 3 * scale)
-			placed += 1
+	-- side bands
+	local Bd = dress.Bands
+	if Bd then
+		local want = math.floor(Bd.Count * area + 0.5)
+		local placed, tries = 0, 0
+		while placed < want and tries < want * 25 do
+			tries += 1
+			local s = rng:NextInteger(0, 1) == 0 and -1 or 1
+			local pos = Vector3.new(rng:NextNumber(x0 + 6, x1 - 6), 0, s * rng:NextNumber(17, halfZ - 3))
+			local pick = pickWeighted(rng, Bd.Picks)
+			local scale = scaleIn(Bd.Scale)
+			local r = Bd.Radius * scale
+			if props:FindFirstChild(pick[1]) and free(pos, r) then
+				put(pick[1], CFrame.new(pos) * yaw(), scale, pick[3] == true, r)
+				placed += 1
+			end
 		end
 	end
-	-- flowers, grass and mushrooms everywhere off the centre line
-	local small = { "FlowersPink", "FlowersMixed", "FlowersRed", "Grass", "Grass", "Mushroom" }
-	placed, tries = 0, 0
-	while placed < 26 and tries < 500 do
-		tries += 1
-		local pos = Vector3.new(rng:NextNumber(x0 + 3, x1 - 3), 0, rng:NextNumber(-halfZ + 3, halfZ - 3))
-		if math.abs(pos.Z) > 4 and free(pos, 1.2) then
-			put(small[rng:NextInteger(1, #small)], CFrame.new(pos) * yaw(), rng:NextNumber(0.9, 1.3), false, 1.2)
-			placed += 1
-		end
-	end
-	-- vines hanging down both cliff faces (leaves point into the lane)
-	local wallTop = MapConfig.Lane.WallHeight
-	for _, s in { -1, 1 } do
-		local x = x0 + 4
-		while x < x1 - 2 do
-			local name = rng:NextInteger(0, 1) == 0 and "VineShort" or "VineLong"
-			local len = props[name]:GetAttribute("Length") or 6
-			put(name, CFrame.new(x, wallTop - len, s * halfZ) * CFrame.Angles(0, s > 0 and 0 or math.pi, 0), 1, false, nil)
-			x += rng:NextNumber(13, 19)
+	-- small things everywhere off the centre line
+	local Sm = dress.Small
+	if Sm then
+		local want = math.floor(Sm.Count * area + 0.5)
+		local placed, tries = 0, 0
+		while placed < want and tries < want * 25 do
+			tries += 1
+			local pos = Vector3.new(rng:NextNumber(x0 + 3, x1 - 3), 0, rng:NextNumber(-halfZ + 3, halfZ - 3))
+			local pick = pickWeighted(rng, Sm.Picks)
+			local scale = pick[3] and rng:NextNumber(pick[3], pick[4]) or scaleIn(Sm.Scale)
+			if math.abs(pos.Z) > 4 and props:FindFirstChild(pick[1]) and free(pos, 1.2) then
+				put(pick[1], CFrame.new(pos) * yaw(), scale, false, 1.2)
+				placed += 1
+			end
 		end
 	end
 	return "props " .. laneModel.Name .. ": " .. count .. ", trail + trim parts: " .. ground
 end
 
+-- Nest art + props for every lane biome that has specs.Dress_<BiomeId>.
 function BiomeArtBuilder.DressLane()
 	local B, specs = tools()
 	local lane = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Lane")
 	assert(lane, "no Workspace.Map.Lane - run MapBuilder first")
 	local out = {}
-	for _, biome in { "PebblePlains" } do
-		local m = lane:FindFirstChild(biome)
-		if m then
-			table.insert(out, dressNest(B, specs, biome, m))
+	local biomes = {}
+	for _, m in lane:GetChildren() do
+		if m:IsA("Model") and m:FindFirstChild("Zone") then
+			table.insert(biomes, m)
+		end
+	end
+	table.sort(biomes, function(a, b)
+		return (a:GetAttribute("Order") or 0) < (b:GetAttribute("Order") or 0)
+	end)
+	for _, m in biomes do
+		local dress = specs["Dress_" .. m.Name]
+		if dress then
+			table.insert(out, dressNest(B, specs, m.Name, m))
 			task.wait()
-			table.insert(out, dressProps(m))
+			table.insert(out, dressProps(m, dress))
 			task.wait()
 		end
 	end
 	return table.concat(out, "\n")
 end
 
+-- Every biome's egg + guardian (when it has specs), all props, then the lane dressing.
 function BiomeArtBuilder.Build()
+	local _, specs = tools()
+	local BiomeConfig = fresh(ReplicatedStorage.Shared.Config.BiomeConfig)
 	local out = {}
-	table.insert(out, BiomeArtBuilder.BuildEgg("PebblePlains"))
-	task.wait()
-	table.insert(out, BiomeArtBuilder.BuildGuardian("PebblePlains"))
-	task.wait()
+	for _, biome in BiomeConfig.List do
+		if specs["Egg_" .. biome.Id] then
+			table.insert(out, BiomeArtBuilder.BuildEgg(biome.Id))
+			task.wait()
+		end
+		if specs["Guardian_" .. biome.Id] then
+			table.insert(out, BiomeArtBuilder.BuildGuardian(biome.Id))
+			task.wait()
+		end
+	end
 	table.insert(out, BiomeArtBuilder.BuildProps())
 	task.wait()
 	table.insert(out, BiomeArtBuilder.DressLane())

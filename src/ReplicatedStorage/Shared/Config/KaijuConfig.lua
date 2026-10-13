@@ -7,6 +7,10 @@
 -- How each kaiju moves (gait/emotes) lives on the brick models (Tools.KaijuSpecs -> Gameplay.KaijuMotion).
 local hex = Color3.fromHex
 
+-- Global pet income buff: every species' CashPerSecond below is multiplied by this (selling and Index rewards follow
+-- income, so they rise with it).
+local INCOME_BUFF = 1.15
+
 export type Kaiju = {
 	DisplayName: string,
 	Rarity: string,
@@ -26,7 +30,7 @@ local function k(display, rarity, biome, archetype, cps, hatch, color, accent, s
 		Rarity = rarity,
 		Biome = biome,
 		Archetype = archetype,
-		CashPerSecond = cps,
+		CashPerSecond = math.floor(cps * INCOME_BUFF * 100 + 0.5) / 100, -- rounded to cents
 		HatchSeconds = hatch,
 		Model = (display:gsub(" ", "")),
 		Scale = scale or 1,

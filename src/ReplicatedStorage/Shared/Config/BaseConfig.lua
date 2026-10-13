@@ -5,11 +5,12 @@
 export type Level = { Width: number, Depth: number, Capacity: number, Cost: number }
 
 local levels: { Level } = {
+	-- starts at 6 kaiju/eggs; every upgrade adds exactly +2. Costs are ~13x the old 750 / 7.5K / 75K / 750K.
 	{ Width = 40, Depth = 40, Capacity = 6, Cost = 0 },
-	{ Width = 48, Depth = 50, Capacity = 9, Cost = 750 },
-	{ Width = 56, Depth = 60, Capacity = 12, Cost = 7500 },
-	{ Width = 64, Depth = 70, Capacity = 16, Cost = 75000 },
-	{ Width = 70, Depth = 80, Capacity = 20, Cost = 750000 },
+	{ Width = 48, Depth = 50, Capacity = 8, Cost = 10000 },
+	{ Width = 56, Depth = 60, Capacity = 10, Cost = 100000 },
+	{ Width = 64, Depth = 70, Capacity = 12, Cost = 1000000 },
+	{ Width = 70, Depth = 80, Capacity = 14, Cost = 10000000 },
 }
 for _, l in levels do
 	table.freeze(l)
@@ -22,7 +23,7 @@ return table.freeze({
 		MaxDistance = 16, -- how far from the player a click can place an egg (further clicks are pulled in)
 		Inset = 3, -- eggs stay this far inside the fence
 		Spacing = 3.2, -- minimum gap between eggs in a pen
-		CooldownSeconds = 0.3,
+		CooldownSeconds = 3, -- seconds before the same player can drop another egg (client + server)
 	}),
 
 	Hatch = table.freeze({

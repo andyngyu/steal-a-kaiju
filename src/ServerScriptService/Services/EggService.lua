@@ -2,6 +2,10 @@
 -- (Remotes.DropEgg, sent by StarterPlayerScripts.Gameplay.KaijuInput): inside their own pen it's placed and starts
 -- incubating (HatchService), anywhere else it lands on the ground for anyone to grab.
 -- An egg moves through states (model attribute "State"): Nest -> Carried -> (Ground -> Carried)* -> Pen.
+-- A dropped egg in its biome's chase area is fetched by a guardian and dragged home: Ground -> Guardian (welded behind
+-- it, still grabbable) -> Nest (ReturnToNest), unless someone grabs it first (GuardianService).
+-- A nest egg remembers its slot (attribute NestSlot = the EggSpawn attachment's name) and that slot stays reserved
+-- (no respawn into it) while the egg is out in the world, so a guardian puts it back exactly where it was taken from.
 -- Each nest egg rolls a Size (EggConfig.SizeTiers) that stays with it through carry/drop/pen and becomes the kaiju's size.
 -- Carried eggs get attribute CarryOffset (weld height) so client FX can bob them at the right height.
 -- Carried eggs are never saved: leaving mid-carry drops the egg in the world, so nothing can be duplicated.
@@ -34,6 +38,10 @@ local nests = {} -- [biomeId] = { slots = { { attachment, egg? } } }
 local carried = {} -- [player] = egg model
 local lastPickup = {} -- [player] = os.clock()
 local lastDrop = {} -- [player] = os.clock()
+local night = false -- DayNightService: during the night reset the nests stay empty and nothing can be picked up
+-- A new nest egg of at least this rarity (EggConfig.Rarities Order: 6 = Mythic, 7 = Secret) is announced to everyone
+-- (GameEvent RareEggSpawned {Rarity, BiomeId, SizeTier}; KaijuUI RareSpawnController shows it at the top).
+local SPAWN_ANNOUNCE_MIN_ORDER = 6
 
 local function log(...)
 	if DevConfig.VerboseLogging then
@@ -80,8 +88,22 @@ end
 -- doesn't reliably replicate. Swap it for a fresh server-owned copy with the same identity instead.
 local function rebuild(egg)
 	local new = makeEgg(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), egg:GetAttribute("EggId"), egg:GetAttribute("Size"))
+	new:SetAttribute("NestSlot", egg:GetAttribute("NestSlot"))
+	new:SetAttribute("WeatherEgg", egg:GetAttribute("WeatherEgg"))
+	EggModel.SetMutation(new, egg:GetAttribute("Mutation")) -- weather mutations stay with the egg
 	egg:Destroy()
 	return new
+end
+
+-- An egg a guardian dragged was part of the guardian's moving assembly, and moving that same instance from the server
+-- afterwards doesn't reliably replicate (clients kept seeing it where it was let go, with a prompt the server then
+-- rejected as too far). Like rebuild above: swap it for a fresh server-owned copy before putting it anywhere.
+local function freshCopy(egg)
+	local weld = egg.PrimaryPart and egg.PrimaryPart:FindFirstChild("GuardianWeld")
+	if weld then
+		weld:Destroy()
+	end
+	return rebuild(egg)
 end
 
 local function spawnInSlot(biomeId, slot)
@@ -91,9 +113,44 @@ local function spawnInSlot(biomeId, slot)
 	egg:PivotTo(CFrame.new(slot.attachment.WorldPosition + Vector3.new(0, egg.PrimaryPart.Size.Y / 2 - 0.4, 0)))
 	egg.Parent = eggFolder
 	slot.egg = egg
+	local rarity = EggConfig.RarityById[egg:GetAttribute("Rarity")]
+	if gameEvent and rarity and rarity.Order >= SPAWN_ANNOUNCE_MIN_ORDER then
+		gameEvent:FireAllClients("RareEggSpawned", { Rarity = rarity.Id, BiomeId = biomeId, SizeTier = egg:GetAttribute("SizeTier") })
+	end
+end
+
+-- Is the egg with this id still out in the world (carried, on the ground, or being dragged home by a guardian)?
+local function eggOut(eggId)
+	if not eggId then
+		return false
+	end
+	for _, egg in carried do
+		if egg:GetAttribute("EggId") == eggId then
+			return true
+		end
+	end
+	for _, egg in eggFolder:GetChildren() do
+		local st = egg:GetAttribute("State")
+		if egg:GetAttribute("EggId") == eggId and (st == "Ground" or st == "Guardian" or st == "Carried") then
+			return true
+		end
+	end
+	-- in a guardian's jaws / arms on its way home (the egg is inside the guardian model)
+	local guardians = workspace.Runtime:FindFirstChild("Guardians")
+	if guardians then
+		for _, d in guardians:GetDescendants() do
+			if d:IsA("Model") and d:GetAttribute("EggId") == eggId and d:GetAttribute("State") == "Guardian" then
+				return true
+			end
+		end
+	end
+	return false
 end
 
 local function fillNest(biomeId)
+	if night then
+		return -- EndNight refills every nest as day breaks
+	end
 	local nest = nests[biomeId]
 	local empty, count = {}, 0
 	for _, slot in nest.slots do
@@ -101,7 +158,12 @@ local function fillNest(biomeId)
 			count += 1
 		else
 			slot.egg = nil
-			table.insert(empty, slot)
+			if slot.reserved and not eggOut(slot.reserved) then
+				slot.reserved = nil
+			end
+			if not slot.reserved then
+				table.insert(empty, slot)
+			end
 		end
 	end
 	while count < EggConfig.Nest.EggsPerNest and #empty > 0 do
@@ -210,7 +272,10 @@ end
 
 function EggService:TryPickup(player, egg)
 	local state = egg.Parent and egg:GetAttribute("State")
-	if state ~= "Nest" and state ~= "Ground" then
+	if state ~= "Nest" and state ~= "Ground" and state ~= "Guardian" then
+		return false
+	end
+	if night then
 		return false
 	end
 	if carried[player] or player:GetAttribute("CarryingStolen") then
@@ -242,11 +307,24 @@ function EggService:TryPickup(player, egg)
 		for _, slot in nests[biomeId].slots do
 			if slot.egg == egg then
 				slot.egg = nil
+				-- remembered (and kept free) so a guardian can put it back in this exact spot
+				slot.reserved = egg:GetAttribute("EggId")
+				egg:SetAttribute("NestSlot", slot.attachment.Name)
 			end
 		end
 		task.delay(EggConfig.Nest.RespawnSeconds, fillNest, biomeId)
 	end
 
+	local eggPos = egg.PrimaryPart.Position
+	local guardianWeld = egg.PrimaryPart:FindFirstChild("GuardianWeld")
+	if guardianWeld then
+		guardianWeld:Destroy() -- snatched back off the guardian carrying it home
+	end
+	local fullScale = egg:GetAttribute("FullScale")
+	if fullScale then
+		egg:SetAttribute("FullScale", nil)
+		egg:ScaleTo(fullScale) -- a guardian shrank it to fit its jaws / arms
+	end
 	egg:SetAttribute("State", "Carried")
 	setPrompt(egg, false)
 	EggModel.SetPhysics(egg, false)
@@ -263,13 +341,16 @@ function EggService:TryPickup(player, egg)
 
 	carried[player] = egg
 	local pickedIn = GuardianService:BiomeAt(hrp.Position)
+	if state ~= "Nest" and GuardianService:InChaseArea(egg:GetAttribute("BiomeId"), eggPos) then
+		pickedIn = egg:GetAttribute("BiomeId") -- a dropped egg brings back the guardian it was stolen from
+	end
 	player:SetAttribute("CarryingEgg", egg:GetAttribute("Rarity"))
 	player:SetAttribute("CarryingFromBiome", pickedIn)
 	applyWalkSpeed(player)
-	gameEvent:FireClient(player, "EggPickedUp", { Rarity = egg:GetAttribute("Rarity"), BiomeId = egg:GetAttribute("BiomeId"), Size = egg:GetAttribute("Size"), SizeTier = egg:GetAttribute("SizeTier") })
+	gameEvent:FireClient(player, "EggPickedUp", { Rarity = egg:GetAttribute("Rarity"), BiomeId = egg:GetAttribute("BiomeId"), Size = egg:GetAttribute("Size"), SizeTier = egg:GetAttribute("SizeTier"), Mutation = egg:GetAttribute("Mutation") })
 	log(player.Name, "picked up", egg:GetAttribute("Rarity"), "in", pickedIn or "safe zone", "dist", math.floor(dist))
 	if pickedIn then
-		GuardianService:OnEggTaken(pickedIn, player)
+		GuardianService:OnEggTaken(pickedIn, player, state ~= "Nest" and egg or nil)
 	end
 	return true
 end
@@ -299,14 +380,16 @@ function EggService:DropCarried(player, reason, at)
 	egg:SetAttribute("State", "Ground")
 	setPrompt(egg, true, "Grab")
 	egg.Parent = eggFolder
+	GuardianService:OnEggDropped(egg, player) -- its guardian comes to take it home
 	if player.Parent == Players then
 		gameEvent:FireClient(player, "EggDropped", { Reason = reason })
 	end
 	log(player.Name, "dropped egg:", reason)
 
 	local eggId = egg:GetAttribute("EggId")
+	local droppedAt = egg:GetAttribute("DroppedAt")
 	task.delay(EggConfig.Ground.DespawnSeconds, function()
-		if egg.Parent == eggFolder and egg:GetAttribute("State") == "Ground" and egg:GetAttribute("EggId") == eggId then
+		if egg.Parent == eggFolder and egg:GetAttribute("State") == "Ground" and egg:GetAttribute("EggId") == eggId and egg:GetAttribute("DroppedAt") == droppedAt then
 			egg:Destroy()
 		end
 	end)
@@ -328,18 +411,12 @@ local function luckOf(player)
 end
 
 -- A lucky player's egg can grow as it lands in their pen. Returns rarity, size (unchanged without luck).
+-- (Luck's rarity boost now happens at hatch time - HatchService / Shared.Util.Luck - so here it only adds size rolls.)
 local function applyLuck(player, biomeId, rarityId, size)
-	local luck = luckOf(player)
+	local luckStat = player:GetAttribute("Luck")
+	local luck = type(luckStat) == "number" and luckStat or luckOf(player)
 	if luck <= 1 then
 		return rarityId, size
-	end
-	local L = EggConfig.Luck
-	local nextRarity = EggConfig.Rarities[EggConfig.RarityById[rarityId].Order + 1]
-	local weights = EggConfig.Weights[biomeId] or {}
-	if nextRarity and nextRarity.Id ~= "Secret" and (weights[nextRarity.Id] or 0) > 0 then
-		if rng:NextNumber() < math.min(L.MaxUpgradeChance, L.UpgradeChancePerLuck * (luck - 1)) then
-			rarityId = nextRarity.Id
-		end
 	end
 	for _ = 1, math.max(0, math.floor(luck - 1 + 0.5)) do
 		size = math.max(size, EggModel.RollSize())
@@ -386,6 +463,7 @@ function EggService:TryDropAt(player, target)
 		local fromPos = egg.PrimaryPart.Position
 		clearCarry(player)
 		local fresh = EggModel.Build(biomeId, rarityId, egg:GetAttribute("EggId"), size)
+		EggModel.SetMutation(fresh, egg:GetAttribute("Mutation"))
 		egg:Destroy()
 		if HatchService:PlaceEgg(player, fresh, x, d, fromPos) then
 			gameEvent:FireClient(player, "EggPlaced", { Rarity = rarityId })
@@ -405,8 +483,156 @@ function EggService:TryDropAt(player, target)
 	end
 end
 
+-- A guardian dragged a dropped egg home: it goes back into the exact slot it was taken from (kept free for it), or any
+-- free slot if that's somehow taken (gone if the nest has none).
+function EggService:ReturnToNest(egg)
+	local nest = nests[egg:GetAttribute("BiomeId")]
+	local eggId = egg:GetAttribute("EggId")
+	local home = egg:GetAttribute("NestSlot")
+	local slot
+	local free = {}
+	if nest then
+		for _, s in nest.slots do
+			if not (s.egg and s.egg.Parent) or s.egg == egg then
+				s.egg = nil
+				if s.attachment.Name == home then
+					slot = s
+				elseif not s.reserved or s.reserved == eggId or not eggOut(s.reserved) then
+					table.insert(free, s)
+				end
+			end
+		end
+	end
+	slot = slot or free[1] and free[rng:NextInteger(1, #free)]
+	if not slot then
+		egg:Destroy()
+		return false
+	end
+	slot.reserved = nil
+	local fresh = freshCopy(egg)
+	fresh:PivotTo(CFrame.new(slot.attachment.WorldPosition + Vector3.new(0, fresh.PrimaryPart.Size.Y / 2 - 0.4, 0)))
+	fresh:SetAttribute("State", "Nest")
+	setPrompt(fresh, true, "Steal")
+	fresh.Parent = eggFolder
+	slot.egg = fresh
+	log("egg back in the", fresh:GetAttribute("BiomeId"), "nest", slot.attachment.Name)
+	return true
+end
+
+-- A guardian picks up a dropped egg to carry home: returns a fresh unanchored copy (State "Guardian", still "Grab"-able)
+-- for GuardianService to weld into the guardian model. Fresh, and outside Runtime.Eggs, so neither the old instance's
+-- replication nor the client egg animation (Gameplay.KaijuFX only animates eggs in Runtime.Eggs) gets in the way.
+function EggService:TakeIntoGuardian(egg)
+	local fresh = freshCopy(egg)
+	EggModel.SetPhysics(fresh, false)
+	fresh:SetAttribute("State", "Guardian")
+	setPrompt(fresh, true, "Grab")
+	return fresh
+end
+
+-- A guardian let go of the egg it was dragging (it went after someone instead): the egg stays on the ground there.
+function EggService:LetGoFromGuardian(egg)
+	local pos = egg.PrimaryPart.Position
+	local fresh = freshCopy(egg)
+	local y = groundY(pos, { fresh, workspace.Runtime })
+	fresh:PivotTo(CFrame.new(pos.X, y + fresh.PrimaryPart.Size.Y / 2, pos.Z))
+	fresh:SetAttribute("State", "Ground")
+	setPrompt(fresh, true, "Grab")
+	local stamp = workspace:GetServerTimeNow()
+	fresh:SetAttribute("DroppedAt", stamp)
+	fresh.Parent = eggFolder
+	task.delay(EggConfig.Ground.DespawnSeconds, function()
+		if fresh.Parent == eggFolder and fresh:GetAttribute("State") == "Ground" and fresh:GetAttribute("DroppedAt") == stamp then
+			fresh:Destroy()
+		end
+	end)
+	return fresh
+end
+
+-- Night falls (DayNightService): every egg out in the world is lost - carried ones (their players get GameEvent
+-- EggLostNight), dropped ones and the nests' own. Eggs in pens are untouched. Guardians let go of theirs first
+-- (GuardianService:ResetForNight).
+function EggService:ResetForNight()
+	night = true
+	local holders = {}
+	for player in carried do
+		table.insert(holders, player)
+	end
+	for _, player in holders do
+		local egg = carried[player]
+		clearCarry(player)
+		if egg then
+			egg:Destroy()
+		end
+		if player.Parent == Players then
+			gameEvent:FireClient(player, "EggLostNight", {})
+		end
+		log(player.Name, "lost their egg to the night")
+	end
+	for _, egg in eggFolder:GetChildren() do
+		local st = egg:GetAttribute("State")
+		if st == "Nest" or st == "Ground" or st == "Guardian" or st == "Carried" then
+			egg:Destroy()
+		end
+	end
+	for _, nest in nests do
+		for _, slot in nest.slots do
+			slot.egg = nil
+			slot.reserved = nil
+		end
+	end
+end
+
+-- Day breaks: every nest gets a fresh set of eggs.
+function EggService:EndNight()
+	night = false
+	for biomeId in nests do
+		fillNest(biomeId)
+	end
+end
+
 function EggService:GetCarried(player)
 	return carried[player]
+end
+
+-- Every egg sitting in a nest right now: { { egg = model, biomeId = id, position = Vector3 } } (empty at night).
+function EggService:GetNestEggs()
+	local list = {}
+	if night then
+		return list
+	end
+	for biomeId, nest in nests do
+		for _, slot in nest.slots do
+			if slot.egg and slot.egg.Parent and slot.egg:GetAttribute("State") == "Nest" and slot.egg.PrimaryPart then
+				table.insert(list, { egg = slot.egg, biomeId = biomeId, position = slot.egg.PrimaryPart.Position })
+			end
+		end
+	end
+	return list
+end
+
+function EggService:IsNight()
+	return night
+end
+
+-- WeatherService: a nest / ground egg gets a mutation (an egg keeps the first one it gets). Returns true if it changed.
+function EggService:MutateEgg(egg, mutation, weatherEgg)
+	if not (egg and egg.Parent and egg.PrimaryPart) or egg:GetAttribute("Mutation") then
+		return false
+	end
+	local st = egg:GetAttribute("State")
+	if st ~= "Nest" and st ~= "Ground" then
+		return false
+	end
+	if not EggModel.SetMutation(egg, mutation) then
+		return false
+	end
+	if weatherEgg then
+		egg:SetAttribute("WeatherEgg", true)
+	end
+	egg:SetAttribute("MutatedAt", workspace:GetServerTimeNow()) -- clients play a flash
+	log(egg:GetAttribute("BiomeId"), egg:GetAttribute("Rarity"), "egg mutated:", mutation, weatherEgg and "(weather egg)" or "")
+	return true
 end
 
 return EggService

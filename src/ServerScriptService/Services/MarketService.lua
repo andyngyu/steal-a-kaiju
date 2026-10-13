@@ -32,10 +32,10 @@ end
 function MarketService:Sell(player, kaijuId)
 	local data = DataService:Get(player)
 	local entry, model = BaseService:GetItem(player, kaijuId)
-	if not (data and entry and entry.Kind == "Kaiju") or entry.StolenBy then
+	if not (data and entry and entry.Kind == "Kaiju") or entry.StolenBy or entry.Unique then -- Unique: reward kaiju can't be sold
 		return false
 	end
-	local price = KaijuStats.SellPrice(entry.Species, entry.Size, entry.Level)
+	local price = KaijuStats.EntrySellPrice(entry) -- includes a weather mutation
 	local position = model and KaijuService:GetPosition(model) or nil
 	BaseService:RemoveItem(player, kaijuId)
 	data.Stats.KaijuSold = (data.Stats.KaijuSold or 0) + 1
