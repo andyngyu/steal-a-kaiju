@@ -100,6 +100,62 @@ function BiomeArtBuilder.BuildEgg(biomeId, rarityId)
 			c:Destroy()
 		end
 	end
+	-- glow: spec.Light = { Color, Range, Brightness } puts a PointLight in the biggest "Gem" brick; spec.FX = list of
+	-- particle settings (Texture, Colors, Rate, Size {from, to}, Lifetime, Speed, RotSpeed, LightEmission, Acceleration,
+	-- Shape) emitted from the shell
+	if spec.Light then
+		local gemPart
+		for _, p in bricks do
+			if p.Name == "Gem" and (not gemPart or p.Size.Magnitude > gemPart.Size.Magnitude) then
+				gemPart = p
+			end
+		end
+		if gemPart then
+			-- the light hangs a little in front of the gem so it washes over the shell round it
+			local glow = Instance.new("Attachment")
+			glow.Name = "GemGlow"
+			glow.Position = shell.CFrame:PointToObjectSpace(gemPart.Position + Vector3.new(0, 0, -(spec.Light.Ahead or 0.7)))
+			glow.Parent = shell
+			local light = Instance.new("PointLight")
+			light.Name = "GemLight"
+			light.Color = Color3.fromHex(spec.Light.Color)
+			light.Range = spec.Light.Range or 6
+			light.Brightness = spec.Light.Brightness or 1.5
+			light.Shadows = false
+			light.Parent = glow
+		end
+	end
+	for i, fx in spec.FX or {} do
+		local e = Instance.new("ParticleEmitter")
+		e.Name = fx.Name or ("EggFX" .. i)
+		e.Texture = fx.Texture
+		local colors = fx.Colors or { "FFFFFF" }
+		local keys = {}
+		for k, hex in colors do
+			table.insert(keys, ColorSequenceKeypoint.new(#colors == 1 and (k - 1) or (k - 1) / (#colors - 1), Color3.fromHex(hex)))
+		end
+		if #colors == 1 then
+			table.insert(keys, ColorSequenceKeypoint.new(1, Color3.fromHex(colors[1])))
+		end
+		e.Color = ColorSequence.new(keys)
+		local size = fx.Size or { 0.4, 0 }
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size[1]), NumberSequenceKeypoint.new(1, size[2]) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.7, 0.2), NumberSequenceKeypoint.new(1, 1) })
+		e.Lifetime = NumberRange.new(fx.Lifetime[1], fx.Lifetime[2])
+		e.Rate = fx.Rate or 2
+		e.Speed = NumberRange.new((fx.Speed or { 0, 0 })[1], (fx.Speed or { 0, 0 })[2])
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new((fx.RotSpeed or { 0, 0 })[1], (fx.RotSpeed or { 0, 0 })[2])
+		e.LightEmission = fx.LightEmission or 1
+		e.LightInfluence = 0
+		e.Acceleration = fx.Acceleration or Vector3.zero
+		e.Shape = Enum.ParticleEmitterShape[fx.Shape or "Sphere"]
+		e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+		e.ZOffset = 0.5
+		e.Parent = shell
+	end
+
 	model.PrimaryPart = shell
 	model.Name = name
 	model:SetAttribute("Bricks", #bricks)

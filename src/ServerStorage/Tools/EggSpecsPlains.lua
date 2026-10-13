@@ -1,507 +1,525 @@
--- Pebble Plains egg family (merged into Tools.BiomeArtSpecs; built by Tools.BiomeArtBuilder.BuildEgg(biome, rarity)).
--- One design per rarity, themed on the kaiju that hatches at that rarity, more ornate as rarity rises:
---   Common     Pebble egg (Pebblesaur / Chompling): cream shell, mossy cap, pebbles, a sprout
---   Uncommon   Bonkey egg: brown fur, heart face, round ears, hair tuft, a bonked bump with a bandage
---   Rare       Tuskit egg: big floppy ears, trunk, tusks, blue stripes
---   Epic       Rumblerex egg: green scales, a chomping lid of teeth, horns, a crest of glowing purple plates
---   Legendary  Thunderback egg: storm fur, glowing lightning cracks, a thundercloud crown that throws bolts
---   Mythic     Boulderback egg (the biome's guardian): rocky shell with glowing purple cracks, crystal cluster
---   Secret     Prismling egg: pearl shell, a crown of rainbow crystals, sparkles, flowers in the leaves
--- Family look: a cradle of leaves round the base and a glowing yellow diamond gem on the front, framed by parts named
--- "Band" that Lib.EggModel tints with the rarity colour (Legendary+ frames grow rays). Clean voxels (no studs), 0.1 studs.
--- The shell fills EggConfig.Size (2.2 x 2.8 x 2.2); ornaments may stick out. Front = -Z, bottom at y = 0.
--- Angles round the egg: a = 0 is the front, + towards +X (the egg's left, the viewer's left).
+-- Pebble Plains egg family (merged into Tools.BiomeArtSpecs; built by Tools.BiomeArtBuilder.BuildEgg(biome, rarity) into
+-- ServerStorage.Assets.Eggs.PebblePlains_<Rarity>). One design per rarity, themed on the kaiju that hatches at it and
+-- more ornate as rarity rises:
+--   Common     Pebblesaur egg: green with spots, a cream belly, a ridge of pebbles over the top
+--   Uncommon   Bonkey egg: fur with a hair cap and tuft, heart face and muzzle, cupped ears, a bonked bump, a banana
+--   Rare       Tuskit egg: huge pink-lined ears, ringed trunk, tusks, blue war paint, a leafy crown, a vine
+--   Epic       Rumblerex egg: a jaw seam full of teeth, angry brows and horns, a crest of glowing plates, scratches
+--   Legendary  Thunderback egg: storm fur, chest shield, glowing lightning cracks, a thundercloud crown with bolts
+--   Mythic     Boulderback egg (the guardian): boulders, glowing violet cracks, a mossy cap, a crystal cluster
+--   Secret     Prismling egg: rainbow pearl, a rainbow crystal crown and crystal wings, flowers in the leaves
+-- Family look (Tools.EggKit): a cup of pointed leaves at the base and a faceted glowing yellow gem on the front in a
+-- frame of parts named "Band" (Lib.EggModel tints them with the rarity colour; Legendary+ frames grow rays), a gem
+-- light and twinkles. Clean voxels, 0.1 studs. Budget ~550-800 bricks: colour edges that run round the egg
+-- (horizontal) are nearly free, edges that run up and down it and thin diagonal lines cost the most.
+local Kit = require(game:GetService("ServerStorage").Tools.EggKit:Clone())
+local V = Kit.V
+local at, dir, surface, lean = Kit.at, Kit.dir, Kit.surface, Kit.lean
+local rad, deg = math.rad, math.deg
+local PI = math.pi
 local specs = {}
 
-local VOXEL = 0.1
-local rad, deg = math.rad, math.deg
-
--- radius of the shell (union of two ellipsoids) at height y
-local function radii(y)
-	local r1 = 1.1 * math.sqrt(math.max(0, 1 - ((y - 1.3) / 1.3) ^ 2))
-	local r2 = 0.92 * math.sqrt(math.max(0, 1 - ((y - 1.55) / 1.25) ^ 2))
-	return r1, r2
-end
-
-local function surface(y)
-	return math.max(radii(y))
-end
-
--- point on (or `out` studs off) the shell at height y and angle a
-local function at(a, y, out)
-	local r = surface(y) + (out or 0)
-	return Vector3.new(math.sin(a) * r, y, -math.cos(a) * r)
-end
-
--- degrees the shell's normal leans away from straight up at height y (0 = top, 90 = sideways, >90 = underside)
-local function normalTilt(y)
-	local r1, r2 = radii(y)
-	local h, v
-	if r1 >= r2 then
-		h, v = r1 / 1.21, (y - 1.3) / 1.69
-	else
-		h, v = r2 / 0.8464, (y - 1.55) / 1.5625
-	end
-	return deg(math.atan2(h, v))
-end
-
-local function eul(cf)
-	local x, y, z = cf:ToOrientation()
-	return { deg(x), deg(y), deg(z) }
-end
-
--- orientation whose +Y leans `tilt` degrees outwards at angle a, spun `spin` degrees about itself, then `extra`
-local function lean(a, tilt, spin, extra)
-	return eul(CFrame.Angles(0, -a, 0) * CFrame.Angles(rad(-tilt), 0, 0) * CFrame.Angles(0, rad(spin or 0), 0) * (extra or CFrame.identity))
-end
-
--- the up axis of lean(a, tilt)
-local function leanUp(a, tilt)
-	local o = Vector3.new(math.sin(a), 0, -math.cos(a))
-	return Vector3.yAxis * math.cos(rad(tilt)) + o * math.sin(rad(tilt))
-end
-
--- shell + baked shading: darker base, a soft highlight up on the viewer's left
-local function shellShapes(base, dark, light)
-	return {
-		{ Group = "Shell", Color = base, Kind = "Ellipsoid", C = { 0, 1.3, 0 }, R = { 1.1, 1.3, 1.1 } },
-		{ Group = "Shell", Color = base, Kind = "Ellipsoid", C = { 0, 1.55, 0 }, R = { 0.92, 1.25, 0.92 } },
-		{ Group = "Shell", Color = dark, Kind = "Box", C = { 0, 0.22, 0 }, S = { 3, 0.44, 3 }, Paint = true },
-		{ Group = "Shell", Color = light, Kind = "Ellipsoid", C = at(0.75, 2.05, 0.05), R = { 0.34, 0.42, 0.34 }, Paint = true },
-	}
-end
-
-local function add(list, items)
-	for _, i in items do
-		table.insert(list, i)
-	end
-end
-
--- a neon (or plain) crack painted along the shell through {a, y} points
-local function crack(shapes, points, color, width)
-	for i = 1, #points - 1 do
-		local p, q = points[i], points[i + 1]
-		table.insert(shapes, { Group = "Shell", Color = color, Kind = "Capsule", A = at(p[1], p[2], 0.03), B = at(q[1], q[2], 0.03), R = width or 0.075, Paint = true })
-	end
-end
-
--- a cradle of pointed leaves round the base: tall leaves with a light vein, short dark ones between
-local function leafCradle(bits, n)
-	n = n or 9
-	local r = surface(0.2)
-	for k = 0, n * 2 - 1 do
-		local a = (k + 0.5) / (n * 2) * math.pi * 2
-		local o = Vector3.new(math.sin(a), 0, -math.cos(a))
-		local tall = k % 2 == 0
-		local tilt = tall and (36 + (k % 4) * 3) or 58
-		local up = leanUp(a, tilt)
-		local base = Vector3.new(0, 0.05, 0) + o * (r - 0.08)
-		local w, h, tip = 0.36, 0.34, 0.25
-		local color = (k % 4 == 0) and "Leaf" or "LeafDark"
-		if not tall then
-			w, h, tip, color = 0.28, 0.22, 0.2, "LeafDeep"
-		end
-		table.insert(bits, { Name = "Leaf", Group = "Leaves", Color = color, C = base + up * (h / 2), S = { w, h, 0.07 }, Rot = lean(a, tilt) })
-		table.insert(bits, { Name = "Leaf", Group = "Leaves", Color = color, C = base + up * (h + tip * 0.12), S = { tip, tip, 0.07 }, Rot = lean(a, tilt, 0, CFrame.Angles(0, 0, rad(45))) })
-		if tall then
-			table.insert(bits, { Name = "Leaf", Group = "Leaves", Color = "LeafLight", C = base + up * (h * 0.6) + o * 0.012, S = { 0.06, h * 0.9, 0.08 }, Rot = lean(a, tilt) })
-		end
-	end
-end
-
--- sprout on the top: a stem and two leaves
-local function sprout(bits, top)
-	table.insert(bits, { Name = "Stem", Group = "Sprout", Color = "Stem", C = { 0, top + 0.1, 0 }, S = { 0.09, 0.26, 0.09 } })
-	table.insert(bits, { Name = "Leaf", Group = "Sprout", Color = "Leaf", C = { 0.17, top + 0.25, 0 }, S = { 0.32, 0.06, 0.2 }, Rot = { 0, 0, 25 } })
-	table.insert(bits, { Name = "Leaf", Group = "Sprout", Color = "LeafLight", C = { 0.17, top + 0.28, 0 }, S = { 0.2, 0.06, 0.08 }, Rot = { 0, 0, 25 } })
-	table.insert(bits, { Name = "Leaf", Group = "Sprout", Color = "LeafDark", C = { -0.15, top + 0.21, 0.02 }, S = { 0.28, 0.06, 0.18 }, Rot = { 0, 0, -30 } })
-end
-
--- z of the shell's front at (x, y)
-local function frontZ(x, y)
-	return -math.sqrt(math.max(0, surface(y) ^ 2 - x * x))
-end
-
--- the glowing diamond gem on the front, framed by a rarity-tinted "Band" diamond (+ four rays for the top rarities)
-local function gem(bits, y, s, rays)
-	local z = frontZ(0, y)
-	table.insert(bits, { Name = "Band", Group = "Gem", Color = "Band", C = { 0, y, z - 0.02 }, S = { 0.58 * s, 0.58 * s, 0.1 }, Rot = { 0, 0, 45 } })
-	table.insert(bits, { Name = "Gem", Group = "Gem", Color = "Gem", C = { 0, y, z - 0.07 }, S = { 0.42 * s, 0.42 * s, 0.1 }, Rot = { 0, 0, 45 } })
-	table.insert(bits, { Name = "Gem", Group = "Gem", Color = "GemDeep", C = { 0, y - 0.07 * s, z - 0.1 }, S = { 0.2 * s, 0.2 * s, 0.06 }, Rot = { 0, 0, 45 } })
-	table.insert(bits, { Name = "GemCore", Group = "Gem", Color = "GemCore", C = { 0.05 * s, y + 0.07 * s, z - 0.12 }, S = { 0.12 * s, 0.12 * s, 0.05 }, Rot = { 0, 0, 45 } })
-	if rays then
-		for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-			local x, yy = d[1] * 0.5 * s, y + d[2] * 0.5 * s
-			table.insert(bits, { Name = "Band", Group = "Gem", Color = "Band", C = { x, yy, frontZ(x, yy) - 0.02 }, S = { 0.17 * s, 0.17 * s, 0.1 }, Rot = { 0, 0, 45 } })
-		end
-	end
-end
-
 local FAMILY = {
-	Leaf = "62C23C",
-	LeafDark = "48A52E",
-	LeafDeep = "37862A",
-	LeafLight = "9BE36A",
+	Leaf = "58AE36",
+	LeafDark = "3A8F2A",
+	LeafLight = "8ACF5A",
 	Stem = "4A8A2A",
-	Gem = { "FFE14D", Neon = true },
-	GemDeep = { "FFB21F", Neon = true },
-	GemCore = { "FFFDF0", Neon = true },
+	Vine = "3E8A2A",
+	Gem = { "FFD83A", Neon = true },
+	GemDeep = { "F59A10", Neon = true },
+	GemLight = { "FFEB70", Neon = true },
+	GemCore = { "FFFFF0", Neon = true },
+	Socket = "4A3612",
 	Band = "B8C0CC",
 }
 
-local function finish(shapes, bits, own, shellKey)
-	leafCradle(bits)
-	local p = table.clone(FAMILY)
+local function egg(own, shellKey, shapes, opts)
+	opts = opts or {}
+	local palette = table.clone(FAMILY)
 	for k, v in own do
-		p[k] = v
+		palette[k] = v
+	end
+	Kit.leafCollar(shapes, opts.LeafTop or 0.34, opts.Lobes or 9)
+	local fx = { Kit.twinkle({ "FFF8C0", "FFD83A" }, 1.2) }
+	for _, f in opts.FX or {} do
+		table.insert(fx, f)
 	end
 	return {
-		Voxel = VOXEL,
+		Voxel = V,
 		NoStuds = true,
+		SkinMerge = true,
+		AO = true,
 		ShellColor = own[shellKey],
-		Palette = p,
+		Palette = palette,
 		Shapes = shapes,
-		Bits = bits,
+		Light = { Color = opts.LightColor or "FFD84A", Range = 5, Brightness = 1.4 },
+		FX = fx,
 	}
 end
 
--- golden-angle scatter over a height range, skipping the gem's patch on the front
-local function scatter(n, y0, y1, avoid)
-	local out = {}
-	local k = 0
-	while #out < n and k < n * 4 do
-		local a = (k * 2.39996) % (math.pi * 2)
-		local y = y0 + ((k * 0.618034) % 1) * (y1 - y0)
-		local da = math.abs(((a + math.pi) % (math.pi * 2)) - math.pi)
-		if not (avoid and da < avoid[1] and math.abs(y - avoid[2]) < avoid[3]) then
-			table.insert(out, { a, y, k })
-		end
-		k += 1
-	end
-	return out
+local function band(color, y0, y1)
+	return Kit.paint(color, function(s, y)
+		return y >= y0 and y < y1
+	end)
 end
 
--- ---------- Common: Pebble egg ----------
+-- ---------- Common: Pebblesaur egg ----------
 do
-	local shapes = shellShapes("Cream", "CreamShade", "CreamLight")
-	add(shapes, {
-		{ Group = "Shell", Color = "Moss", Kind = "Ellipsoid", C = { 0, 2.8, 0 }, R = { 1.0, 0.46, 1.0 }, Paint = true },
-		{ Group = "Shell", Color = "MossLight", Kind = "Ellipsoid", C = at(0.7, 2.55, 0.02), R = { 0.2, 0.14, 0.2 }, Paint = true },
-	})
-	for k = 0, 8 do
-		local a = k / 9 * math.pi * 2 + 0.3
-		table.insert(shapes, { Group = "Shell", Color = "Moss", Kind = "Ellipsoid", C = at(a, 2.3 - (k % 3) * 0.1), R = { 0.17, 0.26 + (k % 2) * 0.06, 0.17 }, Paint = true })
+	local S = Kit.shell("Body")
+	table.insert(S, band("BodyLight", 2.5, 9))
+	for _, sp in { { 1.2, 2.05, 0.15 }, { 2.0, 1.5, 0.17 }, { 2.8, 2.15, 0.14 }, { -1.25, 1.95, 0.16 }, { -2.1, 1.35, 0.14 }, { -2.85, 2.0, 0.15 }, { 1.45, 0.95, 0.12 }, { -1.5, 0.9, 0.13 } } do
+		table.insert(S, { Group = "Shell", Color = "Spot", Kind = "Ellipsoid", Paint = true, C = at(sp[1], sp[2]), R = { sp[3], sp[3], sp[3] } })
 	end
-	local tones = { "Pebble", "PebbleDark", "PebbleLight" }
-	for i, p in scatter(12, 0.55, 2.0, { 0.55, 1.25, 0.45 }) do
-		local s = 0.14 + (i % 3) * 0.03
-		table.insert(shapes, { Group = "Shell", Color = tones[i % 3 + 1], Kind = "Ellipsoid", C = at(p[1], p[2], -0.03), R = { s, s * 0.8, s } })
+	local function belly(s, y)
+		return (s / 0.6) ^ 2 + ((y - 0.86) / 0.55) ^ 2 <= 1
 	end
-	local bits = {}
-	gem(bits, 1.25, 0.9)
-	sprout(bits, 2.8)
-	specs.Egg_PebblePlains_Common = finish(shapes, bits, {
-		Cream = "FFF1D2",
-		CreamShade = "EAD6AA",
-		CreamLight = "FFFAEC",
-		Moss = "86C653",
-		MossLight = "A9DD78",
-		Pebble = "B7B9C4",
-		PebbleDark = "8E91A0",
-		PebbleLight = "DCDEE6",
-	}, "Cream")
+	table.insert(S, Kit.panel("Belly", V, belly))
+	for _, ly in { 0.66, 0.88, 1.1 } do
+		table.insert(S, Kit.paint("BellyDark", function(s, y)
+			return math.abs(y - ly) < V * 0.5 and belly(s, y)
+		end))
+	end
+	-- Pebblesaur's pebbles: a ridge over the top from the brow to the back, two on each flank
+	local ridge = { { -0.62, 0.17 }, { -0.25, 0.23 }, { 0.15, 0.27 }, { 0.55, 0.25 }, { 0.95, 0.22 }, { 1.32, 0.18 } }
+	for _, r in ridge do
+		local t, rr = r[1], r[2]
+		local c = Vector3.new(0, 1.55 + 1.25 * math.cos(t), 0.92 * math.sin(t))
+		table.insert(S, { Group = "Rocks", Color = "Rock", Kind = "Ellipsoid", C = c, R = { rr, rr * 0.8, rr } })
+		table.insert(S, { Group = "Rocks", Color = "RockLight", Kind = "Ellipsoid", Paint = true, C = c + Vector3.new(0, rr * 0.5, 0), R = { rr * 0.8, rr * 0.4, rr * 0.8 } })
+	end
+	-- a pile of pebbles on the crown
+	for _, r in { { Vector3.new(0, 2.84, 0.06), 0.3 }, { Vector3.new(0.26, 2.72, -0.12), 0.22 }, { Vector3.new(-0.25, 2.7, 0.16), 0.24 }, { Vector3.new(0.05, 2.66, -0.3), 0.18 } } do
+		local c, rr = r[1], r[2]
+		table.insert(S, { Group = "Rocks", Color = "Rock", Kind = "Ellipsoid", C = c, R = { rr, rr * 0.8, rr } })
+		table.insert(S, { Group = "Rocks", Color = "RockLight", Kind = "Ellipsoid", Paint = true, C = c + Vector3.new(0, rr * 0.5, 0), R = { rr * 0.8, rr * 0.4, rr * 0.8 } })
+	end
+	for _, r in { { 1.75, 1.85, 0.18 }, { 2.35, 1.3, 0.15 }, { -1.8, 1.75, 0.18 }, { -2.4, 1.25, 0.15 } } do
+		local c, rr = at(r[1], r[2], 0.02), r[3]
+		table.insert(S, { Group = "Rocks", Color = "Rock", Kind = "Ellipsoid", C = c, R = { rr, rr * 0.8, rr } })
+		table.insert(S, { Group = "Rocks", Color = "RockLight", Kind = "Ellipsoid", Paint = true, C = c + Vector3.new(0, rr * 0.5, 0), R = { rr * 0.8, rr * 0.4, rr * 0.8 } })
+	end
+	Kit.gem(S, 1.8, 0.3)
+	specs.Egg_PebblePlains_Common = egg({
+		Body = "62A844",
+		BodyLight = "78BA55",
+		Spot = "4E8F34",
+		Belly = "FFE6A8",
+		BellyDark = "EBC57E",
+		Rock = "9EA1AF",
+		RockLight = "CDD0DA",
+	}, "Body", S)
 end
 
 -- ---------- Uncommon: Bonkey egg ----------
 do
-	local shapes = shellShapes("Fur", "FurDark", "FurLight")
-	add(shapes, {
-		-- heart-shaped face with a muzzle
-		{ Group = "Shell", Color = "Face", Kind = "Ellipsoid", C = { 0.3, 1.66, -0.9 }, R = { 0.4, 0.4, 0.4 }, Paint = true },
-		{ Group = "Shell", Color = "Face", Kind = "Ellipsoid", C = { -0.3, 1.66, -0.9 }, R = { 0.4, 0.4, 0.4 }, Paint = true },
-		{ Group = "Shell", Color = "Face", Kind = "Ellipsoid", C = { 0, 1.14, -0.95 }, R = { 0.54, 0.6, 0.4 }, Paint = true },
-		{ Group = "Shell", Color = "FaceDark", Kind = "Ellipsoid", C = { 0, 0.82, -1.0 }, R = { 0.34, 0.16, 0.3 }, Paint = true },
-		-- round ears facing forwards, pale insides
-		{ Group = "Ears", Color = "Fur", Kind = "Ellipsoid", C = { 1.0, 2.05, 0.08 }, R = { 0.37, 0.37, 0.17 }, Mirror = true },
-		{ Group = "Ears", Color = "Face", Kind = "Ellipsoid", C = { 1.03, 2.03, -0.07 }, R = { 0.22, 0.22, 0.06 }, Paint = true, Mirror = true },
-		-- the bonked bump
-		{ Group = "Shell", Color = "Bump", Kind = "Ellipsoid", C = at(-0.62, 2.25, -0.06), R = { 0.21, 0.21, 0.21 } },
-	})
-	local bits = {}
-	gem(bits, 1.3, 0.85)
-	-- hair tuft
-	for _, t in { { 0, 0, 0.42 }, { 0, 32, 0.32 }, { math.pi / 2, 34, 0.3 }, { -math.pi / 2, 34, 0.3 }, { math.pi, 32, 0.3 } } do
-		local up = leanUp(t[1], t[2])
-		table.insert(bits, { Name = "Hair", Group = "Hair", Color = t[2] == 0 and "Hair" or "HairDark", C = Vector3.new(0, 2.74, 0) + up * (t[3] / 2), S = { 0.15, t[3], 0.15 }, Rot = lean(t[1], t[2], 45) })
+	local S = Kit.shell("Fur")
+	table.insert(S, band("FurDark", 0, 0.62))
+	-- hair cap with a tufty edge
+	table.insert(S, Kit.panel("Hair", V, function(s, y, a)
+		return y > 2.36 + 0.09 * math.sin(a * 8)
+	end))
+	table.insert(S, band("HairLight", 2.66, 9))
+	-- heart-shaped face
+	local function face(s, y, g)
+		return ((s - 0.3) / (0.38 + g)) ^ 2 + ((y - 1.85) / (0.36 + g)) ^ 2 <= 1 or ((s + 0.3) / (0.38 + g)) ^ 2 + ((y - 1.85) / (0.36 + g)) ^ 2 <= 1 or (s / (0.64 + g)) ^ 2 + ((y - 1.38) / (0.56 + g)) ^ 2 <= 1
 	end
-	-- bandage cross over the bump
-	local tilt = normalTilt(2.25)
-	local bump = at(-0.62, 2.25, 0.12)
-	table.insert(bits, { Name = "Bandage", Group = "Hair", Color = "Bandage", C = bump, S = { 0.46, 0.05, 0.12 }, Rot = lean(-0.62, tilt, 45) })
-	table.insert(bits, { Name = "Bandage", Group = "Hair", Color = "Bandage", C = bump + leanUp(-0.62, tilt) * 0.01, S = { 0.46, 0.05, 0.12 }, Rot = lean(-0.62, tilt, -45) })
-	specs.Egg_PebblePlains_Uncommon = finish(shapes, bits, {
+	table.insert(S, Kit.panel("FaceRim", V, function(s, y)
+		return face(s, y, 0.1)
+	end))
+	table.insert(S, Kit.panel("Face", V * 2, function(s, y)
+		return face(s, y, 0)
+	end))
+	-- muzzle: sticks out, lit on top, shadowed under, two nostrils
+	table.insert(S, { Group = "Shell", Color = "Face", Kind = "Ellipsoid", C = { 0, 0.98, -0.98 }, R = { 0.5, 0.29, 0.33 } })
+	table.insert(S, { Group = "Shell", Color = "FaceLight", Kind = "Box", Paint = true, C = { 0, 1.17, -1.2 }, S = { 1, 0.12, 0.5 } })
+	table.insert(S, { Group = "Shell", Color = "FaceDark", Kind = "Box", Paint = true, C = { 0, 0.76, -1.2 }, S = { 1, 0.12, 0.5 } })
+	for _, x in { 0.11, -0.11 } do
+		table.insert(S, { Group = "Shell", Color = "Nose", Kind = "Ellipsoid", Paint = true, C = { x, 1.04, -1.31 }, R = { 0.06, 0.05, 0.08 } })
+	end
+	-- round ears facing forwards, cupped, pale inside
+	for _, side in { 1, -1 } do
+		local a = 1.3 * side
+		local c = at(a, 1.95, 0.2)
+		local n = dir(a * 0.3)
+		local rot = { 0, deg(-a * 0.3), 0 }
+		table.insert(S, { Group = "Ears", Color = "Fur", Kind = "Ellipsoid", C = c, R = { 0.36, 0.36, 0.14 }, Rot = rot })
+		table.insert(S, { Group = "Ears", Color = "Face", Kind = "Ellipsoid", Paint = true, C = c + n * 0.08, R = { 0.25, 0.25, 0.1 }, Rot = rot })
+		table.insert(S, { Group = "Ears", Kind = "Ellipsoid", Carve = true, C = c + n * 0.16, R = { 0.21, 0.21, 0.07 }, Rot = rot })
+	end
+	-- hair tuft curling forwards, two side licks
+	Kit.chain(S, "Hair", { { Vector3.new(0, 2.7, 0), 0.15, "Hair" }, { Vector3.new(0, 2.98, -0.08), 0.12, "Hair" }, { Vector3.new(0, 3.14, -0.26), 0.09, "HairLight" }, { Vector3.new(0, 3.08, -0.42), 0.06, "HairLight" } })
+	for _, side in { 1, -1 } do
+		Kit.chain(S, "Hair", { { Vector3.new(side * 0.2, 2.68, 0.05), 0.11, "Hair" }, { Vector3.new(side * 0.36, 2.9, 0.1), 0.08, "Hair" }, { Vector3.new(side * 0.46, 2.98, 0.2), 0.05, "HairLight" } })
+	end
+	-- the bonked bump with a bandage cross
+	local bumpA, bumpY = -0.72, 2.3
+	table.insert(S, { Group = "Shell", Color = "Bump", Kind = "Ellipsoid", C = at(bumpA, bumpY, -0.05), R = { 0.21, 0.21, 0.21 } })
+	local tilt = Kit.normalTilt(bumpY)
+	for _, spin in { 40, -40 } do
+		table.insert(S, { Group = "Shell", Color = "Bandage", Kind = "Box", C = at(bumpA, bumpY, 0.13), S = { 0.5, 0.07, 0.13 }, Rot = lean(bumpA, tilt, spin) })
+	end
+	-- a banana propped against the egg
+	local bpts = {}
+	for k = 0, 5 do
+		local t = k / 5
+		local a = 0.5 + t * 0.55
+		local y = 0.36 + math.sin(t * PI) * 0.14 + t * 0.2
+		table.insert(bpts, { dir(a) * (surface(y) + 0.2) + Vector3.new(0, y, 0), 0.05 + 0.07 * math.sin(t * PI), (k == 0 or k == 5) and "BananaTip" or "Banana" })
+	end
+	Kit.chain(S, "Banana", bpts)
+	Kit.gem(S, 1.7, 0.26)
+	specs.Egg_PebblePlains_Uncommon = egg({
 		Fur = "A0703F",
-		FurDark = "7A5230",
-		FurLight = "B88752",
+		FurDark = "86592F",
 		Face = "FFD9A0",
-		FaceDark = "E8B878",
+		FaceRim = "6E4A28",
+		FaceLight = "FFE8C4",
+		FaceDark = "E2AE6C",
+		Nose = "5E3D22",
 		Hair = "5E3D22",
-		HairDark = "4A2F1A",
-		Bump = "FF9DBB",
+		HairLight = "7A5232",
+		Bump = "FF8FB2",
 		Bandage = "FFF6E6",
-	}, "Fur")
+		Banana = "FFDD3C",
+		BananaTip = "6B4A1E",
+	}, "Fur", S)
 end
 
 -- ---------- Rare: Tuskit egg ----------
 do
-	local shapes = shellShapes("Fur", "FurDark", "FurLight")
-	add(shapes, {
-		{ Group = "Shell", Color = "Stripe", Kind = "Box", C = { 0, 2.36, 0 }, S = { 3, 0.1, 3 }, Paint = true },
-		{ Group = "Shell", Color = "Stripe", Kind = "Box", C = { 0, 2.6, 0 }, S = { 3, 0.1, 3 }, Paint = true },
-		{ Group = "Shell", Color = "Face", Kind = "Ellipsoid", C = { 0, 1.35, -0.95 }, R = { 0.5, 0.62, 0.35 }, Paint = true },
-		-- big floppy ears with pink insides
-		{ Group = "Ears", Color = "Fur", Kind = "Ellipsoid", C = { 1.02, 1.6, 0.12 }, R = { 0.56, 0.68, 0.16 }, Mirror = true },
-		{ Group = "Ears", Color = "FurDark", Kind = "Ellipsoid", C = { 1.12, 1.6, 0.12 }, R = { 0.5, 0.64, 0.2 }, Carve = false, Paint = true, Mirror = true },
-		{ Group = "Ears", Color = "Pink", Kind = "Ellipsoid", C = { 1.06, 1.6, -0.04 }, R = { 0.4, 0.52, 0.06 }, Paint = true, Mirror = true },
-		-- trunk hanging down the front and curling out at the tip
-		{ Group = "Trunk", Color = "Face", Kind = "Capsule", A = { 0, 1.12, -1.0 }, B = { 0, 0.78, -1.14 }, RA = 0.17, RB = 0.15 },
-		{ Group = "Trunk", Color = "Face", Kind = "Capsule", A = { 0, 0.78, -1.14 }, B = { 0, 0.52, -1.24 }, RA = 0.15, RB = 0.13 },
-		{ Group = "Trunk", Color = "Face", Kind = "Capsule", A = { 0, 0.52, -1.24 }, B = { 0, 0.5, -1.44 }, RA = 0.13, RB = 0.12 },
-		{ Group = "Trunk", Color = "FurDark", Kind = "Box", C = { 0, 0.88, -1.2 }, S = { 0.4, 0.05, 0.3 }, Paint = true },
-		{ Group = "Trunk", Color = "FurDark", Kind = "Box", C = { 0, 0.66, -1.28 }, S = { 0.4, 0.05, 0.3 }, Paint = true },
-		{ Group = "Trunk", Color = "Pink", Kind = "Box", C = { 0, 0.5, -1.55 }, S = { 0.3, 0.3, 0.06 }, Paint = true },
-	})
-	local bits = {}
-	gem(bits, 1.62, 0.78)
-	-- tusks curving down and forwards beside the trunk
-	for _, side in { 1, -1 } do
-		local a = 0.36 * side
-		local base = at(a, 0.86, -0.04)
-		local up1, up2 = leanUp(a, 125), leanUp(a, 150)
-		table.insert(bits, { Name = "Tusk", Group = "Trunk", Color = "Tusk", C = base + up1 * 0.16, S = { 0.13, 0.34, 0.13 }, Rot = lean(a, 125, 45) })
-		table.insert(bits, { Name = "Tusk", Group = "Trunk", Color = "TuskTip", C = base + up1 * 0.3 + up2 * 0.1, S = { 0.09, 0.2, 0.09 }, Rot = lean(a, 150, 45) })
+	local S = Kit.shell("Fur")
+	table.insert(S, band("FurDark", 0, 0.62))
+	table.insert(S, Kit.paint("FurLight", function(s, y)
+		return (s / 0.62) ^ 2 + ((y - 1.62) / 0.8) ^ 2 <= 1
+	end))
+	-- blue war paint: stripes over the back and a chevron on the brow
+	for _, yy in { 2.0, 2.3 } do
+		table.insert(S, Kit.panel("Stripe", V, function(s, y, a)
+			return math.abs(a) > 0.95 and math.abs(y - (yy + 0.14 * math.cos(a))) < 0.06
+		end))
 	end
-	sprout(bits, 2.8)
-	specs.Egg_PebblePlains_Rare = finish(shapes, bits, {
+	table.insert(S, Kit.panel("Stripe", V, function(s, y)
+		return math.abs(s) < 0.42 and math.abs(y - (2.48 - 0.42 * math.abs(s))) < 0.06
+	end))
+	-- huge ears: dark backs, pink cupped insides
+	for _, side in { 1, -1 } do
+		local a = 1.05 * side
+		local c = at(a, 1.55, 0.15)
+		local face = a * 0.45
+		local n = dir(face)
+		local rot = { 0, deg(-face), 0 }
+		table.insert(S, { Group = "Ears", Color = "Fur", Kind = "Ellipsoid", C = c, R = { 0.6, 0.72, 0.12 }, Rot = rot })
+		table.insert(S, { Group = "Ears", Color = "FurDark", Kind = "Ellipsoid", Paint = true, C = c - n * 0.06, R = { 0.62, 0.74, 0.08 }, Rot = rot })
+		table.insert(S, { Group = "Ears", Color = "Pink", Kind = "Ellipsoid", Paint = true, C = c + n * 0.06, R = { 0.44, 0.55, 0.09 }, Rot = rot })
+		table.insert(S, { Group = "Ears", Kind = "Ellipsoid", Carve = true, C = c + n * 0.14, R = { 0.38, 0.49, 0.07 }, Rot = rot })
+		table.insert(S, { Group = "Ears", Color = "PinkDark", Kind = "Ellipsoid", Paint = true, C = c + n * 0.02, R = { 0.3, 0.38, 0.06 }, Rot = rot })
+	end
+	-- trunk with wrinkle rings, curling out at a pink tip
+	Kit.chain(S, "Trunk", {
+		{ Vector3.new(0, 1.3, -1.02), 0.21, "FurLight" },
+		{ Vector3.new(0, 1.06, -1.15), 0.19, "FurLight" },
+		{ Vector3.new(0, 0.82, -1.21), 0.17, "FurLight" },
+		{ Vector3.new(0, 0.6, -1.28), 0.15, "FurLight" },
+		{ Vector3.new(0, 0.46, -1.42), 0.13, "FurLight" },
+		{ Vector3.new(0, 0.45, -1.6), 0.12, "FurLight" },
+		{ Vector3.new(0, 0.57, -1.73), 0.1, "Pink" },
+	})
+	for _, ry in { 1.14, 0.96, 0.78, 0.62 } do
+		table.insert(S, { Group = "Trunk", Color = "FurDark", Kind = "Box", Paint = true, C = { 0, ry, -1.38 }, S = { 0.5, V * 0.9, 0.4 } })
+	end
+	-- tusks
+	for _, side in { 1, -1 } do
+		Kit.chain(S, "Tusks", {
+			{ Vector3.new(side * 0.3, 1.0, -1.02), 0.1, "Tusk" },
+			{ Vector3.new(side * 0.4, 0.78, -1.22), 0.09, "Tusk" },
+			{ Vector3.new(side * 0.47, 0.7, -1.42), 0.075, "Tusk" },
+			{ Vector3.new(side * 0.5, 0.8, -1.6), 0.06, "TuskLight" },
+			{ Vector3.new(side * 0.49, 0.96, -1.68), 0.035, "TuskLight" },
+		})
+	end
+	-- a leafy crown
+	Kit.bush(S, Vector3.new(0, 2.82, 0.05), 0.24, "LeafDark", "Leaf", "LeafLight", "Crown")
+	for k = 0, 3 do
+		local a = k * PI / 2 + PI / 4
+		local c = Vector3.new(0, 2.86, 0) + dir(a) * 0.3
+		table.insert(S, { Group = "Crown", Color = k % 2 == 0 and "Leaf" or "LeafDark", Kind = "Ellipsoid", C = c, R = { 0.16, 0.07, 0.27 }, Rot = { -18, deg(-a), 0 } })
+	end
+	Kit.vine(S, 0.98, 0.06, 3, 0.7, function(a)
+		return math.abs(Kit.da(a, 0)) < 0.3
+	end)
+	Kit.gem(S, 1.92, 0.26)
+	specs.Egg_PebblePlains_Rare = egg({
 		Fur = "9C7B6A",
-		FurDark = "76594C",
-		FurLight = "B4958A",
-		Face = "AE8E7E",
+		FurDark = "7E6052",
+		FurLight = "B39486",
 		Pink = "F2A5A5",
-		Stripe = "3FA9FF",
+		PinkDark = "D98A8A",
+		Stripe = "2F9BFF",
 		Tusk = "FFF4D6",
-		TuskTip = "F0E2BC",
-	}, "Fur")
+		TuskLight = "FFFDF5",
+	}, "Fur", S)
 end
 
 -- ---------- Epic: Rumblerex egg ----------
 do
-	local shapes = shellShapes("Body", "Dark", "Light")
-	add(shapes, {
-		{ Group = "Shell", Color = "Belly", Kind = "Ellipsoid", C = { 0, 0.55, -0.9 }, R = { 0.64, 0.5, 0.4 }, Paint = true },
-		{ Group = "Shell", Color = "BellyLine", Kind = "Box", C = { 0, 0.62, -1.0 }, S = { 1.4, 0.05, 0.5 }, Paint = true },
-		{ Group = "Shell", Color = "Mouth", Kind = "Box", C = { 0, 1.02, 0 }, S = { 3, 0.1, 3 }, Paint = true },
-	})
-	for _, p in scatter(9, 1.3, 2.35, { 0.6, 1.55, 0.4 }) do
-		table.insert(shapes, { Group = "Shell", Color = "Dark", Kind = "Ellipsoid", C = at(p[1], p[2]), R = { 0.13, 0.13, 0.13 }, Paint = true })
+	local S = Kit.shell("Body")
+	table.insert(S, band("Light", 2.45, 9))
+	local function belly(s, y)
+		return (s / 0.68) ^ 2 + ((y - 0.55) / 0.5) ^ 2 <= 1
 	end
-	local bits = {}
-	gem(bits, 1.55, 0.82)
-	-- a chomping lid: stepped teeth hanging over the mouth line, all the way round the front
-	for k = -5, 5 do
-		local a = k * 0.27
-		local c = at(a, 0.92, -0.03)
-		table.insert(bits, { Name = "Tooth", Group = "Teeth", Color = "Claw", C = c, S = { 0.15, 0.1, 0.09 }, Rot = { 0, deg(-a), 0 } })
-		table.insert(bits, { Name = "Tooth", Group = "Teeth", Color = "Claw", C = c - Vector3.new(0, 0.08, 0), S = { 0.07, 0.08, 0.09 }, Rot = { 0, deg(-a), 0 } })
+	table.insert(S, Kit.panel("Belly", V, belly))
+	for _, ly in { 0.52, 0.74 } do
+		table.insert(S, Kit.paint("BellyDark", function(s, y)
+			return math.abs(y - ly) < V * 0.5 and belly(s, y)
+		end))
 	end
-	-- a crest of glowing plates from the forehead over the top to the back
-	for i, p in { { -0.75, 0.36 }, { -0.4, 0.46 }, { -0.05, 0.54 }, { 0.3, 0.5 }, { 0.65, 0.42 }, { 1.0, 0.34 } } do
-		local t, s = p[1], p[2]
+	for _, sp in { { 1.05, 1.75 }, { 1.45, 2.2 }, { 1.9, 1.5 }, { 2.5, 2.0 }, { -1.05, 1.8 }, { -1.5, 2.25 }, { -1.95, 1.5 }, { -2.55, 2.05 } } do
+		table.insert(S, { Group = "Shell", Color = "Scale", Kind = "Ellipsoid", Paint = true, C = at(sp[1], sp[2]), R = { 0.14, 0.11, 0.14 } })
+	end
+	-- the jaw: a dark seam round the egg, teeth hanging over it
+	local JY = 1.12
+	table.insert(S, { Group = "Shell", Kind = "Custom", Carve = true, Lo = Kit.LO, Hi = Kit.HI, Inside = function(p)
+		return math.abs(p.Y - JY) < 0.07 and not Kit.inEgg(p, -0.13)
+	end })
+	table.insert(S, { Group = "Shell", Color = "Mouth", Kind = "Custom", Paint = true, Lo = Kit.LO, Hi = Kit.HI, Inside = function(p)
+		return math.abs(p.Y - JY) < 0.07 + V * 0.5 and Kit.inEgg(p, -0.12) and not Kit.inEgg(p, -0.13 - V * 1.3)
+	end })
+	for k = -6, 6 do
+		local a = k * 0.25
+		table.insert(S, { Group = "Teeth", Color = "Tooth", Kind = "Capsule", A = at(a, JY + 0.12, -0.06), B = at(a, JY - 0.05, 0.02), RA = 0.075, RB = 0.02 })
+	end
+	for k = -5, 4 do
+		local a = (k + 0.5) * 0.25
+		table.insert(S, { Group = "Teeth", Color = "ToothShade", Kind = "Capsule", A = at(a, JY - 0.13, -0.06), B = at(a, JY + 0.02, 0.0), RA = 0.06, RB = 0.02 })
+	end
+	-- angry brows and horns
+	for _, side in { 1, -1 } do
+		Kit.ridge(S, { { side * 0.12, 2.12 }, { side * 0.35, 2.24 }, { side * 0.58, 2.33 } }, 0.075, "Brow", 0.1)
+		Kit.horn(S, "Horns", side * 0.62, 2.36, 0.38, 0.11, 25, 20, { "Horn", "Horn", "HornTip" }, side)
+	end
+	-- a crest of glowing plates from the brow over the top to the back, brighter towards the tips
+	for _, pl in { { -0.42, 0.6 }, { 0.0, 0.82 }, { 0.42, 0.8 }, { 0.84, 0.66 }, { 1.24, 0.5 } } do
+		local t, s = pl[1], pl[2]
 		local y = 1.55 + 1.25 * math.cos(t)
 		local z = 0.92 * math.sin(t)
 		local n = Vector3.new(0, (y - 1.55) / 1.5625, z / 0.8464).Unit
-		local tilt = deg(math.atan2(-n.Z, n.Y)) -- + leans to the front
-		table.insert(bits, { Name = "Plate", Group = "Plates", Color = i % 2 == 0 and "PlateDeep" or "Plate", C = Vector3.new(0, y, z) + n * (s * 0.22), S = { 0.13, s, s }, Rot = lean(0, tilt, 0, CFrame.Angles(rad(45), 0, 0)) })
+		local tilt = deg(math.atan2(-n.Z, n.Y))
+		table.insert(S, { Group = "Crest", Color = "PlateDeep", Kind = "Box", C = Vector3.new(0, y, z) + n * (s * 0.16), S = { 0.16, s, s }, Rot = lean(0, tilt, 0, CFrame.Angles(rad(45), 0, 0)) })
 	end
-	-- horns
-	for _, a in { 0.58, -0.58 } do
-		local base = at(a, 2.15, -0.04)
-		local up = leanUp(a, 40)
-		table.insert(bits, { Name = "Horn", Group = "Plates", Color = "Claw", C = base + up * 0.13, S = { 0.15, 0.26, 0.15 }, Rot = lean(a, 40, 45) })
-		table.insert(bits, { Name = "Horn", Group = "Plates", Color = "ClawTip", C = base + up * 0.3, S = { 0.08, 0.14, 0.08 }, Rot = lean(a, 40, 45) })
+	table.insert(S, { Group = "Crest", Color = "Plate", Kind = "Custom", Paint = true, Lo = Vector3.new(-0.2, 1.0, -1.6), Hi = Vector3.new(0.2, 3.8, 1.6), Inside = function(p)
+		return not Kit.inEgg(p, 0.26)
+	end })
+	-- claw scratches
+	for k = 0, 2 do
+		local a0 = -1.25 - k * 0.17
+		Kit.groove(S, { { a0, 2.0 }, { a0 - 0.3, 1.55 } }, 0.06, "Scratch")
 	end
-	specs.Egg_PebblePlains_Epic = finish(shapes, bits, {
-		Body = "4DBB45",
-		Dark = "2E8B3E",
-		Light = "6CD25F",
-		Mouth = "1F5E2B",
+	Kit.gem(S, 1.68, 0.28)
+	specs.Egg_PebblePlains_Epic = egg({
+		Body = "3FA142",
+		Light = "52B24F",
+		Scale = "2E8336",
 		Belly = "FFEBC2",
-		BellyLine = "EFCF95",
-		Plate = { "9A4DFF", Neon = true },
-		PlateDeep = { "6A22D8", Neon = true },
-		Claw = "FFF4D6",
-		ClawTip = "EAD9B0",
-	}, "Body")
+		BellyDark = "E8C68A",
+		Mouth = "2A1420",
+		Tooth = "FFF8E6",
+		ToothShade = "EDE0C0",
+		Brow = "1F5E2B",
+		Horn = "EDE0C0",
+		HornTip = "FFFBF0",
+		Scratch = "1F5E2B",
+		PlateDeep = { "4A16C8", Neon = true },
+		Plate = { "7A3CFF", Neon = true },
+	}, "Body", S, {
+		FX = { { Texture = Kit.MOTE, Colors = { "9A6BFF", "5A2BE0" }, Rate = 2, Size = { 0.3, 0 }, Lifetime = { 0.8, 1.4 }, Speed = { 0.1, 0.3 }, Acceleration = Vector3.new(0, 0.6, 0), LightEmission = 1 } },
+	})
 end
 
 -- ---------- Legendary: Thunderback egg ----------
 do
-	local shapes = shellShapes("Fur", "FurDark", "FurLight")
-	add(shapes, {
-		{ Group = "Shell", Color = "Chest", Kind = "Ellipsoid", C = { 0, 1.1, -0.95 }, R = { 0.58, 0.68, 0.35 }, Paint = true },
-	})
+	local S = Kit.shell("Fur")
+	table.insert(S, band("FurDark", 0, 0.62))
+	-- chest shield
+	local function shield(s, y)
+		if y < 0.42 or y > 2.0 - 0.3 * (s / 0.62) ^ 2 then
+			return false
+		end
+		local half = y > 1.25 and 0.62 or 0.62 * (y - 0.42) / 0.83
+		return math.abs(s) <= half
+	end
+	table.insert(S, Kit.panel("ChestDark", V, shield))
+	table.insert(S, Kit.panel("Chest", V, function(s, y)
+		return shield(s * 1.2, y) and shield(s, y - 0.1) and shield(s, y + 0.1)
+	end))
 	-- lightning cracks down both sides and the back
 	for _, side in { 1, -1 } do
-		crack(shapes, { { 0.5 * side, 2.6 }, { 0.85 * side, 2.2 }, { 0.6 * side, 1.9 }, { 1.0 * side, 1.5 }, { 0.75 * side, 1.15 }, { 1.1 * side, 0.75 }, { 0.95 * side, 0.45 } }, "Bolt")
+		Kit.groove(S, { { side * 0.95, 2.45 }, { side * 1.2, 2.05 }, { side * 0.98, 1.8 }, { side * 1.32, 1.35 }, { side * 1.08, 1.05 }, { side * 1.42, 0.62 } }, 0.075, "BoltGlow", "Bolt")
 	end
-	crack(shapes, { { 2.9, 2.5 }, { 3.25, 2.05 }, { 2.95, 1.7 }, { 3.35, 1.2 }, { 3.05, 0.8 } }, "Bolt")
-	-- thundercloud crown, dark underneath
-	local puffs = { { 0, 2.98, 0.05, 0.42 } }
-	for k = 0, 6 do
-		local a = k / 7 * math.pi * 2 + 0.2
-		table.insert(puffs, { math.sin(a) * 0.55, 2.74 + (k % 2) * 0.06, -math.cos(a) * 0.55, 0.33 + (k % 3) * 0.03 })
+	Kit.groove(S, { { PI - 0.3, 2.45 }, { PI + 0.1, 2.0 }, { PI - 0.2, 1.6 }, { PI + 0.2, 1.1 }, { PI - 0.1, 0.65 } }, 0.075, "BoltGlow", "Bolt")
+	-- shaggy shoulder tufts
+	for _, side in { 1, -1 } do
+		for j, t in { { 1.62, 2.15 }, { 1.85, 1.92 }, { 1.45, 1.88 } } do
+			local a = side * t[1]
+			local base = at(a, t[2], -0.05)
+			table.insert(S, { Group = "Fur", Color = j == 1 and "FurLight" or "Fur", Kind = "Capsule", A = base, B = base + Kit.leanUp(a, 115) * 0.28, RA = 0.11, RB = 0.02 })
+		end
+	end
+	-- thundercloud crown: lit top, dark underside
+	local puffs = { { 0, 3.0, 0.05, 0.44 } }
+	for k = 0, 5 do
+		local a = k / 6 * PI * 2 + 0.25
+		table.insert(puffs, { math.sin(a) * 0.6, 2.78 + (k % 2) * 0.06, -math.cos(a) * 0.6, 0.35 + (k % 2) * 0.04 })
 	end
 	for _, p in puffs do
-		table.insert(shapes, { Group = "Cloud", Color = "Cloud", Kind = "Ellipsoid", C = { p[1], p[2], p[3] }, R = { p[4], p[4] * 0.78, p[4] } })
+		table.insert(S, { Group = "Cloud", Color = "Cloud", Kind = "Ellipsoid", C = { p[1], p[2], p[3] }, R = { p[4], p[4] * 0.8, p[4] } })
 	end
-	for _, p in puffs do
-		table.insert(shapes, { Group = "Cloud", Color = "CloudMid", Kind = "Ellipsoid", C = { p[1], p[2] - p[4] * 0.5, p[3] }, R = { p[4] * 1.1, p[4] * 0.36, p[4] * 1.1 }, Paint = true })
+	table.insert(S, { Group = "Cloud", Color = "CloudLight", Kind = "Box", Paint = true, C = { 0, 3.4, 0 }, S = { 4, 0.5, 4 } })
+	table.insert(S, { Group = "Cloud", Color = "CloudDark", Kind = "Box", Paint = true, C = { 0, 2.55, 0 }, S = { 4, 0.14, 4 } })
+	-- bolts dangling from the cloud
+	for _, b in { { 0.85, 1 }, { -0.85, -1 } } do
+		local a, sd = b[1], b[2]
+		local p0 = at(a, 2.52, 0.38)
+		Kit.chain(S, "Cloud", {
+			{ p0, 0.055, "Bolt" },
+			{ p0 + Vector3.new(0.1 * sd, -0.18, 0), 0.05, "Bolt" },
+			{ p0 + Vector3.new(-0.02 * sd, -0.3, 0), 0.05, "Bolt" },
+			{ p0 + Vector3.new(0.08 * sd, -0.5, 0), 0.03, "BoltCore" },
+		})
 	end
-	table.insert(shapes, { Group = "Cloud", Color = "CloudDark", Kind = "Box", C = { 0, 2.5, 0 }, S = { 3, 0.16, 3 }, Paint = true })
-	local bits = {}
-	gem(bits, 1.32, 1.0, true)
-	-- bolts striking out from under the cloud
-	for _, b in { { 0.95, -0.25, 1 }, { -0.95, -0.2, -1 }, { 0.2, 0.9, 1 }, { -0.45, 0.8, -1 } } do
-		local x, z, s = b[1], b[2], b[3]
-		table.insert(bits, { Name = "Bolt", Group = "Cloud", Color = "Bolt", C = { x, 2.42, z }, S = { 0.08, 0.26, 0.08 }, Rot = { 0, 0, -28 * s } })
-		table.insert(bits, { Name = "Bolt", Group = "Cloud", Color = "Bolt", C = { x + 0.05 * s, 2.22, z }, S = { 0.08, 0.2, 0.08 }, Rot = { 0, 0, 30 * s } })
-		table.insert(bits, { Name = "Bolt", Group = "Cloud", Color = "Bolt", C = { x + 0.02 * s, 2.05, z }, S = { 0.07, 0.18, 0.07 }, Rot = { 0, 0, -25 * s } })
-	end
-	specs.Egg_PebblePlains_Legendary = finish(shapes, bits, {
+	Kit.gem(S, 1.42, 0.33, true)
+	specs.Egg_PebblePlains_Legendary = egg({
 		Fur = "3A4A8C",
-		FurDark = "27326A",
-		FurLight = "4F62AE",
-		Chest = "7F8FD2",
-		Bolt = { "FFD23F", Neon = true },
-		Cloud = "F4F6FB",
-		CloudMid = "D2D9EA",
-		CloudDark = "9DA7C6",
-	}, "Fur")
+		FurDark = "2B386E",
+		FurLight = "5568B5",
+		Chest = "9AA8E2",
+		ChestDark = "6F80C4",
+		Cloud = "D3D9E8",
+		CloudLight = "F2F5FB",
+		CloudDark = "8590B0",
+		Bolt = { "FFD83A", Neon = true },
+		BoltGlow = { "E8890E", Neon = true },
+		BoltCore = { "FFF2A0", Neon = true },
+	}, "Fur", S, {
+		LightColor = "FFD23F",
+		FX = { { Texture = Kit.SPARK, Colors = { "FFF27A", "FFD23F" }, Rate = 3, Size = { 0.6, 0.1 }, Lifetime = { 0.15, 0.3 }, RotSpeed = { -200, 200 }, LightEmission = 1 } },
+	})
 end
 
 -- ---------- Mythic: Boulderback egg (the guardian) ----------
 do
-	local shapes = shellShapes("Stone", "StoneDark", "StoneLight")
-	add(shapes, {
-		{ Group = "Shell", Color = "Belly", Kind = "Ellipsoid", C = { 0, 0.72, -0.95 }, R = { 0.56, 0.56, 0.35 }, Paint = true },
-		{ Group = "Shell", Color = "BellyLine", Kind = "Box", C = { 0, 0.62, -1.0 }, S = { 1.4, 0.05, 0.5 }, Paint = true },
-		{ Group = "Shell", Color = "BellyLine", Kind = "Box", C = { 0, 0.86, -1.0 }, S = { 1.4, 0.05, 0.5 }, Paint = true },
-		-- a rocky shell over the top half with a scalloped edge
-		{ Group = "Shell", Color = "Rock", Kind = "Ellipsoid", C = { 0, 2.45, 0 }, R = { 1.3, 0.92, 1.3 }, Paint = true },
+	local S = Kit.shell("Rock")
+	table.insert(S, band("RockDark", 0, 0.62))
+	-- boulders bulging out of the shell, lit on top
+	for _, b in { { 1.0, 0.8, 0.36 }, { -1.05, 0.85, 0.36 }, { 2.2, 1.0, 0.38 }, { -2.3, 1.05, 0.38 }, { PI, 0.95, 0.4 }, { 2.6, 2.0, 0.3 }, { -2.7, 2.05, 0.3 } } do
+		local c, r = at(b[1], b[2], -0.14), b[3]
+		table.insert(S, { Group = "Shell", Color = "Rock", Kind = "Ellipsoid", C = c, R = { r, r * 0.85, r } })
+		table.insert(S, { Group = "Shell", Color = "RockLight", Kind = "Ellipsoid", Paint = true, C = c + Vector3.new(0, r * 0.55, 0), R = { r * 0.8, r * 0.4, r * 0.8 } })
+	end
+	-- mossy cap
+	table.insert(S, Kit.panel("Moss", V, function(s, y, a)
+		return y > 2.42 + 0.09 * math.sin(a * 5)
+	end))
+	table.insert(S, band("MossLight", 2.68, 9))
+	-- glowing cracks: an X out of the gem, one down each side
+	local G, C = "Glow", "GlowCore"
+	for _, side in { 1, -1 } do
+		Kit.groove(S, { { side * 0.35, 2.5 }, { side * 0.62, 2.2 }, { side * 0.55, 1.9 }, { side * 0.85, 1.6 }, { side * 0.75, 1.25 }, { side * 1.0, 0.85 } }, 0.075, G, C)
+		Kit.groove(S, { { side * 0.62, 2.2 }, { side * 1.1, 2.05 }, { side * 1.35, 1.7 } }, 0.07, G, C)
+		Kit.groove(S, { { side * 1.7, 2.4 }, { side * 1.95, 1.95 }, { side * 1.75, 1.5 }, { side * 2.0, 1.05 } }, 0.075, G, C)
+	end
+	Kit.groove(S, { { PI - 0.2, 2.45 }, { PI + 0.15, 2.0 }, { PI - 0.15, 1.55 }, { PI + 0.1, 1.05 } }, 0.075, G, C)
+	-- a cluster of crystals bursting from the top, two breaking out of the sides
+	local top = Vector3.new(0, 2.72, 0)
+	Kit.crystal(S, "Crystals", top, 0, 0, 0.36, 1.3, "CrystalDeep", "Crystal", "CrystalTip")
+	for _, c in { { 0.6, 30, 0.27, 0.9 }, { 2.7, 34, 0.26, 0.8 }, { 4.5, 30, 0.26, 0.85 } } do
+		Kit.crystal(S, "Crystals", top + dir(c[1]) * 0.2, c[1], c[2], c[3], c[4], "CrystalDeep", "Crystal", "CrystalTip")
+	end
+	for _, c in { { 1.2, 1.42 }, { -1.2, 1.5 } } do
+		Kit.crystal(S, "Crystals", at(c[1], c[2], -0.08), c[1], Kit.normalTilt(c[2]) - 30, 0.2, 0.64, "CrystalDeep", "Crystal", "CrystalTip")
+	end
+	Kit.gem(S, 1.45, 0.33, true)
+	specs.Egg_PebblePlains_Mythic = egg({
+		Rock = "5A5F75",
+		RockDark = "4A4E62",
+		RockLight = "767C92",
+		Moss = "5FAA36",
+		MossLight = "7FC24E",
+		Glow = { "4A1FE0", Neon = true },
+		GlowCore = { "8A5CFF", Neon = true },
+		CrystalDeep = { "3A14C0", Neon = true },
+		Crystal = { "5A2BFF", Neon = true },
+		CrystalTip = { "7A4BFF", Neon = true },
+	}, "Rock", S, {
+		FX = { { Texture = Kit.MOTE, Colors = { "9A7BFF", "5A2BFF" }, Rate = 3, Size = { 0.35, 0 }, Lifetime = { 1, 1.6 }, Speed = { 0.1, 0.3 }, Acceleration = Vector3.new(0, 0.5, 0), LightEmission = 1 } },
 	})
-	for k = 0, 9 do
-		local a = k / 10 * math.pi * 2
-		table.insert(shapes, { Group = "Shell", Color = "Rock", Kind = "Ellipsoid", C = at(a, 1.58), R = { 0.24, 0.16, 0.24 }, Paint = true })
-	end
-	table.insert(shapes, { Group = "Shell", Color = "RockLight", Kind = "Ellipsoid", C = at(0.75, 2.2, 0.05), R = { 0.3, 0.3, 0.3 }, Paint = true })
-	-- glowing cracks through the rock
-	crack(shapes, { { 0.1, 2.7 }, { 0.4, 2.35 }, { 0.2, 2.0 }, { 0.5, 1.72 } }, "Glow", 0.06)
-	crack(shapes, { { 0.4, 2.35 }, { 0.9, 2.2 }, { 1.3, 1.9 } }, "Glow", 0.06)
-	crack(shapes, { { -0.25, 2.55 }, { -0.7, 2.25 }, { -0.55, 1.9 }, { -0.95, 1.65 } }, "Glow", 0.06)
-	crack(shapes, { { 2.2, 2.4 }, { 2.6, 2.0 }, { 2.4, 1.7 } }, "Glow", 0.06)
-	crack(shapes, { { 3.6, 2.6 }, { 3.9, 2.15 }, { 4.4, 1.9 } }, "Glow", 0.06)
-	local bits = {}
-	gem(bits, 1.12, 0.9, true)
-	-- chunky boulders sitting on the rocky shell
-	local tones = { "Pebble", "PebbleDark", "PebbleLight" }
-	for i, p in scatter(12, 1.75, 2.55, { 0.45, 2.1, 0.3 }) do
-		local s = 0.3 - (p[2] - 1.75) * 0.1
-		local tilt = normalTilt(p[2])
-		table.insert(bits, { Name = "Boulder", Group = "Rocks", Color = tones[i % 3 + 1], C = at(p[1], p[2], 0.02), S = { s, s * 0.7, s }, Rot = lean(p[1], tilt, 20 + i * 37, CFrame.Angles(rad(12), 0, rad(-8))) })
-	end
-	-- a cluster of glowing crystals bursting out of the top, a few more out of the sides
-	for i, c in { { 0, 0, 0.26, 0.9 }, { 0.6, 28, 0.2, 0.62 }, { 2.4, 30, 0.19, 0.58 }, { 4.3, 26, 0.18, 0.56 }, { 1.5, 40, 0.14, 0.42 }, { 5.3, 42, 0.14, 0.4 } } do
-		local up = leanUp(c[1], c[2])
-		local base = Vector3.new(math.sin(c[1]) * 0.18, 2.66, -math.cos(c[1]) * 0.18)
-		table.insert(bits, { Name = "Crystal", Group = "Crystals", Color = i % 2 == 1 and "Crystal" or "CrystalDeep", C = base + up * (c[4] * 0.42), S = { c[3], c[4], c[3] }, Rot = lean(c[1], c[2], 45) })
-		table.insert(bits, { Name = "Crystal", Group = "Crystals", Color = "CrystalTip", C = base + up * (c[4] * 0.86), S = { c[3] * 0.62, c[3] * 0.62, c[3] * 0.62 }, Rot = lean(c[1], c[2], 45, CFrame.Angles(rad(45), 0, 0)) })
-	end
-	for _, c in { { 1.35, 1.95 }, { -1.4, 1.85 }, { 3.0, 2.0 } } do
-		local tilt = normalTilt(c[2]) - 25
-		local up = leanUp(c[1], tilt)
-		table.insert(bits, { Name = "Crystal", Group = "Crystals", Color = "Crystal", C = at(c[1], c[2], -0.02) + up * 0.18, S = { 0.15, 0.42, 0.15 }, Rot = lean(c[1], tilt, 45) })
-	end
-	specs.Egg_PebblePlains_Mythic = finish(shapes, bits, {
-		Stone = "6FB04A",
-		StoneDark = "4F8A33",
-		StoneLight = "86C35E",
-		Belly = "FFE6A8",
-		BellyLine = "F0CC80",
-		Rock = "A3A6B4",
-		RockLight = "C2C5D0",
-		Pebble = "B7B9C4",
-		PebbleDark = "8E91A0",
-		PebbleLight = "DCDEE6",
-		Glow = { "B05CFF", Neon = true },
-		Crystal = { "B05CFF", Neon = true },
-		CrystalDeep = { "7B2CFF", Neon = true },
-		CrystalTip = { "E3C2FF", Neon = true },
-	}, "Rock")
 end
 
 -- ---------- Secret: Prismling egg ----------
 do
-	local shapes = shellShapes("Pearl", "Shade", "PearlLight")
-	add(shapes, {
-		-- a soft iridescent wash: lavender low down, pink up top
-		{ Group = "Shell", Color = "Tint6", Kind = "Box", C = { 0, 0.72, 0 }, S = { 3, 0.4, 3 }, Paint = true },
-		{ Group = "Shell", Color = "Tint5", Kind = "Box", C = { 0, 1.02, 0 }, S = { 3, 0.2, 3 }, Paint = true },
-		{ Group = "Shell", Color = "Tint1", Kind = "Ellipsoid", C = { 0, 2.8, 0 }, R = { 1.0, 0.55, 1.0 }, Paint = true },
-		{ Group = "Shell", Color = "PearlLight", Kind = "Ellipsoid", C = at(0.75, 2.0, 0.05), R = { 0.3, 0.38, 0.3 }, Paint = true },
-	})
-	local bits = {}
-	gem(bits, 1.42, 1.0, true)
-	-- a crown of rainbow crystals round the top, a tall one in the middle
+	local S = Kit.shell("Pearl")
+	-- a rainbow pearl: pastel bands from rose at the bottom to lilac at the top, a pearly highlight
+	table.insert(S, band("Lilac", 0, 0.95))
+	table.insert(S, band("Blush", 2.35, 9))
+	for k, tint in { "Tint1", "Tint3", "Tint5" } do
+		local points = {}
+		for j = 0, 12 do
+			local t = j / 12
+			table.insert(points, { (k - 1) / 3 * PI * 2 + t * PI * 1.1, 0.5 + t * 2.15 })
+		end
+		Kit.ridge(S, points, 0.1, tint, V * 1.2)
+	end
+	table.insert(S, { Group = "Shell", Color = "Pearl", Kind = "Ellipsoid", Paint = true, C = at(0.8, 2.0, 0.05), R = { 0.26, 0.34, 0.26 } })
+	-- a rainbow crystal crown and a tall white one in the middle
+	local top = Vector3.new(0, 2.66, 0)
 	for k = 0, 5 do
-		local a = k / 6 * math.pi * 2
-		local base = at(a, 2.5, -0.1)
-		local up = leanUp(a, 24)
-		local h = k % 2 == 0 and 0.62 or 0.5
-		table.insert(bits, { Name = "Crystal", Group = "Crown", Color = "Gem" .. (k + 1), C = base + up * (h * 0.45), S = { 0.18, h, 0.18 }, Rot = lean(a, 24, 45) })
-		table.insert(bits, { Name = "Crystal", Group = "Crown", Color = "Gem" .. (k + 1), C = base + up * (h * 0.92), S = { 0.13, 0.13, 0.13 }, Rot = lean(a, 24, 45, CFrame.Angles(rad(45), 0, 0)) })
+		local a = k / 6 * PI * 2
+		Kit.crystal(S, "Crown", top + dir(a) * 0.38, a, 26, 0.24, k % 2 == 0 and 0.9 or 0.72, "Gem" .. (k + 1) .. "Deep", "Gem" .. (k + 1), "Gem" .. (k + 1))
 	end
-	table.insert(bits, { Name = "Crystal", Group = "Crown", Color = "CrownTop", C = { 0, 3.12, 0 }, S = { 0.24, 0.66, 0.24 }, Rot = { 0, 45, 0 } })
-	table.insert(bits, { Name = "Crystal", Group = "Crown", Color = "CrownTop", C = { 0, 3.48, 0 }, S = { 0.17, 0.17, 0.17 }, Rot = { 45, 45, 0 } })
-	-- sparkles painted into the shell and floating round it
-	local tints = { "Gem1", "Gem2", "Gem3", "Gem4", "Gem5", "Gem6" }
-	for i, p in scatter(10, 0.75, 2.2, { 0.6, 1.42, 0.5 }) do
-		table.insert(bits, { Name = "Sparkle", Group = "Shell", Color = tints[i % 6 + 1], C = at(p[1], p[2], -0.01), S = { 0.08, 0.08, 0.08 }, Rot = lean(p[1], normalTilt(p[2]), 45) })
-	end
-	for i, s in { { 1.35, 2.5, -0.35 }, { -1.3, 2.2, -0.5 }, { -0.9, 3.0, 0.2 }, { 1.1, 1.0, -0.8 } } do
-		table.insert(bits, { Name = "Sparkle", Group = "Shell", Color = tints[(i * 2) % 6 + 1], C = s, S = { 0.12, 0.12, 0.12 }, Rot = { 45, 45, 0 } })
+	Kit.crystal(S, "Crown", top, 0, 0, 0.32, 1.25, "CrownDeep", "CrownMid", "CrownMid")
+	-- crystal wings breaking out of the sides
+	for _, side in { 1, -1 } do
+		for _, c in { { 1.45, 1.8, 50, 0.22, 0.8 }, { 1.62, 1.42, 66, 0.17, 0.56 } } do
+			local a = side * c[1]
+			Kit.crystal(S, "Wings", at(a, c[2], -0.06), a, c[3], c[4], c[5], "Gem5Deep", "Gem5", "Gem5")
+		end
 	end
 	-- flowers tucked into the leaves
 	for k = 0, 5 do
-		local a = (k + 0.25) / 6 * math.pi * 2
-		local c = at(a, 0.4, 0.2)
-		table.insert(bits, { Name = "Flower", Group = "Leaves", Color = tints[k + 1], C = c, S = { 0.16, 0.16, 0.16 }, Rot = { 0, 45 - deg(a), 0 } })
-		table.insert(bits, { Name = "Flower", Group = "Leaves", Color = "GemCore", C = c + Vector3.new(0, 0.07, 0), S = { 0.07, 0.07, 0.07 }, Rot = { 0, 45 - deg(a), 0 } })
+		local a = k / 6 * PI * 2 + 0.25
+		local c = dir(a) * (surface(0.45) + 0.16) + Vector3.new(0, 0.5, 0)
+		table.insert(S, { Group = "Flowers", Color = "Petal" .. (k % 3 + 1), Kind = "Ellipsoid", C = c, R = { 0.13, 0.06, 0.13 } })
+		table.insert(S, { Group = "Flowers", Color = "FlowerCore", Kind = "Ellipsoid", Paint = true, C = c + Vector3.new(0, 0.05, 0), R = { 0.05, 0.03, 0.05 } })
 	end
-	specs.Egg_PebblePlains_Secret = finish(shapes, bits, {
-		Pearl = "F6F2FF",
-		Shade = "D9CCF7",
-		PearlLight = "FFFFFF",
-		CrownTop = { "FFF6FF", Neon = true },
-		Tint1 = "FFDDEB",
-		Tint5 = "E2EEFF",
-		Tint6 = "E6DBFF",
-		Gem1 = { "FF5A7A", Neon = true },
-		Gem2 = { "FFB347", Neon = true },
-		Gem3 = { "FFF04D", Neon = true },
-		Gem4 = { "5CFF9D", Neon = true },
-		Gem5 = { "4DC3FF", Neon = true },
-		Gem6 = { "B266FF", Neon = true },
-	}, "Pearl")
+	Kit.gem(S, 1.45, 0.33, true)
+	specs.Egg_PebblePlains_Secret = egg({
+		Pearl = "FBF8FF",
+		Lilac = "E2D6FF",
+		Blush = "FFE3F0",
+		Tint1 = "FF8FBC",
+		Tint3 = "FFE066",
+		Tint5 = "7FC6FF",
+		CrownDeep = { "C9A8FF", Neon = true },
+		CrownMid = { "EADCFF", Neon = true },
+		Gem1 = { "FF4D73", Neon = true },
+		Gem1Deep = { "C8244C", Neon = true },
+		Gem2 = { "FFA436", Neon = true },
+		Gem2Deep = { "D07A12", Neon = true },
+		Gem3 = { "FFE83A", Neon = true },
+		Gem3Deep = { "C9B014", Neon = true },
+		Gem4 = { "3EF08A", Neon = true },
+		Gem4Deep = { "18B85A", Neon = true },
+		Gem5 = { "36B4FF", Neon = true },
+		Gem5Deep = { "1478D8", Neon = true },
+		Gem6 = { "A452FF", Neon = true },
+		Gem6Deep = { "6E24D8", Neon = true },
+		Petal1 = "FF8FBE",
+		Petal2 = "FFD95C",
+		Petal3 = "8FCFFF",
+		FlowerCore = "FFFFFF",
+	}, "Pearl", S, {
+		LightColor = "FFF0FF",
+		FX = { { Texture = Kit.SPARKLE, Colors = { "FF4D73", "FFE83A", "3EF08A", "36B4FF", "A452FF" }, Rate = 5, Size = { 0.5, 0 }, Lifetime = { 0.6, 1.0 }, RotSpeed = { -120, 120 }, LightEmission = 1 } },
+	})
 end
 
 return specs
