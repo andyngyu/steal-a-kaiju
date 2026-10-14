@@ -1,7 +1,8 @@
--- Sunken Abyss (x 1052..1302), built by CanyonBuilder.NewBiome: a drained sea floor between deep-blue cliffs crusted
--- with coral.
---   Ground     blue-grey sea sand with pale ripples, dark silt and seaweed; Venom's mud and grass giving way to wet sand at
---              the border; a pale sand road; clear tide pools
+-- Sunken Abyss (x 1052..1302), built by CanyonBuilder.NewBiome: a drained lagoon floor between teal cliffs crusted
+-- with coral. Palette: teal and aqua (rock, water, an aqua-hazed sky), coral pinks, oranges and salmon (caps, reefs).
+--   Ground     pale aqua sand with raised ripples, teal silt and seaweed beds; Venom's mud and grass giving way to wet
+--              sand at the border; a shell-sand road; clear aqua tide pools; shells, starfish, urchins, barnacled rocks
+--   Rock       teal strata cliffs with coral strata, rugged crags behind (T.massif), the far ranges paler
 --   Whale      a whale's ribcage arching over the path like a tunnel (spine, vertebrae, barnacles, weed), its skull in
 --              the south pocket
 --   Wreck      a galleon half-sunk in the north pocket: tilted hull, broken masts, torn sail, lit stern windows, an open
@@ -10,7 +11,10 @@
 --              shafts slanting down from above
 --   Nest       a giant open clam in the ruins of a drowned temple (broken marble columns, a mosaic floor)
 --   Gate       the Coral Gate: rock pillars and a rock arch crusted with coral, a clam with a glowing pearl on top, the
---              name hanging on chains
+--              name hanging on chains; while locked: heavy barnacled chains strung to a great padlock across a curtain
+--              of water light, a giant crab's silhouette behind it with glowing eyes, a driftwood COMING SOON board
+-- Lights: key lights only on what reads from the gate (the pearl, the nearer jellyfish, the wreck, the crab); bubbles
+-- only from the vents near the gate; nothing lit deep inside.
 local hex = Color3.fromHex
 
 return function(b, K, T)
@@ -20,19 +24,22 @@ return function(b, K, T)
 	local C, rng
 
 	---------------------------------------------------------------- colours
-	local ROCK = { hex("1B2D40"), hex("23405A"), hex("2E5470"), hex("41708A"), accent = hex("2A6670") }
-	local SAND = { hex("5E8590"), hex("557780"), hex("4C6C75"), hex("688F98") }
-	local RIPPLE = { hex("8FA8A4"), hex("9FB5AE") }
-	local SILT = hex("3E5A63")
-	local WEEDBED = { hex("2F6B5A"), hex("3A7A60") }
-	local ROAD = { hex("9DB2AC"), hex("8EA6A1"), hex("A9BDB6") }
-	local MOSAIC = { hex("D9E4DC"), hex("4FA3A8"), hex("BFD3CC"), hex("2F7F8A") }
-	local WETMUD = { hex("3D6B33"), hex("4A5A40"), hex("5A6E62") } -- Venom's grass and mud turning to wet sand
-	local SLABS = { hex("7A8F94"), hex("6A8085"), hex("8C9FA3") }
-	local WATER = { hex("2E9FC4"), hex("2690B5"), hex("37AEDB") }
-	local CAPS = { hex("2F9C80"), hex("2A8A74"), hex("3BA5A0"), hex("E0609A"), hex("E07A4C"), hex("8E5FD6") }
-	local RIDGECAPS = { hex("2F8C78"), hex("2A7A6A"), hex("357F84"), hex("2F7A6E"), hex("2A6E70") }
+	local ROCK = { hex("16393C"), hex("1F4F52"), hex("2C6A6B"), hex("3F8784"), accent = hex("C0607A") }
+	local FARROCK = { hex("4F8C8A"), hex("5E9C98"), hex("6EAAA5"), hex("7DB7B1") }
+	local SAND = { hex("B8D8C8"), hex("A9CDBC"), hex("C4E0D1"), hex("9EC3B2") }
+	local RIPPLE = { hex("DCEFE3"), hex("E6F4EA") }
+	local SILT = hex("6FA59A")
+	local WEEDBED = { hex("3E8C6E"), hex("4A9A72") }
+	local ROAD = { hex("E8DCC2"), hex("DDD0B4"), hex("F0E6CF") }
+	local MOSAIC = { hex("E6F0EA"), hex("2FA6A6"), hex("F2C9B8"), hex("1F7F86") }
+	local WETMUD = { hex("3D6B33"), hex("5A6E52"), hex("8DB09E") } -- Venom's grass and mud turning to wet sand
+	local SLABS = { hex("D9C7A6"), hex("CDB898"), hex("E4D6BA") }
+	local WATER = { hex("2FC6C9"), hex("27B5BA"), hex("3AD3D3") }
+	local CAPS = { hex("F07A8E"), hex("F2955E"), hex("E85F7A"), hex("3FB7A2"), hex("F7B267"), hex("F59A82") }
+	local RIDGECAPS = { hex("4DA696"), hex("3E9688"), hex("5AB0A0"), hex("C77A86") }
 	local CYAN = hex("6FF2FF")
+	local AQUA = hex("3AE0DA")
+	local IRONW = { hex("3E4A48"), hex("4E5C59") } -- sea-worn iron
 	local BONE = { hex("D8D0BC"), hex("C8BEA6"), hex("B3A88E") }
 	local BARNACLE = { hex("9AA6A4"), hex("7F8C8A") }
 	local WEED = hex("3E6B3A")
@@ -42,16 +49,16 @@ return function(b, K, T)
 	local SAIL = hex("BDB59C")
 	local GOLD = hex("FFC94A")
 	local CORAL = {
-		{ base = hex("E0609A"), tip = hex("FFB3D4") },
-		{ base = hex("E07A4C"), tip = hex("FFC79A") },
-		{ base = hex("8E5FD6"), tip = hex("D2B8FF") },
-		{ base = hex("2F9C80"), tip = hex("9CF2D8") },
-		{ base = hex("E8C14A"), tip = hex("FFF0B0") },
+		{ base = hex("E8607E"), tip = hex("FFB8C8") },
+		{ base = hex("F07A4A"), tip = hex("FFC79A") },
+		{ base = hex("F59A82"), tip = hex("FFD8C8") },
+		{ base = hex("2FB59A"), tip = hex("A8F4DE") },
+		{ base = hex("D94A5A"), tip = hex("FF9AA4") },
 	}
 	local JELLY = {
-		{ bell = hex("5FD8F0"), top = hex("A8F4FF"), core = hex("E8FFFF"), light = CYAN },
-		{ bell = hex("F070C0"), top = hex("FFB3E0"), core = hex("FFE6F4"), light = hex("FF7ACB") },
-		{ bell = hex("A070F0"), top = hex("D6B8FF"), core = hex("F0E6FF"), light = hex("B47CFF") },
+		{ bell = hex("4FE0E0"), top = hex("A8FFF6"), core = hex("E8FFFF"), light = AQUA },
+		{ bell = hex("F57A9C"), top = hex("FFC0D0"), core = hex("FFE8EE"), light = hex("FF8AA8") },
+		{ bell = hex("FF9A5C"), top = hex("FFCFA8"), core = hex("FFF0E2"), light = hex("FFA870") },
 	}
 
 	---------------------------------------------------------------- layout
@@ -122,7 +129,7 @@ return function(b, K, T)
 		end
 		return m
 	end
-	local function jelly(parent, at, r, look)
+	local function jelly(parent, at, r, look, lit)
 		local m = K.model(parent, "Jellyfish")
 		C.dome(m, "Bell", at, r, r * 0.8, 2, function(t)
 			return t < 0.5 and look.bell or look.top
@@ -135,16 +142,46 @@ return function(b, K, T)
 			local len = rng:NextNumber(r * 1.4, r * 3)
 			K.box(m, "Tentacle", p.X - 0.15, p.X + 0.15, p.Y - len, p.Y, p.Z - 0.15, p.Z + 0.15, look.bell, { neon = true, transparency = 0.3, solid = false, shadow = false })
 		end
-		C.light(core, look.light, r * 4 + 6, 1.2)
+		if lit then
+			C.keyLight(core, look.light, r * 4 + 6, 1.4)
+		end
 		return m
 	end
-	local function vent(parent, at)
+	local function vent(parent, at, bubbling)
 		local m = K.model(parent, "BubbleVent")
 		local r = rng:NextNumber(1.2, 2)
 		C.octagon(m, "VentRim", at, r, -0.2, 0.5, C.rockAt(at, 0.2), { studs = K.TOP, solid = false })
 		C.octagon(m, "VentHole", at, r * 0.55, 0.45, 0.56, hex("0E1A24"), { solid = false })
-		local a = C.anchor(m, at + Vector3.new(0, 0.8, 0), Vector3.new(r, 0.2, r))
-		C.emit(a, { name = "Bubbles", colors = { hex("E8FFFF"), hex("9FE8FF") }, size = { 0.3, 0.6 }, rate = 6, speed = { 3, 6 }, life = { 3, 6 }, spread = 10, accel = Vector3.new(0, 1.5, 0), light = 0.3, transparency = { 0.2, 1 } })
+		if bubbling then
+			local a = C.anchor(m, at + Vector3.new(0, 0.8, 0), Vector3.new(r, 0.2, r))
+			C.emit(a, { name = "Bubbles", colors = { hex("E8FFFF"), hex("9FE8FF") }, size = { 0.3, 0.6 }, rate = 6, speed = { 3, 6 }, life = { 3, 6 }, spread = 10, accel = Vector3.new(0, 1.5, 0), light = 0.3, transparency = { 0.2, 1 } })
+		end
+		return m
+	end
+	-- sand ripples raised off the floor: a few parallel low ridges
+	local function ripples(parent, at, yaw, n)
+		local F = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
+		for i = 1, n do
+			local len = rng:NextNumber(6, 12)
+			K.part(parent, "Ripple", Vector3.new(len, 0.28, 0.8), F * CFrame.new(rng:NextNumber(-1.2, 1.2), 0.1, (i - n / 2) * 1.9), RIPPLE[rng:NextInteger(1, 2)], { studs = K.TOP, solid = false, shadow = false })
+		end
+	end
+	-- a scallop (a fan of ribs) or a conch (a little stacked spiral)
+	local function shell(parent, at)
+		local m = K.model(parent, "Shell")
+		local yaw = rng:NextNumber(0, math.pi * 2)
+		if rng:NextNumber() < 0.55 then
+			local c = ({ hex("F7C9B8"), hex("F4A98E"), hex("FBE4D0") })[rng:NextInteger(1, 3)]
+			for k = -2, 2 do
+				K.part(m, "ScallopRib", Vector3.new(0.45, 0.35, 1.9), CFrame.new(at) * CFrame.Angles(0, yaw + k * 0.32, 0) * CFrame.new(0, 0.2, -0.85), c, { solid = false, shadow = false })
+			end
+		else
+			local c = ({ hex("F2D2B0"), hex("E8B48E") })[rng:NextInteger(1, 2)]
+			for k = 0, 2 do
+				local s = 1.3 - k * 0.35
+				K.part(m, "Conch", Vector3.new(s * 1.6, s, s), CFrame.new(at + Vector3.new(0, 0.4 + k * 0.45, 0)) * CFrame.Angles(0, yaw + k * 0.9, math.rad(20)), k == 0 and hex("F7A8A0") or c, { solid = false, shadow = false })
+			end
+		end
 		return m
 	end
 	local function barnacles(parent, p, n, spread)
@@ -262,7 +299,6 @@ return function(b, K, T)
 		for _, wz in { -3.5, 0, 3.5 } do
 			win = K.part(m, "Window", Vector3.new(0.3, 2, 1.8), F * CFrame.new(-L / 2 + 1.4, 11.8, wz), hex("FFB85A"), { neon = true, solid = false, shadow = false })
 		end
-		C.light(win, hex("FFB85A"), 18, 1.2)
 		K.part(m, "Mast", Vector3.new(1.6, 24, 1.6), F * CFrame.new(1, 17, 0) * CFrame.Angles(math.rad(-22), 0, math.rad(6)), TIMBERS[1], { studs = K.SIDES, solid = false })
 		local yard = F * CFrame.new(1, 17, 0) * CFrame.Angles(math.rad(-22), 0, math.rad(6)) * CFrame.new(0, 8, 0)
 		K.part(m, "Yard", Vector3.new(1, 1, 15), yard * CFrame.Angles(0, 0, math.rad(12)), TIMBERS[2], { solid = false })
@@ -320,7 +356,7 @@ return function(b, K, T)
 			C.sphere(m, "Pearl", pc, 2.2 * s, function()
 				return hex("EFFFFF")
 			end, { neon = true, solid = false, shadow = false })
-			C.light(C.anchor(m, pc), CYAN, 14 * s + 10, 2)
+			C.keyLight(C.anchor(m, pc), CYAN, 14 * s + 10, 2)
 		end
 		return m
 	end
@@ -329,10 +365,12 @@ return function(b, K, T)
 	local th = {
 		seed = 5521,
 		half = 92,
-		accent = CYAN,
+		accent = AQUA,
 		gateOpenH = 60,
 		blendLen = 26,
 		rock = ROCK,
+		farRock = FARROCK,
+		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.4,
 		edgeN = { { 1052, 65 }, { 1062, 66 }, { 1072, 76 }, { 1086, 88 }, { 1104, 90 }, { 1116, 78 }, { 1128, 68 }, { 1142, 70 }, { 1156, 80 }, { 1172, 92 }, { 1208, 92 }, { 1220, 80 }, { 1232, 72 }, { 1244, 80 }, { 1256, 90 }, { 1278, 90 }, { 1290, 72 }, { 1297, 66 }, { 1302, 65 } },
@@ -349,7 +387,7 @@ return function(b, K, T)
 			gap = liquidGap,
 			transparency = 0.3,
 			top = -0.5,
-			bed = hex("2A4652"),
+			bed = hex("1F6B6E"),
 			color = function(_, _, _, n)
 				return WATER[math.clamp(math.floor(n * 3) + 1, 1, 3)]
 			end,
@@ -472,7 +510,8 @@ return function(b, K, T)
 			coin = K.box(chest, "Coin", q.X - 0.45, q.X + 0.45, 0, rng:NextNumber(0.2, 0.9), q.Z - 0.45, q.Z + 0.45, GOLD, { neon = true, solid = false, shadow = false })
 		end
 		K.box(chest, "Gold", tc.X - 1.7, tc.X + 1.7, 2, 2.6, tc.Z - 1.1, tc.Z + 1.1, GOLD, { neon = true, solid = false, shadow = false })
-		ctx.light(coin, GOLD, 14, 1.2)
+		-- the wreck reads from the gate: a key light on it from the lane side
+		ctx.keyLight(ctx.anchor(wm, WRECK + Vector3.new(-6, 22, -26)), hex("BFF6F0"), 55, 1.8)
 
 		-- kelp forests along the margins and up on the heights
 		local nKelp = 0
@@ -508,7 +547,8 @@ return function(b, K, T)
 		-- reefs, vents, boulders on the floor
 		local function spot(margin, nestR)
 			for _ = 1, 40 do
-				local x, z = rng:NextNumber(XA + 6, XB - 6), rng:NextNumber(-90, 90)
+				-- (nothing on the floor right by the Tesla Gate: a pink coral there read as a fluffy blob from Storm)
+				local x, z = rng:NextNumber(XA + 6, XB - 46), rng:NextNumber(-90, 90)
 				if ctx.inside(x, z, margin) and ctx.pathGap(x, z) > 2.5 and ctx.liquidGap(x, z) > 2 and not ctx.nearNest(x, z, nestR or 22) and not nearWreck(x, z, 4) then
 					return x, z
 				end
@@ -525,7 +565,19 @@ return function(b, K, T)
 			if i <= 9 then
 				x, z = spot(4)
 				if x then
-					vent(scatter, Vector3.new(x, 0, z))
+					vent(scatter, Vector3.new(x, 0, z), x < XA + 120)
+				end
+			end
+			if i <= 22 then
+				x, z = spot(3)
+				if x then
+					ripples(scatter, Vector3.new(x, 0, z), 0.35 + rng:NextNumber(-0.25, 0.25), rng:NextInteger(3, 5))
+				end
+			end
+			if i <= 16 then
+				x, z = spot(1, 18)
+				if x then
+					shell(scatter, Vector3.new(x, 0, z))
 				end
 			end
 			if i <= 10 then
@@ -573,10 +625,11 @@ return function(b, K, T)
 			if nJ >= 13 then
 				break
 			end
-			local x, z = rng:NextNumber(XA + 14, XB - 10), rng:NextNumber(-60, 60)
+			-- (none by the Tesla Gate: from Storm's side a pink jelly read as a cloud)
+			local x, z = rng:NextNumber(XA + 14, XB - 44), rng:NextNumber(-60, 60)
 			local y = rng:NextNumber(14, 42)
 			if not (x > RIB0 - 6 and x < RIB1 + 6 and y > 26 and math.abs(z) < 30) then
-				jelly(sky, Vector3.new(x, y, z), rng:NextNumber(1.8, 3.6), JELLY[rng:NextInteger(1, #JELLY)])
+				jelly(sky, Vector3.new(x, y, z), rng:NextNumber(1.8, 3.6), JELLY[rng:NextInteger(1, #JELLY)], x < XA + 110)
 				nJ += 1
 			end
 		end
@@ -605,7 +658,6 @@ return function(b, K, T)
 			local px, pz = c.X + math.cos(a) * 9.6, c.Z + math.sin(a) * 9.6
 			K.box(art, "Pearl", px - 0.55, px + 0.55, 0, 1.1, pz - 0.55, pz + 0.55, hex("EFFFFF"), { neon = true, solid = false, shadow = false })
 		end
-		ctx.light(ctx.anchor(art, Vector3.new(c.X, 3, c.Z)), CYAN, 16, 0.9)
 		-- the drowned temple round it: marble columns (some broken), a statue's head, the mosaic floor (ground)
 		local cy = ctx.sub("Ruins")
 		local heights = { 16, 7, 13, 5, 18, 10 }
@@ -695,7 +747,7 @@ return function(b, K, T)
 		clam(g, Vector3.new(gx + 3, cy + R + 4.6, 0), Vector3.new(-1, 0, 0), 1.25, math.rad(52), { pearl = true })
 		-- the name, hanging on chains under the keystone
 		local py = 79
-		ctx.plaque(g, CFrame.lookAt(Vector3.new(gx - 1, py, 0), Vector3.new(gx - 30, py, 0)), 46, 7, "SUNKEN ABYSS", { board = hex("10283A"), frame = BONE[1], line = CYAN, text = hex("CFFBFF"), neon = true })
+		ctx.plaque(g, CFrame.lookAt(Vector3.new(gx - 1, py, 0), Vector3.new(gx - 30, py, 0)), 46, 7, "SUNKEN ABYSS", { board = hex("0E3436"), frame = BONE[1], line = AQUA, text = hex("D8FFF8"), neon = true })
 		for _, cz in { -18, 18 } do
 			local y = py + 4.3
 			local k = 0
@@ -720,6 +772,92 @@ return function(b, K, T)
 			K.part(an, "Fluke", Vector3.new(1.2, 2.6, 3), A * CFrame.new(0, -4.4, sz * 5) * CFrame.Angles(math.rad(sz * 50), 0, 0), P.IronLight, { solid = false })
 		end
 		barnacles(an, (A * CFrame.new(0, -2, 0)).Position, 4, 1.4)
+	end
+
+	---------------------------------------------------------------- the lock: chains, a padlock, a crab behind the water light
+	-- a heavy sea-worn chain from a to c, sagging a little, barnacles here and there
+	local function heavyChain(parent, a, c, sag)
+		local L = (c - a).Magnitude
+		local n = math.floor(L / 2.3)
+		local prev = a
+		for i = 1, n do
+			local t = i / n
+			local p = a:Lerp(c, t) - Vector3.new(0, sag * 4 * t * (1 - t), 0)
+			local mid = (prev + p) / 2
+			local cf = CFrame.lookAt(mid, p) * CFrame.Angles(0, 0, (i % 2) * math.pi / 2)
+			K.part(parent, "ChainLink", Vector3.new(0.9, 2.2, 3.1), cf, IRONW[i % 2 + 1], { solid = false, shadow = false })
+			if i % 6 == 3 then
+				barnacles(parent, mid, 2, 0.8)
+			end
+			prev = p
+		end
+	end
+	-- the padlock: a barnacled iron body with a verdigris face, a keyhole, its shackle above
+	local function padlock(parent, c)
+		local m = K.model(parent, "Padlock")
+		K.box(m, "LockBody", c.X - 1.8, c.X + 1.8, c.Y - 5, c.Y + 5, c.Z - 6.5, c.Z + 6.5, IRONW[1], { studs = K.SIDES, solid = false })
+		K.box(m, "LockFace", c.X - 2.05, c.X - 1.75, c.Y - 4, c.Y + 4, c.Z - 5.5, c.Z + 5.5, hex("4F7A6E"), { solid = false })
+		K.box(m, "Keyhole", c.X - 2.2, c.X - 2, c.Y - 1, c.Y + 1.6, c.Z - 0.8, c.Z + 0.8, P.Socket, { solid = false })
+		K.box(m, "KeySlot", c.X - 2.2, c.X - 2, c.Y - 3, c.Y - 1, c.Z - 0.35, c.Z + 0.35, P.Socket, { solid = false })
+		for _, sz in { -1, 1 } do
+			K.box(m, "Shackle", c.X - 0.9, c.X + 0.9, c.Y + 5, c.Y + 11, c.Z + sz * 4.6 - 0.9, c.Z + sz * 4.6 + 0.9, IRONW[2], { solid = false })
+		end
+		K.box(m, "Shackle", c.X - 0.9, c.X + 0.9, c.Y + 10.2, c.Y + 12, c.Z - 5.5, c.Z + 5.5, IRONW[2], { solid = false })
+		barnacles(m, Vector3.new(c.X - 1.6, c.Y - 3.4, c.Z + 4.4), 5, 1.4)
+		barnacles(m, Vector3.new(c.X - 1.6, c.Y + 3.6, c.Z - 4.8), 3, 1)
+		coral(m, Vector3.new(c.X, c.Y + 5, c.Z - 5.2), 0.55, 1)
+		C.strand(m, Vector3.new(c.X - 1.9, c.Y - 4.8, c.Z + 2.2), 5, WEED, KELP[3])
+		return m
+	end
+	-- the COMING SOON board: wet driftwood in a rope frame, brass porthole studs, barnacles and a starfish
+	local function driftSign(parent, cf, w, h, text)
+		local s = C.plaque(parent, cf, w, h, text, { board = hex("3F5452"), frame = hex("B49A6A"), line = AQUA, text = hex("F3E6C4"), neon = true })
+		for _, d in s:GetDescendants() do
+			if d:IsA("BasePart") and d.Name == "Stud" then
+				d.Color = hex("C9A24A")
+				d.Material = Enum.Material.SmoothPlastic
+			end
+		end
+		local fw = math.max(0.8, h * 0.1)
+		local W = w + fw * 2
+		for i = 1, math.floor(W / 3) do
+			local x = -W / 2 + (i - 0.5) * 3
+			for _, sy in { -1, 1 } do
+				K.part(s, "RopeTwist", Vector3.new(0.5, fw * 1.05, 1.9), cf * CFrame.new(x, sy * (h / 2 + fw / 2), -0.1) * CFrame.Angles(0, 0, math.rad(35)), hex("8E7650"), { solid = false, shadow = false })
+			end
+		end
+		barnacles(s, (cf * CFrame.new(-w / 2, -h / 2, -1)).Position, 4, 0.9)
+		barnacles(s, (cf * CFrame.new(w / 2, h / 2, -1)).Position, 3, 0.8)
+		for k = 0, 4 do
+			local a = k / 5 * math.pi * 2
+			K.part(s, "StarArm", Vector3.new(0.7, 1.9, 0.3), cf * CFrame.new(w / 2 - 1.2, -h / 2 + 1.3, -1.25) * CFrame.Angles(0, 0, a) * CFrame.new(0, 0.85, 0), hex("FF8A5C"), { solid = false, shadow = false })
+		end
+		return s
+	end
+	function th.lock(ctx, cs, gx)
+		local H = th.gateOpenH
+		-- a curtain of water light across the opening, bubbles rising through it
+		local field = K.box(cs, "Field", gx - 0.2, gx + 0.2, 0, H, -57, 57, AQUA, { neon = true, transparency = 0.93, solid = false, shadow = false })
+		ctx.emit(field, { name = "CurtainBubbles", colors = { hex("E8FFFF"), AQUA }, size = { 0.35, 0.7 }, rate = 16, speed = { 2, 4 }, life = { 3, 6 }, spread = 8, accel = Vector3.new(0, 1.2, 0), light = 0.4, dir = Enum.NormalId.Top, transparency = { 0.2, 1 } })
+		-- heavy chains from iron rings in the pillars to a great padlock high in the opening (the crab shows below)
+		local lc = Vector3.new(gx - 1.6, 44, 0)
+		for _, s in { -1, 1 } do
+			for _, ay in { 58, 30 } do
+				local a = Vector3.new(gx - 1.6, ay, s * 57.5)
+				K.box(cs, "ChainRing", a.X - 1, a.X + 1, ay - 2, ay + 2, s * 57, s * 59.5, IRONW[2], { solid = false })
+				heavyChain(cs, a, lc + Vector3.new(0, ay > 40 and 4 or -3, s * 6.5), ay > 40 and 2 or 3.5)
+			end
+		end
+		padlock(cs, lc)
+		-- the kaiju beyond: a giant crab, black against the water light, eyes glowing
+		local k = ctx.silhouette(cs, "GlacierCrab", Vector3.new(gx + 36, 0, -2), Vector3.new(-1, 0, 0.06), 40, { eye = hex("8FFFF2"), body = hex("051214"), lift = hex("10262A") })
+		if k then
+			ctx.keyLight(ctx.anchor(cs, Vector3.new(gx + 62, 28, 0)), AQUA, 60, 3)
+		end
+		for _, f in { -1, 1 } do
+			local x = gx + f * 1.3
+			driftSign(cs, CFrame.lookAt(Vector3.new(x, 10.5, 0), Vector3.new(x + f * 20, 10.5, 0)), 40, 8.4, "COMING SOON").Name = "ComingSoon"
+		end
 	end
 
 	return require(script.Parent.NewBiome)(b, K, T, th)

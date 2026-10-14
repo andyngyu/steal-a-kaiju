@@ -6,11 +6,15 @@
 --   Rock       charcoal strata cliffs, rugged crags behind (T.massif), the far ranges paler so the spires stand out
 --   Spires     lightning-rod spires behind the cliffs, the tallest behind the nest, arcs leaping between them, key-lit
 --   Islands    rock islands floating over the canyon, chained to the cliffs, lit from below, storm-glass under them
---   Sky        pale storm-cloud banks over the far ranges, the vortex wheeling over the far end (dark core, pale rim)
---   Coils      Tesla coils in the pockets
+--   Sky        a dark storm cloud swirling over the far end (spiral arms of cloud, a funnel under its eye, lightning
+--              flickering inside, turning slowly: BiomeFX SpinCloud) and broken cloud over the gate end; the overcast
+--              sky and grey light come from VFXConfig.Weather.StormSpires
+--   Bolts      every bolt is its own model tagged FlickerBolt: dark until it strikes now and then (BiomeFX)
+--   Coils      dark iron Tesla coils with copper rings and an electric glow on top, in the pockets and on the gate
 --   Nest       a ring of standing stones with copper rods arcing up to the tallest spire; storm-glass round the eggs
---   Gate       the Tesla Gate; while locked: a crackling energy field between two emitter posts, a kaiju's silhouette
---              looming behind it with glowing eyes, hazard-striped COMING SOON plates
+--   Gate       the Tesla Gate; while locked: a faint energy field between two emitter posts that a few thick bolts
+--              strike across, a kaiju's silhouette looming behind it with glowing eyes, a riveted dark-metal COMING
+--              SOON plate with an electric-blue edge (the name stays only on the girder)
 -- Lights: key lights (WorldCuller keeps them on from afar) only on what reads from the gate; nothing deep inside.
 local hex = Color3.fromHex
 
@@ -37,11 +41,12 @@ return function(b, K, T)
 	local ELEC, ELEC2 = hex("5CC0FF"), hex("C8ECFF")
 	local COPPER, COPPER2 = hex("B87333"), hex("8E5426")
 	local IRON, IRON2 = P.Iron, P.IronLight
-	local PALE = { hex("9A9EA6"), hex("AEB2B9"), hex("8A8E96") }
-	local DARK = { hex("4A4D54"), hex("3C3F45"), hex("55585F") }
 	local DEAD = hex("4A4540")
-	local HAZARD, HAZARD2 = hex("FFC21A"), hex("1B1C1F")
 	local KEY = hex("FFF2D0")
+	local CORE, CORE2 = hex("2A2C31"), hex("34373D") -- the coils' dark iron
+	local CLOUDD = { hex("23252A"), hex("2B2D33"), hex("32353B") } -- storm cloud, inner
+	local CLOUDM = { hex("3C3F46"), hex("464950"), hex("50535B") } -- storm cloud, outer
+	local CS = game:GetService("CollectionService")
 
 	---------------------------------------------------------------- layout
 	local POOLS = { { 1330, 66, 6 }, { 1392, -40, 5 }, { 1426, 50, 6 }, { 1512, -42, 6 }, { 1548, 58, 5 }, { 1362, -70, 6 } }
@@ -74,6 +79,29 @@ return function(b, K, T)
 		table.insert(pts, c)
 		T.chain(parent, "Arc", pts, { w or 0.45 }, blue and { ELEC2, ELEC } or { BOLT2, BOLT }, { neon = true, solid = false, shadow = false })
 		return pts
+	end
+	-- a bolt that strikes now and then: its own model tagged FlickerBolt (BiomeFX keeps it dark between strikes), a
+	-- flash light at its middle if o.light (range). o: blue, light, min / max gap (s), name
+	local function bolt(parent, a, c, n, jitter, w, o)
+		o = o or {}
+		local m = K.model(parent, o.name or "Bolt")
+		local pts = zap(m, a, c, n, jitter, w, o.blue)
+		if o.light then
+			C.light(C.anchor(m, pts[math.ceil(#pts / 2)]), o.blue and ELEC2 or BOLT2, o.light, 4)
+		end
+		m:SetAttribute("MinGap", o.min or 2.5)
+		m:SetAttribute("MaxGap", o.max or 7)
+		CS:AddTag(m, "FlickerBolt")
+		return m, pts
+	end
+	-- a dark storm-cloud puff: three overlapping blocks of different sizes, turned, stacked a little
+	local function puff(parent, p, s, inner, shade)
+		local pal = inner and CLOUDD or CLOUDM
+		for j = 1, 3 do
+			local size = Vector3.new(s * rng:NextNumber(0.8, 1.3), s * rng:NextNumber(0.32, 0.52), s * rng:NextNumber(0.7, 1.1))
+			local off = Vector3.new(rng:NextNumber(-0.4, 0.4) * s, (j - 2) * s * 0.16, rng:NextNumber(-0.4, 0.4) * s)
+			K.part(parent, "StormCloud", size, CFrame.new(p + off) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), pal[rng:NextInteger(1, 3)], { solid = false, shadow = shade == true and nil or false })
+		end
 	end
 	-- a spire of stacked, tapering charcoal blocks with a lightning rod, an electric-blue collar and a glowing tip;
 	-- key = light its lane-facing side from the front. Returns the tip.
@@ -138,6 +166,30 @@ return function(b, K, T)
 		end
 		return m, Vector3.new(c.X, y, c.Z)
 	end
+	-- a thick bolt striking across the plane x = a.X: jagged in y and z only, a short fork; it flickers (FlickerBolt)
+	local function crackle(parent, a, c, n, jy, jz, w, blue, gap)
+		local m = K.model(parent, "FieldBolt")
+		m:SetAttribute("MinGap", gap and gap[1] or 1.5)
+		m:SetAttribute("MaxGap", gap and gap[2] or 4.5)
+		CS:AddTag(m, "FlickerBolt")
+		parent = m
+		local pts = { a }
+		for i = 1, n - 1 do
+			local p = a:Lerp(c, i / n)
+			table.insert(pts, p + Vector3.new(0, rng:NextNumber(-jy, jy), rng:NextNumber(-jz, jz)))
+		end
+		table.insert(pts, c)
+		local cols = blue and { ELEC2, ELEC } or { BOLT2, BOLT }
+		T.chain(parent, "Arc", pts, { w }, cols, { neon = true, solid = false, shadow = false })
+		local k = rng:NextInteger(2, #pts - 1)
+		local q = pts[k]
+		local e = q + Vector3.new(0, rng:NextNumber(-8, 8), rng:NextNumber(-7, 7))
+		T.chain(parent, "ArcFork", { q, (q + e) / 2 + Vector3.new(0, rng:NextNumber(-2, 2), rng:NextNumber(-2, 2)), e }, { w * 0.55 }, cols, { neon = true, solid = false, shadow = false })
+		if w >= 0.9 then
+			C.light(C.anchor(parent, pts[math.ceil(#pts / 2)]), blue and ELEC2 or BOLT2, 50, 4)
+		end
+		return m
+	end
 	-- an iron chain from a to c (alternating links)
 	local function chain(parent, a, c)
 		local d = c - a
@@ -149,30 +201,37 @@ return function(b, K, T)
 			K.part(parent, "ChainLink", Vector3.new(0.5, 1.3, 2.9), cf, i % 2 == 0 and IRON or IRON2, { solid = false, shadow = false })
 		end
 	end
-	-- a Tesla coil: an iron plinth, copper rings stacked and narrowing, a torus, a glowing sphere, arcs to the ground
-	local function coil(parent, base, h, r, lit)
+	-- a Tesla coil: a dark iron core in segments narrowing upwards, thin copper rings standing proud of it, a dark
+	-- torus with a glowing electric-blue rim, a white-blue sphere; o.solid (the gate's), o.studs, o.light, o.bolts
+	local function teslaCoil(parent, base, h, r, o)
+		o = o or {}
 		local m = K.model(parent, "TeslaCoil")
-		C.octagon(m, "Plinth", base, r * 1.4, base.Y - 1, base.Y + 2, IRON, { studs = K.ALL, solid = false })
-		local n = math.max(4, math.floor(h / 3))
+		local solid = o.solid == true
+		local n = math.max(4, math.floor(h / (r * 0.75)))
 		for i = 0, n - 1 do
 			local t = i / n
-			local rr = r * (1 - t * 0.45)
-			local y0 = base.Y + 2 + h * t
-			C.octagon(m, i % 2 == 0 and "Coil" or "CoilBand", base, rr, y0, y0 + h / n, i % 2 == 0 and COPPER or COPPER2, { solid = false })
+			local rr = r * (1 - t * 0.4)
+			local y0 = base.Y + h * t
+			local y1 = base.Y + h * (t + 1 / n)
+			C.octagon(m, "CoilCore", base, rr, y0, y1, i % 2 == 0 and CORE or CORE2, { studs = o.studs and K.SIDES or nil, solid = solid })
+			if i % 2 == 1 or n < 6 then
+				C.octagon(m, "CopperRing", base, rr + r * 0.16, y0 + (y1 - y0) * 0.3, y0 + (y1 - y0) * 0.62, COPPER2, { solid = false })
+			end
 		end
-		local top = base.Y + 2 + h
-		C.octagon(m, "Torus", base, r * 1.15, top, top + r * 0.5, IRON2, { studs = K.ALL, solid = false })
-		local sc = Vector3.new(base.X, top + r * 0.5 + r * 0.55, base.Z)
-		C.sphere(m, "Sphere", sc, r * 0.6, function()
-			return BOLT2
+		local top = base.Y + h
+		C.octagon(m, "Torus", base, r * 1.25, top, top + r * 0.5, IRON, { studs = o.studs and K.ALL or nil, solid = solid })
+		C.octagon(m, "TorusGlow", base, r * 1.33, top + r * 0.14, top + r * 0.36, ELEC, { neon = true, solid = false, shadow = false })
+		local sc = Vector3.new(base.X, top + r * 0.5 + r * 0.62, base.Z)
+		C.sphere(m, "Sphere", sc, r * 0.68, function(t)
+			return t > 0.5 and Color3.new(1, 1, 1) or ELEC2
 		end, { neon = true, solid = false, shadow = false })
-		if lit then
-			C.light(C.anchor(m, sc), BOLT, r * 6 + 14, 2)
+		if o.light then
+			C.keyLight(C.anchor(m, sc), ELEC2, o.light, 2.5)
 		end
-		for k = 1, 2 do
+		for k = 1, (o.bolts or 1) do
 			local a = rng:NextNumber(0, math.pi * 2)
 			local d = r * rng:NextNumber(2.2, 3.4)
-			zap(m, sc, Vector3.new(base.X + math.cos(a) * d, base.Y + rng:NextNumber(0, h * 0.4), base.Z + math.sin(a) * d), 5, r * 0.35, 0.3, k == 2)
+			bolt(m, sc, Vector3.new(base.X + math.cos(a) * d, base.Y + rng:NextNumber(0, h * 0.4), base.Z + math.sin(a) * d), 6, r * 0.35, math.max(0.35, r * 0.09), { blue = k % 2 == 0, min = 2, max = 5 })
 		end
 		return m, sc
 	end
@@ -191,19 +250,25 @@ return function(b, K, T)
 			p += d
 		end
 	end
-	-- a hazard-striped iron plate in the Antique lettering (the Coming Soon signs)
-	local function stormPlate(parent, cf, w, h, text, striped)
-		local s = C.plaque(parent, cf, w, h, text, { board = hex("1E1F23"), frame = hex("6A6C72"), line = BOLT, text = hex("FFF2B0"), neon = true })
+	-- the COMING SOON plate: dark riveted metal, an electric-blue glowing edge, the Antique lettering in pale gold
+	local function stormPlate(parent, cf, w, h, text)
+		local s = C.plaque(parent, cf, w, h, text, { board = hex("23252A"), frame = hex("3A3D44"), line = ELEC, text = hex("FFF4D8"), neon = true })
 		local fw = math.max(0.8, h * 0.1)
-		if striped then
-			local W = w + fw * 2
-			local n = math.floor(W / 3)
-			for _, sy in { -1, 1 } do
-				for i = 0, n - 1 do
-					local x = -W / 2 + (i + 0.5) * W / n
-					K.part(s, "Hazard", Vector3.new(W / n, fw * 0.9, 0.3), cf * CFrame.new(x, sy * (h / 2 + fw / 2), -1.05), i % 2 == 0 and HAZARD or HAZARD2, { solid = false, shadow = false })
-				end
+		local W = w + fw * 2
+		local n = math.floor(W / 4.5)
+		for _, sy in { -1, 1 } do
+			for i = 0, n do
+				K.part(s, "Rivet", Vector3.new(0.55, 0.55, 0.3), cf * CFrame.new(-W / 2 + 0.9 + i * (W - 1.8) / n, sy * (h / 2 + fw / 2), -1.05), IRON2, { solid = false, shadow = false })
 			end
+		end
+		for _, sx in { -1, 1 } do
+			for j = -1, 1 do
+				K.part(s, "Rivet", Vector3.new(0.55, 0.55, 0.3), cf * CFrame.new(sx * (w / 2 + fw / 2), j * h * 0.3, -1.05), IRON2, { solid = false, shadow = false })
+			end
+		end
+		-- the glowing edge round the outside of the frame
+		for _, e in { { 0, h / 2 + fw + 0.15, W + 0.6, 0.3 }, { 0, -(h / 2 + fw + 0.15), W + 0.6, 0.3 }, { W / 2 + 0.15, 0, 0.3, h + fw * 2 }, { -(W / 2 + 0.15), 0, 0.3, h + fw * 2 } } do
+			K.part(s, "EdgeGlow", Vector3.new(e[3], e[4], 1.2), cf * CFrame.new(e[1], e[2], -0.2), ELEC, { neon = true, solid = false, shadow = false })
 		end
 		return s
 	end
@@ -251,7 +316,7 @@ return function(b, K, T)
 			return dn > 15 and ROCK[2] or SLABS[(math.floor(dn / 4) % 2) + 1]
 		end
 		if ctx.pathGap(x, z) <= 0 then
-			return ROAD[math.clamp(math.floor(n * 3) + 1, 1, 3)]
+			return ROAD[n < 0.5 and 1 or 2]
 		end
 		local f = ctx.blend(x)
 		if f > 0 and n2 < f * 1.3 - 0.1 then
@@ -273,7 +338,7 @@ return function(b, K, T)
 		if n2 > 0.93 then
 			return LICHEN
 		end
-		return SLATE[math.clamp(math.floor(n * 4) + 1, 1, 4)]
+		return SLATE[n < 0.36 and 2 or (n < 0.68 and 1 or 3)]
 	end
 
 	function th.cap(ctx, x, r)
@@ -337,7 +402,7 @@ return function(b, K, T)
 		for i, pair in { { 1, 3 }, { 3, 4 }, { 4, 6 }, { 2, 5 }, { 5, 7 } } do
 			local a, c = tips[pair[1]].p, tips[pair[2]].p
 			if (a - c).Magnitude < 160 then
-				zap(sky, a, c, 9, 5, 0.5, i == 4)
+				bolt(sky, a, c, 9, 5, 0.6, { blue = i == 4, light = (i == 1 or i == 4) and 60 or nil, min = 3, max = 9 })
 			end
 		end
 		-- floating islands chained to the cliff tops, the big one over the nest
@@ -358,36 +423,47 @@ return function(b, K, T)
 		-- Tesla coils in the pockets (only the one near the gate carries a light)
 		local coils = ctx.sub("Coils")
 		for _, cp in { { 1360, 70, 18, 3.2, true }, { 1541, -72, 20, 3.4 }, { 1528, 70, 14, 2.6 } } do
-			coil(coils, Vector3.new(cp[1], 0, cp[2]), cp[3], cp[4], cp[5])
+			teslaCoil(coils, Vector3.new(cp[1], 0, cp[2]), cp[3], cp[4], { light = cp[5] and 36 or nil })
 		end
-		-- the storm vortex over the far end: a dark core, pale rims, a glowing eye, a bolt down to a spire
-		local vx, vy = 1520, 236
-		for ri, R in { 34, 62, 92, 124 } do
-			local n = 8 + ri * 3
-			for i = 0, n - 1 do
-				local a = i / n * math.pi * 2 + ri * 0.4
-				local p = Vector3.new(vx + math.cos(a) * R, vy - ri * 6 + math.sin(a * 3) * 3, math.sin(a) * R)
-				local len = 2 * math.pi * R / n * 1.25
-				local pal = ri <= 2 and DARK or PALE
-				K.part(sky, "StormCloud", Vector3.new(len, rng:NextNumber(6, 12) + ri * 2, 10 + ri * 4), CFrame.new(p) * CFrame.Angles(0, -a + math.pi / 2, math.rad(rng:NextNumber(-8, 8))), pal[(i + ri) % 3 + 1], { solid = false, shadow = false, transparency = ri > 2 and 0.1 * (ri - 2) or nil })
+		-- the storm: a dark cloud swirling over the far end (spiral arms, a dark mass between them, a funnel under its
+		-- eye), turned slowly by BiomeFX, lightning flickering inside it, a bolt now and then down to a spire
+		local vx, vy = 1520, 206
+		local vortex = K.model(sky, "StormVortex")
+		vortex:SetAttribute("SpinSpeed", 3.5)
+		CS:AddTag(vortex, "SpinCloud")
+		for arm = 0, 2 do
+			for k = 0, 12 do
+				local t = k / 12
+				local r = 14 + t * 124
+				local a = arm * math.pi * 2 / 3 + t * 2.8
+				puff(vortex, Vector3.new(vx + math.cos(a) * r, vy + 7 * t + rng:NextNumber(-3, 3), math.sin(a) * r), 12 + t * 22, t < 0.45)
 			end
 		end
-		local eye = K.box(sky, "VortexEye", vx - 12, vx + 12, vy + 2, vy + 4, -12, 12, BOLT2, { neon = true, transparency = 0.2, solid = false, shadow = false })
-		K.box(sky, "VortexEye", vx - 20, vx + 20, vy + 1, vy + 2.4, -20, 20, ELEC2, { neon = true, transparency = 0.5, solid = false, shadow = false })
-		ctx.keyLight(eye, BOLT2, 60, 2.5)
-		zap(sky, Vector3.new(vx, vy, 0), tips[6].p, 12, 8, 0.9)
-		-- pale storm-cloud banks over the far ranges either side
-		for _, side in { 1, -1 } do
-			local x = XA - 10
-			while x < XB + 20 do
-				for _ = 1, rng:NextInteger(1, 3) do
-					local w, h, d = rng:NextNumber(30, 56), rng:NextNumber(10, 20), rng:NextNumber(34, 70)
-					local cy = rng:NextNumber(150, 200)
-					local cz = side * rng:NextNumber(170, 320)
-					K.part(sky, "CloudBank", Vector3.new(w, h, d), CFrame.new(x + rng:NextNumber(-10, 10), cy, cz) * CFrame.Angles(0, rng:NextNumber(-0.3, 0.3), 0), (rng:NextNumber() < 0.7 and PALE or DARK)[rng:NextInteger(1, 3)], { solid = false, shadow = false, transparency = rng:NextNumber(0.05, 0.25) })
-					K.part(sky, "CloudBank", Vector3.new(w * 0.6, h * 0.7, d * 0.6), CFrame.new(x + rng:NextNumber(-6, 6), cy - h * 0.6, cz - side * d * 0.25), DARK[rng:NextInteger(1, 3)], { solid = false, shadow = false, transparency = 0.1 })
+		for _ = 1, 10 do
+			local a, r = rng:NextNumber(0, math.pi * 2), rng:NextNumber(18, 90)
+			puff(vortex, Vector3.new(vx + math.cos(a) * r, vy + rng:NextNumber(2, 8), math.sin(a) * r), rng:NextNumber(22, 32), true)
+		end
+		for i = 0, 5 do
+			C.octagon(vortex, "Funnel", Vector3.new(vx, 0, 0), 20 - i * 3, vy - 6 - (i + 1) * 6, vy - 5.5 - i * 6, CLOUDD[i % 3 + 1], { solid = false, shadow = false })
+		end
+		local eye = K.box(vortex, "FunnelGlow", vx - 3, vx + 3, vy - 43.5, vy - 41.5, -3, 3, ELEC2, { neon = true, solid = false, shadow = false })
+		ctx.keyLight(eye, ELEC2, 50, 2)
+		for i = 1, 5 do
+			local a0, a1 = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0, math.pi * 2)
+			local r0, r1 = rng:NextNumber(15, 70), rng:NextNumber(30, 110)
+			local pa = Vector3.new(vx + math.cos(a0) * r0, vy + rng:NextNumber(-4, 2), math.sin(a0) * r0)
+			local pc = Vector3.new(vx + math.cos(a1) * r1, vy + rng:NextNumber(-6, 0), math.sin(a1) * r1)
+			bolt(vortex, pa, pc, 7, 5, 0.8, { blue = i % 2 == 0, light = i <= 3 and 70 or nil, min = 1.2, max = 4.5, name = "CloudBolt" })
+		end
+		bolt(sky, Vector3.new(vx, vy - 42, 0), tips[6].p, 12, 8, 1.2, { light = 60, min = 4, max = 10, name = "StrikeBolt" })
+		-- a low, dense cloud ceiling over the rest of the biome (the swirl covers the far end): from the lane the sky is
+		-- overcast and dark, with a few gaps; the spires stay under it
+		local deck = K.model(sky, "CloudDeck")
+		for x = XA - 14, 1436, 24 do
+			for z = -156, 156, 26 do
+				if rng:NextNumber() < 0.8 then
+					puff(deck, Vector3.new(x + rng:NextNumber(-8, 8), rng:NextNumber(176, 196), z + rng:NextNumber(-8, 8)), rng:NextNumber(26, 38), rng:NextNumber() < 0.45, true)
 				end
-				x += rng:NextNumber(26, 40)
 			end
 		end
 		-- strike marks: scorched patches with glowing fulgurite (smoke only near the gate, where it can be seen)
@@ -504,7 +580,7 @@ return function(b, K, T)
 			K.box(ring, "Rod", top.X - 0.3, top.X + 0.3, top.Y, top.Y + 4, top.Z - 0.3, top.Z + 0.3, IRON2, { solid = false })
 			K.box(ring, "RodTip", top.X - 0.55, top.X + 0.55, top.Y + 4, top.Y + 5, top.Z - 0.55, top.Z + 0.55, BOLT2, { neon = true, solid = false, shadow = false })
 			if h >= 15 then
-				zap(ring, top + Vector3.new(0, 5, 0), heroTip, 12, 5, 0.35)
+				bolt(ring, top + Vector3.new(0, 5, 0), heroTip, 12, 5, 0.45, { min = 3, max = 8 })
 			end
 		end
 	end
@@ -523,25 +599,8 @@ return function(b, K, T)
 			end
 			local b0 = Vector3.new(gx, y, s * 80)
 			C.octagon(g, "CoilFoot", b0, 11, y, y + 3, IRON, { studs = K.ALL })
-			local h = 60 - y
-			local n = 12
-			for i = 0, n - 1 do
-				local t = i / n
-				local rr = 9 * (1 - t * 0.4)
-				local y0 = y + 3 + (h - 3) * t
-				C.octagon(g, i % 2 == 0 and "Coil" or "CoilBand", b0, rr, y0, y0 + (h - 3) / n, i % 2 == 0 and COPPER or COPPER2, { studs = i % 2 == 0 and K.SIDES or nil })
-			end
-			C.octagon(g, "Torus", b0, 10, 60, 64, IRON2, { studs = K.ALL })
-			C.octagon(g, "TorusRim", b0, 11, 61, 63, ELEC, { neon = true, solid = false, shadow = false })
-			local sc = Vector3.new(gx, 72, s * 80)
-			C.sphere(g, "Sphere", sc, 7, function(t)
-				return t > 0.5 and BOLT2 or BOLT
-			end, { neon = true, solid = false, shadow = false })
-			ctx.keyLight(ctx.anchor(g, sc), BOLT2, 60, 2.5)
+			local _, sc = teslaCoil(g, b0 + Vector3.new(0, 3, 0), 57 - y, 8.4, { solid = true, studs = true, light = 60, bolts = 1 })
 			table.insert(spheres, sc)
-			for k = 1, 2 do
-				zap(g, sc, Vector3.new(gx + rng:NextNumber(-14, 14), rng:NextNumber(10, 18), s * rng:NextNumber(66, 96)), 6, 3, 0.35, k == 2)
-			end
 		end
 		K.box(g, "Girder", gx - 4, gx + 4, 56, 62, -72, 72, IRON, { studs = K.SIDES })
 		K.box(g, "GirderFlange", gx - 5, gx + 5, 61.6, 62.8, -72, 72, IRON2, { solid = false })
@@ -560,7 +619,12 @@ return function(b, K, T)
 			table.insert(pts, p)
 		end
 		table.insert(pts, c)
-		T.chain(g, "GateArc", pts, { 1.1 }, { BOLT2, BOLT }, { neon = true, solid = false, shadow = false })
+		local arc = K.model(g, "GateArc")
+		T.chain(arc, "Arc", pts, { 1.6 }, { BOLT2, BOLT }, { neon = true, solid = false, shadow = false })
+		C.light(C.anchor(arc, pts[8]), BOLT2, 60, 4)
+		arc:SetAttribute("MinGap", 2)
+		arc:SetAttribute("MaxGap", 5)
+		CS:AddTag(arc, "FlickerBolt")
 		ctx.plaque(g, CFrame.lookAt(Vector3.new(gx - 5.6, 59, 0), Vector3.new(gx - 30, 59, 0)), 44, 5.4, "STORM SPIRES", { board = hex("1E1F23"), frame = IRON2, line = BOLT, text = hex("FFF2B0"), neon = true })
 	end
 
@@ -576,26 +640,23 @@ return function(b, K, T)
 			end
 			K.box(cs, "EmitterCap", gx - 2.4, gx + 2.4, H + 1, H + 2.6, z - 2.4, z + 2.4, ELEC, { neon = true, solid = false, shadow = false })
 		end
-		-- the field: a faint electric sheet, crackling arcs across it
-		local field = K.box(cs, "Field", gx - 0.2, gx + 0.2, 0, H, -56.4, 56.4, ELEC2, { neon = true, transparency = 0.9, solid = false, shadow = false })
-		for i = 1, 7 do
-			local y0 = 4 + (i - 1) * (H - 8) / 6
-			local y1 = math.clamp(y0 + rng:NextNumber(-8, 8), 3, H - 3)
-			zap(cs, Vector3.new(gx - 0.5, y0, -56), Vector3.new(gx - 0.5, y1, 56), 11, 2.4, i % 3 == 0 and 0.5 or 0.35, i % 2 == 0)
-		end
+		-- the field: a faint electric sheet; a few thick bolts strike across it now and then (FlickerBolt), low, so
+		-- the kaiju behind stays clear
+		local field = K.box(cs, "Field", gx - 0.2, gx + 0.2, 0, H, -56.4, 56.4, ELEC2, { neon = true, transparency = 0.92, solid = false, shadow = false })
+		crackle(cs, Vector3.new(gx - 0.5, 8, -56), Vector3.new(gx - 0.5, 14, 56), 14, 4.5, 3, 0.95, false, { 2.5, 6 })
+		crackle(cs, Vector3.new(gx - 0.5, 30, 56), Vector3.new(gx - 0.5, 22, 18), 7, 3.5, 2.5, 0.65, true, { 1.5, 4 })
+		crackle(cs, Vector3.new(gx - 0.5, 40, -56), Vector3.new(gx - 0.5, 33, -20), 7, 3.5, 2.5, 0.65, false, { 1.5, 4 })
 		ctx.emit(field, { name = "FieldSparks", colors = { BOLT2, ELEC2 }, size = { 0.5, 0.1 }, rate = 24, speed = { 1, 3 }, life = { 0.4, 0.9 }, spread = 180, light = 1, dir = Enum.NormalId.Left })
 		-- the kaiju that waits beyond it: a hulking storm brute, black against the field, eyes burning
-		local k = ctx.silhouette(cs, "Thunderback", Vector3.new(gx + 46, 0, 6), Vector3.new(-1, 0, -0.12), 46, { eye = BOLT2 })
+		local k = ctx.silhouette(cs, "Thunderback", Vector3.new(gx + 52, 0, 4), Vector3.new(-1, 0, -0.1), 58, { eye = BOLT2, body = hex("07080A"), lift = hex("16181C") })
 		if k then
-			ctx.keyLight(ctx.anchor(cs, Vector3.new(gx + 66, 34, 0)), ELEC2, 60, 3) -- the storm behind it, rimming its shape
+			ctx.keyLight(ctx.anchor(cs, Vector3.new(gx + 74, 40, 0)), ELEC2, 60, 3) -- the storm behind it, rimming its shape
 		end
-		-- hazard-striped plates, both ways
+		-- the COMING SOON plate low in the opening, both ways, so the kaiju shows above it (the name is on the girder)
 		for _, f in { -1, 1 } do
 			local x = gx + f * 1.3
-			local s1 = stormPlate(cs, CFrame.lookAt(Vector3.new(x, 24, 0), Vector3.new(x + f * 20, 24, 0)), 40, 8.4, "COMING SOON", true)
+			local s1 = stormPlate(cs, CFrame.lookAt(Vector3.new(x, 10.5, 0), Vector3.new(x + f * 20, 10.5, 0)), 40, 8.4, "COMING SOON")
 			s1.Name = "ComingSoon"
-			local s2 = stormPlate(cs, CFrame.lookAt(Vector3.new(x, 14.5, 0), Vector3.new(x + f * 20, 14.5, 0)), 30, 4.6, "STORM SPIRES", false)
-			s2.Name = "ComingSoonName"
 		end
 	end
 

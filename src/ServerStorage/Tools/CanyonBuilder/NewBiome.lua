@@ -470,6 +470,43 @@ return function(b, K, T, th)
 	local gate = K.model(model, "Gate")
 	th.gate(ctx, gate)
 
+	---------------------------------------------------------------- the lane's own signs while locked
+	-- The speed sign and the NEST sign wait in ServerStorage.LockedLaneProps.<Id> while the biome is locked (seen
+	-- through the gate they only clutter the teaser); a build after unlocking puts them back (SpeedFX copes with a lane
+	-- that has no Sign).
+	do
+		local SS = game:GetService("ServerStorage")
+		local store = SS:FindFirstChild("LockedLaneProps")
+		if not store then
+			store = Instance.new("Folder")
+			store.Name = "LockedLaneProps"
+			store.Parent = SS
+		end
+		local held = store:FindFirstChild(b.Id)
+		if b.Locked then
+			if not held then
+				held = Instance.new("Folder")
+				held.Name = b.Id
+				held.Parent = store
+			end
+			local sign = model:FindFirstChild("Sign")
+			if sign then
+				sign.Parent = held
+			end
+			local decor = model:FindFirstChild("Decor")
+			for _, d in decor and decor:GetChildren() or {} do
+				if d.Name:sub(1, 8) == "NestSign" then
+					d.Parent = held
+				end
+			end
+		elseif held then
+			for _, d in held:GetChildren() do
+				d.Parent = d.Name == "Sign" and model or (model:FindFirstChild("Decor") or model)
+			end
+			held:Destroy()
+		end
+	end
+
 	---------------------------------------------------------------- Coming Soon (while the biome is locked)
 	if b.Locked then
 		local cs = K.model(gate, "ComingSoon")
