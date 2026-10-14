@@ -1,6 +1,7 @@
 -- Pebble Plains, refined (CanyonBuilder section "Refine"). Rebuilds the biome's open ground past the Grand Gate tunnel
--- (x 350..452) in place, keeping its contracts: Zone (now 170 wide), NestSite, Sign, Decor's NestSign, the old floor
--- inside the tunnel.
+-- (x 350 to the zone's end) in place, keeping its contracts: Zone (now 170 wide), NestSite, Sign, Decor's NestSign, the
+-- old floor inside the tunnel. The layout below was drawn for x 350..452 and is laid onto the lane with T.stretch:
+-- X() places an original position, U() reads a lane position in the original terms.
 --   Ground     grass in irregular patches of four greens (no checker), a dirt path with flagstones (finer studs) that
 --              forks round the nest and curves away, a pebble beach at the lake, and towards Lava Lagoon the grass
 --              turning patchy and dry, then scorched and ashy
@@ -22,33 +23,36 @@ return function(b, K, T)
 	local model = b.model
 	local rng = Random.new(7071)
 	local XA, XB = 350, b.x1
+	local X, U, KX = T.stretch(350, 452, XA, XB)
 	local HALF = 85
 	local report = {}
 
 	---------------------------------------------------------------- layout
 	local edge = {
-		[1] = T.edge({ { 350, 63 }, { 358, 63 }, { 366, 70 }, { 374, 74 }, { 380, 66 }, { 385, 70 }, { 390, 85 }, { 432, 85 }, { 437, 72 }, { 442, 65 }, { 452, 65 } }),
-		[-1] = T.edge({ { 350, 63 }, { 358, 60 }, { 364, 58 }, { 370, 70 }, { 376, 82 }, { 390, 82 }, { 396, 62 }, { 402, 60 }, { 408, 70 }, { 414, 84 }, { 426, 84 }, { 432, 72 }, { 440, 65 }, { 452, 65 } }),
+		[1] = T.edge(T.at({ { 350, 63 }, { 358, 63 }, { 366, 70 }, { 374, 74 }, { 380, 66 }, { 385, 70 }, { 390, 85 }, { 432, 85 }, { 437, 72 }, { 442, 65 }, { 452, 65 } }, X)),
+		[-1] = T.edge(T.at({ { 350, 63 }, { 358, 60 }, { 364, 58 }, { 370, 70 }, { 376, 82 }, { 390, 82 }, { 396, 62 }, { 402, 60 }, { 408, 70 }, { 414, 84 }, { 426, 84 }, { 432, 72 }, { 440, 65 }, { 452, 65 } }, X)),
 	}
 	local function inClearing(x)
-		return x > 388 and x < 434
+		local xo = U(x)
+		return xo > 388 and xo < 434
 	end
 	local function height(side, x)
 		local n = T.n01(x / 19 + (side > 0 and 3.3 or 8.1), side * 2.3, 0.5)
+		local xo = U(x)
 		if side > 0 and inClearing(x) then
 			return 0 -- the lake clearing: open
 		end
-		if side < 0 and x > 409 and x < 431 then
+		if side < 0 and xo > 409 and xo < 431 then
 			return math.floor((14 + n * 6) / 2) * 2 -- low: the view out to the south
 		end
 		local h = 44 + n * 36
 		if x < 364 then
 			h = math.max(h, 64 + n * 14) -- up against the Grand Gate's towers
 		end
-		if side > 0 and ((x > 375 and x <= 388) or (x >= 434 and x < 443)) then
+		if side > 0 and ((xo > 375 and xo <= 388) or (xo >= 434 and xo < 443)) then
 			h = 18 + n * 8 -- low grassy knolls either side of the lake
 		end
-		if x > 440 then
+		if xo > 440 then
 			h = 50 + n * 10
 		end
 		return math.floor(h / 2 + 0.5) * 2
@@ -60,6 +64,9 @@ return function(b, K, T)
 		{ { 408, 15, 7 }, { 410, 40, 6 }, { 412, 62, 6 }, { 414, 84, 7 } }, -- to the lake
 		{ { 378, -13, 6 }, { 382, -34, 6 }, { 384, -56, 6 } }, -- to the ledge
 	}
+	for i, p in PATHS do
+		PATHS[i] = T.at(p, X)
+	end
 	local function pathGap(x, z) -- < 0 on the path
 		local best = math.huge
 		for _, p in PATHS do
@@ -69,7 +76,7 @@ return function(b, K, T)
 		return best
 	end
 	local nest = model:FindFirstChild("NestSite")
-	local NEST = nest and nest:GetPivot().Position or Vector3.new(362, 0, 0)
+	local NEST = nest and nest:GetPivot().Position or Vector3.new(X(362), 0, 0)
 	local function nearNest(x, z, r)
 		return (Vector3.new(x, 0, z) - Vector3.new(NEST.X, 0, NEST.Z)).Magnitude < r
 	end
@@ -88,17 +95,19 @@ return function(b, K, T)
 	local BONE_DARK = hex("8C7F62")
 	local function capColor(x, r)
 		local c = CAPS[r:NextInteger(1, #CAPS)]
-		if x > 426 then
-			c = c:Lerp(hex("A79E52"), math.clamp((x - 426) / 14, 0, 1))
+		local xo = U(x)
+		if xo > 426 then
+			c = c:Lerp(hex("A79E52"), math.clamp((xo - 426) / 14, 0, 1))
 		end
-		if x > 440 then
-			c = c:Lerp(hex("6A625B"), math.clamp((x - 440) / 10, 0, 1))
+		if xo > 440 then
+			c = c:Lerp(hex("6A625B"), math.clamp((xo - 440) / 10, 0, 1))
 		end
 		return c
 	end
 	local function tint(x, c)
-		if x > 428 then
-			return c:Lerp(CHAR, math.clamp((x - 428) / 24, 0, 1) * 0.6)
+		local xo = U(x)
+		if xo > 428 then
+			return c:Lerp(CHAR, math.clamp((xo - 428) / 24, 0, 1) * 0.6)
 		end
 		return c
 	end
@@ -174,7 +183,7 @@ return function(b, K, T)
 			if z > 79 and inClearing(x) then
 				return BEACH[n < 0.5 and 1 or 2]
 			end
-			local tb = math.clamp((x - 416) / 36, 0, 1)
+			local tb = math.clamp((U(x) - 416) / 36, 0, 1)
 			local n2 = T.n01(x / 9 + 7.7, z / 9 - 2.2, 0.8)
 			if n2 < tb * 1.9 - 1.0 then
 				return ASH[math.clamp(math.floor(n * 3) + 1, 1, 3)]
@@ -244,7 +253,7 @@ return function(b, K, T)
 					T.boulder(scatter, Vector3.new(x, 0, side * (c.front - r * 0.45)), r, rockAt, rng, { solid = r > 2.2, moss = rng:NextNumber() < 0.5 and MOSS[1] or nil })
 				end
 				-- hanging vines
-				if c.x0 < 430 and rng:NextNumber() < 0.3 then
+				if U(c.x0) < 430 and rng:NextNumber() < 0.3 then
 					local vx = rng:NextNumber(c.x0 + 1, c.x1 - 1)
 					local f = c.lastFront - 0.7
 					for j = 0, rng:NextInteger(3, 6) do
@@ -275,10 +284,11 @@ return function(b, K, T)
 			end,
 			height = function(x)
 				local n = T.n01(x / 27 + side * 5.7, 1.9, side)
-				if side > 0 and x > 372 and x < 446 then
+				local xo = U(x)
+				if side > 0 and xo > 372 and xo < 446 then
 					return math.floor(36 + n * 12) -- low behind the lake: the statue stands against the sky
 				end
-				if side < 0 and x > 404 and x < 436 then
+				if side < 0 and xo > 404 and xo < 436 then
 					return math.floor(24 + n * 10)
 				end
 				return math.floor(74 + n * 36)
@@ -307,10 +317,11 @@ return function(b, K, T)
 			end,
 			height = function(x)
 				local n = T.n01(x / 41 + side * 2.9, 6.1, side)
-				if side < 0 and x > 400 and x < 440 then
+				local xo = U(x)
+				if side < 0 and xo > 400 and xo < 440 then
 					return math.floor(46 + n * 16)
 				end
-				if side > 0 and x > 368 and x < 452 then
+				if side > 0 and xo > 368 and xo < 452 then
 					return math.floor(62 + n * 20)
 				end
 				return math.floor(118 + n * 52)
@@ -336,7 +347,7 @@ return function(b, K, T)
 	local greens = sub("Greenery")
 	local nTrees = 0
 	for _, t in tops do
-		if t.x < 432 and t.z1 > t.z0 then
+		if U(t.x) < 432 and t.z1 > t.z0 then
 			local r = rng:NextNumber()
 			local kind = r < (t.big and 0.35 or 0.28) and "Tree" or (r < 0.55 and (rng:NextNumber() < 0.5 and "Bush" or "BerryBush") or nil)
 			local list = kind and pool[kind]
@@ -351,8 +362,8 @@ return function(b, K, T)
 	table.insert(report, nTrees .. " trees / bushes on the heights")
 
 	---------------------------------------------------------------- the raised ledge in the south pocket (a ramp up from the lane)
-	local LX0, LX1 = 378, 392
-	K.box(scatter, "LedgeRock", LX0, LX1, -2, 4, -64, -80, rockAt(Vector3.new(385, 2, -72), 0.2), { studs = K.SIDES })
+	local LX0, LX1 = X(378), X(392)
+	K.box(scatter, "LedgeRock", LX0, LX1, -2, 4, -64, -80, rockAt(Vector3.new(X(385), 2, -72), 0.2), { studs = K.SIDES })
 	K.box(scatter, "LedgeTop", LX0, LX1, 4, 4.6, -64, -80, CAPS[2], { studs = K.TOP })
 	local ramp = Instance.new("WedgePart")
 	ramp.Name = "LedgeRamp"
@@ -364,26 +375,27 @@ return function(b, K, T)
 	ramp.TopSurface = Enum.SurfaceType.Smooth
 	K.studs(ramp, { K.N.Top })
 	ramp.Parent = scatter
-	T.cairn(scatter, Vector3.new(389, 4.6, -76), { 2.4, 1.6 }, rockAt, rng, { moss = MOSS[3] })
-	for _ = 1, 3 do
+	T.cairn(scatter, Vector3.new(X(389), 4.6, -76), { 2.4, 1.6 }, rockAt, rng, { moss = MOSS[3] })
+	for _ = 1, math.floor(3 * KX) do
 		T.boulder(scatter, Vector3.new(rng:NextNumber(LX0 + 2, LX1 - 2), 4.6, rng:NextNumber(-78, -70)), rng:NextNumber(0.8, 1.3), rockAt, rng)
 	end
 
 	---------------------------------------------------------------- pebble formations and boulders
-	T.cairn(scatter, Vector3.new(372, 0, 66), { 4.6, 3.5, 2.7, 1.8 }, rockAt, rng, { solid = true, moss = MOSS[1] })
-	local base, top = T.boulder(scatter, Vector3.new(419, 0, -74), 2.4, rockAt, rng, { solid = true })
-	T.boulder(base, Vector3.new(420.2, top - 0.4, -74), 5.4, rockAt, rng, { solid = true, moss = MOSS[2] })
+	T.cairn(scatter, Vector3.new(X(372), 0, 66), { 4.6, 3.5, 2.7, 1.8 }, rockAt, rng, { solid = true, moss = MOSS[1] })
+	local BX = X(419) -- the balanced rock
+	local base, top = T.boulder(scatter, Vector3.new(BX, 0, -74), 2.4, rockAt, rng, { solid = true })
+	T.boulder(base, Vector3.new(BX + 1.2, top - 0.4, -74), 5.4, rockAt, rng, { solid = true, moss = MOSS[2] })
 	for k = 0, 6 do
 		local a = k / 7 * math.pi * 2
-		T.boulder(scatter, Vector3.new(419 + math.cos(a) * 8, 0, -74 + math.sin(a) * 6.5), rng:NextNumber(0.8, 1.3), rockAt, rng)
+		T.boulder(scatter, Vector3.new(BX + math.cos(a) * 8, 0, -74 + math.sin(a) * 6.5), rng:NextNumber(0.8, 1.3), rockAt, rng)
 	end
 	-- pebble clusters about the grass
 	local placed = 0
-	for _ = 1, 60 do
-		if placed >= 9 then
+	for _ = 1, math.floor(60 * KX) do
+		if placed >= math.floor(9 * KX) then
 			break
 		end
-		local x, z = rng:NextNumber(358, 434), rng:NextNumber(-70, 70)
+		local x, z = rng:NextNumber(X(358), X(434)), rng:NextNumber(-70, 70)
 		local side = z >= 0 and 1 or -1
 		if math.abs(z) < edge[side](x) - 8 and pathGap(x, z) > 4 and not nearNest(x, z, 18) then
 			for _ = 1, rng:NextInteger(2, 4) do
@@ -396,11 +408,11 @@ return function(b, K, T)
 	---------------------------------------------------------------- wildflowers
 	local FLOWERS = { hex("F4F1E6"), hex("F2C14E"), hex("9B6CF0"), hex("F07AB0"), hex("E8434A"), hex("6FA8F5") }
 	placed = 0
-	for _ = 1, 80 do
-		if placed >= 11 then
+	for _ = 1, math.floor(80 * KX) do
+		if placed >= math.floor(11 * KX) then
 			break
 		end
-		local x, z = rng:NextNumber(356, 426), rng:NextNumber(-80, 84)
+		local x, z = rng:NextNumber(X(356), X(426)), rng:NextNumber(-80, 84)
 		local side = z >= 0 and 1 or -1
 		local lim = (side > 0 and inClearing(x)) and 76 or edge[side](x) - 5
 		if math.abs(z) < lim and pathGap(x, z) > 3 and not nearNest(x, z, 15) then
@@ -410,48 +422,50 @@ return function(b, K, T)
 	end
 
 	---------------------------------------------------------------- a giant's footprints, crossing the plain
-	local walk = Vector3.new(16, 0, -24).Unit
+	local walk = Vector3.new(16 * KX, 0, -24).Unit
 	local acrossW = Vector3.new(-walk.Z, 0, walk.X)
-	for i, at in { Vector3.new(380, 0, 40), Vector3.new(396, 0, 16), Vector3.new(412, 0, -8), Vector3.new(428, 0, -32) } do
+	for i, at in { Vector3.new(X(380), 0, 40), Vector3.new(X(396), 0, 16), Vector3.new(X(412), 0, -8), Vector3.new(X(428), 0, -32) } do
 		T.footprint(scatter, at + acrossW * (i % 2 == 0 and 4 or -4), walk, 22, { mud = hex("6B4A2F"), deep = hex("4E3521"), rim = hex("8C7A45") })
 	end
 
 	---------------------------------------------------------------- fossils, half buried
 	local bones = sub("Fossils")
 	for k = 0, 3 do
-		local x = 398 + k * 4
+		local x = X(398) + k * 4
 		T.arcBone(bones, Vector3.new(x, -2.5, -34), math.rad(90), 8 - k * 0.6, 10, 128, 1.9, 1.0, BONE, 5)
 	end
 	for k = 0, 4 do
-		local x = 396 + k * 4
+		local x = X(398) - 2 + k * 4
 		local w = 2.6 - k * 0.15
 		K.box(bones, "Vertebra", x - w / 2, x + w / 2, -0.6, 1.2, -43.5, -40.5, BONE[(k % 2) + 1], { studs = K.ALL, solid = false })
 		K.box(bones, "Spinous", x - 0.4, x + 0.4, 1.2, 2.6, -42.4, -41.6, BONE[2], { solid = false })
 	end
-	-- a femur and two ribs on the ledge
-	T.chain(bones, "Femur", { Vector3.new(380.5, 5.3, -76.5), Vector3.new(386, 5.5, -74), Vector3.new(391, 5.6, -71.5) }, { 1.9, 1.7 }, BONE)
-	for _, e in { Vector3.new(380.5, 5.3, -76.5), Vector3.new(391, 5.6, -71.5) } do
+	-- a femur and two ribs on the ledge (moved with the ledge's middle, same size)
+	local LD = Vector3.new(X(386) - 386, 0, 0)
+	T.chain(bones, "Femur", { Vector3.new(380.5, 5.3, -76.5) + LD, Vector3.new(386, 5.5, -74) + LD, Vector3.new(391, 5.6, -71.5) + LD }, { 1.9, 1.7 }, BONE)
+	for _, e in { Vector3.new(380.5, 5.3, -76.5) + LD, Vector3.new(391, 5.6, -71.5) + LD } do
 		K.part(bones, "Knob", Vector3.new(3.2, 2.4, 3), CFrame.new(e), BONE[1], { studs = K.ALL, solid = false })
 		K.part(bones, "Knob", Vector3.new(2.2, 1.6, 2.2), CFrame.new(e + Vector3.new(0, 1.2, 0)), BONE[2], { solid = false })
 	end
-	T.arcBone(bones, Vector3.new(384, 1.8, -78), 0, 6, 25, 135, 1.6, 0.9, BONE, 4)
-	T.arcBone(bones, Vector3.new(389, 1.8, -79), 0, 5.4, 25, 135, 1.5, 0.9, BONE, 4)
+	T.arcBone(bones, Vector3.new(384, 1.8, -78) + LD, 0, 6, 25, 135, 1.6, 0.9, BONE, 4)
+	T.arcBone(bones, Vector3.new(389, 1.8, -79) + LD, 0, 5.4, 25, 135, 1.5, 0.9, BONE, 4)
 	-- a great claw and a run of vertebrae in the north alcove
-	T.chain(bones, "Claw", { Vector3.new(379, -0.6, 52), Vector3.new(379.4, 4.2, 53.5), Vector3.new(380, 7.8, 56.2), Vector3.new(380.6, 9.6, 59.6) }, { 2.8, 2.1, 1.3 }, { BONE[1], BONE[2], BONE_DARK })
+	local AD = Vector3.new(X(380) - 380, 0, 0)
+	T.chain(bones, "Claw", { Vector3.new(379, -0.6, 52) + AD, Vector3.new(379.4, 4.2, 53.5) + AD, Vector3.new(380, 7.8, 56.2) + AD, Vector3.new(380.6, 9.6, 59.6) + AD }, { 2.8, 2.1, 1.3 }, { BONE[1], BONE[2], BONE_DARK })
 	for k = 0, 2 do
-		local x = 366 + k * 3.6
+		local x = X(366) + k * 3.6
 		K.box(bones, "Vertebra", x - 1.2, x + 1.2, -0.5, 1.1, 54.5, 57.5, BONE[(k % 2) + 1], { studs = K.ALL, solid = false })
 	end
 
 	---------------------------------------------------------------- the transition: dry grass, ash, charred bushes, smoking cracks
 	local trans = sub("Transition")
-	for _, c in { { 436, 26, 80 }, { 442, -20, 100 }, { 434, -48, 70 }, { 445, 44, 95 } } do
-		T.crack(trans, Vector3.new(c[1], 0, c[2]), math.rad(c[3]), 4, rng, { dark = hex("2B2522"), glow = hex("FF5A1F") })
+	for _, c in { { 436, 26, 80 }, { 442, -20, 100 }, { 434, -48, 70 }, { 445, 44, 95 }, { 428, 8, 60 }, { 448, -40, 85 } } do
+		T.crack(trans, Vector3.new(X(c[1]), 0, c[2]), math.rad(c[3]), 4, rng, { dark = hex("2B2522"), glow = hex("FF5A1F") })
 	end
 	local DRYLEAF, CHARLEAF = hex("A08F4A"), hex("3A332E")
 	for _, d in decor:GetChildren() do
 		if d:IsA("Model") and d.Name ~= "NestSign" and not d:GetAttribute("Weathered") then
-			local x = d:GetBoundingBox().X
+			local x = U(d:GetBoundingBox().X)
 			if x > 420 then
 				local f1 = math.clamp((x - 420) / 16, 0, 1)
 				local f2 = math.clamp((x - 438) / 12, 0, 1)
@@ -470,25 +484,25 @@ return function(b, K, T)
 	---------------------------------------------------------------- the Colossus: a stone guardian behind a lake
 	local land = sub("Landmark")
 	local WATER, WATER2, FOAM = hex("4DB3E6"), hex("6BC6EE"), hex("EAF8FF")
-	K.box(land, "LakeBed", 388, 434, -4, -1.6, 86, 130, hex("3E5A50"), { studs = K.TOP })
-	K.box(land, "Lake", 388, 434, -1.6, 0.15, 86, 130, WATER, { transparency = 0.25, solid = false, shadow = false })
-	for x = 390, 432, 3.7 do
+	K.box(land, "LakeBed", X(388), X(434), -4, -1.6, 86, 130, hex("3E5A50"), { studs = K.TOP })
+	K.box(land, "Lake", X(388), X(434), -1.6, 0.15, 86, 130, WATER, { transparency = 0.25, solid = false, shadow = false })
+	for x = X(390), X(432), 3.7 do
 		T.boulder(land, Vector3.new(x + rng:NextNumber(-0.8, 0.8), 0, 87.4), rng:NextNumber(1.1, 1.9), rockAt, rng, { moss = rng:NextNumber() < 0.45 and MOSS[1] or nil })
 	end
-	for _, sx in { 389.5, 432.5 } do
+	for _, sx in { X(389.5), X(432.5) } do
 		for z = 92, 126, 6 do
 			T.boulder(land, Vector3.new(sx + rng:NextNumber(-0.6, 0.6), 0, z), rng:NextNumber(1.2, 2), rockAt, rng, { moss = MOSS[2] })
 		end
 	end
-	for _ = 1, 6 do
-		local x, z = rng:NextNumber(390, 430), rng:NextNumber(90, 104)
+	for _ = 1, math.floor(6 * KX) do
+		local x, z = rng:NextNumber(X(390), X(430)), rng:NextNumber(90, 104)
 		local pad = rng:NextNumber(2, 3)
 		K.part(land, "LilyPad", Vector3.new(pad, 0.12, pad), CFrame.new(x, 0.2, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), hex("4E9E36"), { solid = false })
 		if rng:NextNumber() < 0.4 then
 			K.box(land, "LilyFlower", x - 0.5, x + 0.5, 0.26, 0.9, z - 0.5, z + 0.5, hex("F4C6DA"), { solid = false })
 		end
 	end
-	for _, at in { Vector3.new(389, 0, 89), Vector3.new(431, 0, 90), Vector3.new(392, 0, 120), Vector3.new(428, 0, 121) } do
+	for _, at in { Vector3.new(X(389), 0, 89), Vector3.new(X(431), 0, 90), Vector3.new(X(392), 0, 120), Vector3.new(X(428), 0, 121) } do
 		for k = 0, 2 do
 			local x, z = at.X + rng:NextNumber(-1.2, 1.2), at.Z + rng:NextNumber(-1.2, 1.2)
 			local h = rng:NextNumber(3.5, 6)
@@ -497,8 +511,8 @@ return function(b, K, T)
 		end
 	end
 	-- the rock the statue stands on
-	K.box(land, "StatueRock", 388, 434, -2, 2.6, 126, 196, rockAt(Vector3.new(411, 0, 160), 0.1), { studs = K.ALL })
-	K.box(land, "StatueMoss", 390, 432, 2.6, 3.2, 128, 194, MOSS[1], { studs = K.TOP, solid = false })
+	K.box(land, "StatueRock", X(388), X(434), -2, 2.6, 126, 196, rockAt(Vector3.new(X(411), 0, 160), 0.1), { studs = K.ALL })
+	K.box(land, "StatueMoss", X(388) + 2, X(434) - 2, 2.6, 3.2, 128, 194, MOSS[1], { studs = K.TOP, solid = false })
 	local src = ServerStorage:FindFirstChild("Assets") and ServerStorage.Assets.Kaiju:FindFirstChild("Guardian_PebblePlains")
 	if src then
 		local s = src:Clone()
@@ -581,7 +595,7 @@ return function(b, K, T)
 				t.StudsPerTileV *= SCALE
 			end
 		end
-		s:PivotTo(CFrame.lookAt(Vector3.new(411, 0, 150), Vector3.new(396, 0, 0)))
+		s:PivotTo(CFrame.lookAt(Vector3.new(X(411), 0, 150), Vector3.new(X(411) - 15, 0, 0)))
 		-- front of the head at z 99, feet on the rock
 		local minY, minZ = math.huge, math.huge
 		for _, d in s:GetDescendants() do
