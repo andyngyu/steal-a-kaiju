@@ -4,7 +4,8 @@
 --   Map.Ground        regenerated over the citadel's footprint: grass checker, stone paving on the avenue and the hall floor
 --   Map.Walls         removed (the old dirt walls); Map.Citadel replaces them:
 --     Walls, Towers   45-tall curtain walls with battlements, pilasters and banners; towers with stepped roofs and flags
---     GrandGate       on the safe line (x 302): twin towers, "THE WILDLANDS" / "KAIJU CITADEL", the seven biome banners
+--     GrandGate       on the safe line (x 302): gatehouse tunnel, huge towers, portcullis, skull trophy (child module Gate)
+--     Keep            the landmark keep at the west end of the avenue, behind the Hall (child module Keep)
 --     Hall            the Hall of Champions round the leaderboards (the boards themselves stay exactly where they are)
 --     Statues         two colossal golden kaiju in fountains, one each side of the spawn
 --     Avenue          curbs, braziers and banner poles between the plots
@@ -15,6 +16,8 @@
 --   require(game.ServerStorage.Tools.CitadelBuilder:Clone()).Build({ "GrandGate" })  just those sections
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Kit = require(script.Kit)
 
 local function fresh(module)
 	local copy = module:Clone()
@@ -334,13 +337,9 @@ local function buildWalls(root, map, ctx)
 	local A = ctx.accents
 	curtain(f, "WallNorth", Vector3.new(-124, 0, 162), Vector3.new(304, 0, 162), Vector3.new(0, 0, 1), A, { colorPhase = 0 })
 	curtain(f, "WallSouth", Vector3.new(-124, 0, -162), Vector3.new(304, 0, -162), Vector3.new(0, 0, -1), A, { colorPhase = 3 })
-	-- the west wall's middle stands behind the Hall of Champions: no banners there
-	curtain(f, "WallWest", Vector3.new(-120, 0, -166), Vector3.new(-120, 0, 166), Vector3.new(-1, 0, 0), A, {
-		colorPhase = 5,
-		skip = function(p)
-			return math.abs(p.Z) < 92
-		end,
-	})
+	-- the west wall runs into the Keep's front corner towers (z +-71)
+	curtain(f, "WallWestN", Vector3.new(-120, 0, 70), Vector3.new(-120, 0, 166), Vector3.new(-1, 0, 0), A, { colorPhase = 5 })
+	curtain(f, "WallWestS", Vector3.new(-120, 0, -166), Vector3.new(-120, 0, -70), Vector3.new(-1, 0, 0), A, { colorPhase = 6 })
 	curtain(f, "WallEastN", Vector3.new(300, 0, 92), Vector3.new(300, 0, 166), Vector3.new(1, 0, 0), A, { colorPhase = 1 })
 	curtain(f, "WallEastS", Vector3.new(300, 0, -166), Vector3.new(300, 0, -92), Vector3.new(1, 0, 0), A, { colorPhase = 2 })
 end
@@ -389,102 +388,15 @@ local function buildTowers(root, map, ctx)
 		{ -15, -162, 22, 58 },
 		{ 90, -162, 22, 58 },
 		{ 195, -162, 22, 58 },
-		{ -120, 80, 22, 58 },
-		{ -120, -80, 22, 58 },
+		{ -120, 118, 22, 58 },
+		{ -120, -118, 22, 58 },
 	}
 	for i, t in list do
 		tower(f, t[1], t[2], t[3], t[4], ctx.accents[(i - 1) % #ctx.accents + 1])
 	end
-	-- the keep behind the Hall of Champions (the Rewards board hangs in front of it)
-	local keep = tower(f, -120, 0, 28, 86, P.Gold, { name = "Keep", steps = 5, stepH = 5 })
-	sign(keep, "HallPlaque", CFrame.lookAt(Vector3.new(-105.5, 81, 0), Vector3.new(-90, 81, 0)), 24, 5, "HALL OF CHAMPIONS")
 end
 
-------------------------------------------------------------------------------- the Grand Gate (on the safe line)
-local function buildGate(root, map, ctx)
-	local f = model(root, "GrandGate")
-	local X0, X1, XC = 289, 315, 302
-	local O, TZ, TH = 55, 92, 92 -- opening half-width (the night barrier is 114 wide), tower outer z, tower height
-	local LY0, LY1 = 62, 82 -- lintel (the night barrier rises to 60)
-	for _, s in { -1, 1 } do
-		local t = model(f, s > 0 and "TowerN" or "TowerS")
-		local z0, z1 = s * O, s * TZ
-		local zc = (z0 + z1) / 2
-		box(t, "Plinth", X0 - 2, X1 + 2, 0, 8, z0, z1 + s * 2, P.StoneDark, { studs = ALL })
-		box(t, "Body", X0, X1, 8, TH, z0, z1, P.StoneA, { studs = ALL })
-		for _, y in { 30, 58 } do
-			box(t, "Band", X0 - 0.8, X1 + 0.8, y, y + 2.4, z0 - s * 0.8, z1 + s * 0.8, P.StoneDark, { studs = ALL, solid = false })
-		end
-		for _, x in { X0, X1 } do
-			box(t, "Pilaster", x - 1.8, x + 1.8, 8, TH, z1 - s * 1.8, z1 + s * 1.8, P.StoneB, { studs = ALL })
-		end
-		for _, x in { X0 - 0.15, X1 + 0.15 } do
-			for _, y in { 44, 72 } do
-				for _, zz in { s * 63.5, s * 83.5 } do
-					box(t, "Slit", x - 0.2, x + 0.2, y - 3.5, y + 3.5, zz - 0.9, zz + 0.9, P.Navy, { solid = false })
-				end
-			end
-		end
-		box(t, "Corbel", X0 - 2, X1 + 2, TH, TH + 3, z0 - s * 2, z1 + s * 2, P.StoneB, { studs = ALLB })
-		merlonRect(t, XC, zc, 15, 20.5, TH + 3, 3, 4.5, 2.5, P.StoneA)
-		local spire = { { 22, 32 }, { 17, 25 }, { 12, 18 }, { 8, 11 }, { 4.5, 5.5 } }
-		for i, sz in spire do
-			local y = TH + 3 + (i - 1) * 5
-			box(t, "Spire", XC - sz[1] / 2, XC + sz[1] / 2, y, y + 5, zc - sz[2] / 2, zc + sz[2] / 2, i % 2 == 1 and P.Navy or P.NavyLight, { studs = ALL })
-		end
-		local top = TH + 3 + #spire * 5
-		box(t, "Finial", XC - 1.5, XC + 1.5, top, top + 4, zc - 1.5, zc + 1.5, P.Gold, { studs = ALL })
-		box(t, "FlagPole", XC - 0.4, XC + 0.4, top + 4, top + 18, zc - 0.4, zc + 0.4, P.GoldDeep, { solid = false })
-		box(t, "Flag", XC - 0.2, XC + 0.2, top + 11, top + 17.5, zc + s * 0.4, zc + s * 11.4, P.Gold, { solid = false })
-		-- a tall citadel banner on the hub face, fire sconces either side of it
-		banner(t, CFrame.lookAt(Vector3.new(X0 - 1.4, 76, zc), Vector3.new(X0 - 20, 76, zc)), 14, 40, P.Navy, P.Gold, P.Gold)
-		for _, zz in { s * 59.5, s * 88 } do
-			sconce(t, X0, zz, 18)
-		end
-	end
-	-- lintel with a stepped voxel arch under it
-	box(f, "Lintel", X0, X1, LY0, LY1, -O, O, P.StoneA, { studs = ALLB })
-	for _, x in { X0, X1 } do
-		box(f, "LintelBand", x - 0.8, x + 0.8, LY0 + 0.05, LY0 + 2.2, -O, O, P.StoneDark, { studs = ALL, solid = false })
-		box(f, "LintelCourse", x - 0.8, x + 0.8, LY1 - 1.6, LY1 - 0.05, -O, O, P.StoneDark, { studs = ALL, solid = false })
-	end
-	for _, s in { -1, 1 } do
-		box(f, "ArchStep", X0, X1, 54, LY0, s * (O - 8), s * O, P.StoneB, { studs = ALLB })
-		box(f, "ArchStep", X0, X1, 46, 54, s * (O - 4), s * O, P.StoneB, { studs = ALLB })
-	end
-	merlonLine(f, Vector3.new(X0 + 1.25, 0, -O), Vector3.new(X0 + 1.25, 0, -10), LY1, 3, 4.5, 2.5, P.StoneA, 3)
-	merlonLine(f, Vector3.new(X0 + 1.25, 0, 10), Vector3.new(X0 + 1.25, 0, O), LY1, 3, 4.5, 2.5, P.StoneA, 3)
-	merlonLine(f, Vector3.new(X1 - 1.25, 0, -O), Vector3.new(X1 - 1.25, 0, O), LY1, 3, 4.5, 2.5, P.StoneA, 3)
-	sign(f, "SignWest", CFrame.lookAt(Vector3.new(X0 - 0.9, 72.5, 0), Vector3.new(X0 - 20, 72.5, 0)), 72, 12, "THE WILDLANDS")
-	sign(f, "SignEast", CFrame.lookAt(Vector3.new(X1 + 0.9, 72.5, 0), Vector3.new(X1 + 20, 72.5, 0)), 72, 12, "KAIJU CITADEL")
-	-- golden kaiju skull crest on top, facing the citadel
-	local E = model(f, "Crest")
-	box(E, "Base", X0 - 1, X0 + 10, LY1, LY1 + 2, -8, 8, P.GoldDeep, { studs = ALL })
-	box(E, "Skull", X0 + 1, X0 + 10, LY1 + 2, LY1 + 10, -5.5, 5.5, P.Gold, { studs = ALL })
-	box(E, "Snout", X0 - 3.5, X0 + 1, LY1 + 2, LY1 + 6.5, -4, 4, P.Gold, { studs = ALL })
-	box(E, "Brow", X0 - 0.8, X0 + 2.5, LY1 + 8, LY1 + 10.5, -6.2, 6.2, P.GoldDeep, { studs = ALL })
-	for _, s in { -1, 1 } do
-		box(E, "Eye", X0 + 0.6, X0 + 1.1, LY1 + 6.6, LY1 + 8, s * 1.6, s * 4.4, P.Eye, { neon = true, solid = false })
-		local dir = Vector3.new(0.45, 0.8, s * 0.45).Unit
-		local b0 = Vector3.new(X0 + 7, LY1 + 9, s * 4.5)
-		part(E, "Horn", Vector3.new(2.6, 9, 2.6), CFrame.lookAt(b0 + dir * 4.5, b0 + dir * 10) * CFrame.Angles(math.rad(90), 0, 0), P.GoldDeep, { studs = SIDES })
-		part(E, "HornTip", Vector3.new(1.5, 5, 1.5), CFrame.lookAt(b0 + dir * 11, b0 + dir * 20) * CFrame.Angles(math.rad(90), 0, 0), P.Gold, { solid = false })
-	end
-	for _, z in { -2.6, 0, 2.6 } do
-		box(E, "Fang", X0 - 3.2, X0 - 2.2, LY1 + 0.6, LY1 + 2, z - 0.5, z + 0.5, P.Tooth, { solid = false })
-	end
-	-- the seven biome banners under the lintel, in lane order
-	for i, acc in ctx.accents do
-		local z = (i - (#ctx.accents + 1) / 2) * 13
-		banner(f, CFrame.lookAt(Vector3.new(X0 - 0.7, LY0 - 0.5, z), Vector3.new(X0 - 20, LY0 - 0.5, z)), 9, 15, acc, P.Navy, P.Gold)
-	end
-	-- the raised portcullis's teeth on the wildlands side
-	box(f, "PortcullisBar", X1 - 3, X1 - 1, LY0 - 1.6, LY0, -44, 44, P.Iron, { studs = ALL, solid = false })
-	for z = -42, 42, 6 do
-		box(f, "Tooth", X1 - 2.8, X1 - 1.2, LY0 - 7, LY0 - 1.6, z - 0.8, z + 0.8, P.Iron, { solid = false })
-		box(f, "ToothTip", X1 - 2.4, X1 - 1.6, LY0 - 9, LY0 - 7, z - 0.4, z + 0.4, P.IronLight, { solid = false })
-	end
-end
+-- the Grand Gate and the Keep are in the child modules Gate and Keep (shared kit: Kit)
 
 ------------------------------------------------------------------------------- Hall of Champions
 local function buildHall(root, map, ctx)
@@ -775,7 +687,9 @@ local function buildBackdrop(root, map, ctx)
 		end
 	end
 	for z = -340, 339, 30 do
-		hill(-250, -130, z, z + 30, hillHeight(-190, z, 50, 86, 3), 1)
+		if z + 30 <= -70 or z >= 70 then -- the Keep stands in the middle
+			hill(-250, -130, z, z + 30, hillHeight(-190, z, 50, 86, 3), 1)
+		end
 		hill(-340, -250, z, z + 30, hillHeight(-300, z, 96, 150, 4), 2)
 	end
 end
@@ -785,7 +699,18 @@ local SECTIONS = {
 	{ "Ground", buildGround },
 	{ "Walls", buildWalls },
 	{ "Towers", buildTowers },
-	{ "GrandGate", buildGate },
+	{
+		"GrandGate",
+		function(root, map, ctx)
+			return require(script.Gate)(root, map, ctx, Kit)
+		end,
+	},
+	{
+		"Keep",
+		function(root, map, ctx)
+			return require(script.Keep)(root, map, ctx, Kit)
+		end,
+	},
 	{ "Hall", buildHall },
 	{ "Statues", buildStatues },
 	{ "Avenue", buildAvenue },
@@ -806,6 +731,7 @@ function C.Build(only)
 		root = folder(map, "Citadel")
 	end
 	made = 0
+	Kit.reset()
 	local done = {}
 	for _, sec in SECTIONS do
 		local name, build = sec[1], sec[2]
@@ -834,7 +760,7 @@ function C.Build(only)
 			n += 1
 		end
 	end
-	return string.format("Citadel: built %s (%d new parts this run, %d in Map.Citadel)", table.concat(done, ", "), made, n)
+	return string.format("Citadel: built %s (%d new parts this run, %d in Map.Citadel)", table.concat(done, ", "), made + Kit.count(), n)
 end
 
 return C
