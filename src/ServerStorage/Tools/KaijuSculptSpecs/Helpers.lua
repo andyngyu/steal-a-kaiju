@@ -1098,4 +1098,185 @@ function H.serpentTongue(K, frame, key)
 	end
 end
 
+-- ------------------------------------------------------------------------------------------------------------------
+-- Gorilla family helpers.
+
+-- a sharp fang: a narrow faceted shaft ending on a point, from base along dir
+function H.fang(K, group, key, base, dir, len, w)
+	dir = dir.Unit
+	local X = math.abs(dir.Y) < 0.9 and dir:Cross(Vector3.yAxis).Unit or Vector3.xAxis
+	X = (X - dir * X:Dot(dir)).Unit
+	K:block(group, key, CFrame.fromMatrix(base + dir * len * 0.3, X, dir) * CFrame.Angles(0, rad(45), 0), Vector3.new(w, len * 0.62, w))
+	H.point(K, group, key, base + dir * len, dir, w * 0.8)
+end
+
+-- a continuous glowing vein flowing along a tube: a smooth meandering ribbon laid over the surface (`lift` raises it
+-- over fur tiles) from `from` to `to`, forking now and then. opts: step, wander (degrees), width, height, lift, forks,
+-- forkSteps, forkTurn (degrees), taper
+function H.vein(K, group, key, samples, th0, from, to, opts)
+	opts = opts or {}
+	local step = opts.step or 0.2
+	local width, height, lift = opts.width or 0.08, opts.height or 0.12, opts.lift or 0.08
+	local wander = rad(opts.wander or 14)
+	local phase = K:rand(0, 6.28)
+	local pts = {}
+	local s = from
+	while s <= to + 1e-3 do
+		local smp = K:at(samples, s)
+		local th = th0 + math.sin(s * 3.1 + phase) * wander + math.sin(s * 7.3 + phase * 2) * wander * 0.35
+		local pos, nrm = K:surface(smp, th, -lift)
+		table.insert(pts, { pos, nrm, s, th })
+		s += step
+	end
+	local function seg(a, b, na, w)
+		local d = b - a
+		if d.Magnitude < 1e-3 then
+			return
+		end
+		local u = d.Unit
+		local n = na - u * na:Dot(u)
+		if n.Magnitude < 1e-3 then
+			return
+		end
+		n = n.Unit
+		K:block(group, key, CFrame.fromMatrix((a + b) / 2, n:Cross(u), n), Vector3.new(w, height, d.Magnitude + w * 0.9))
+	end
+	for i = 1, #pts - 1 do
+		local f = (i - 1) / math.max(#pts - 1, 1)
+		seg(pts[i][1], pts[i + 1][1], pts[i][2], width * (opts.taper and (1 - f * 0.45) or 1))
+	end
+	local forks = opts.forks or 0
+	for kf = 1, forks do
+		local i = math.clamp(math.floor(#pts * kf / (forks + 1) + 0.5), 1, #pts - 1)
+		local sign = kf % 2 == 0 and 1 or -1
+		local prev, s2, th = pts[i][1], pts[i][3], pts[i][4]
+		for j = 1, opts.forkSteps or 3 do
+			s2 += step
+			th += sign * rad(opts.forkTurn or 22)
+			local pos, nrm = K:surface(K:at(samples, s2), th, -lift)
+			seg(prev, pos, nrm, width * 0.72 * (1 - j * 0.14))
+			prev = pos
+		end
+	end
+	return pts
+end
+
+-- Gorilla head: a tall skull rising to a sagittal crest, a heavy brow ridge overhanging small deep-set glowing eyes,
+-- a wide flat nose set into the face, a broad muzzle over a massive hinged jaw (group "Jaw") and a few sharp fangs.
+-- Frame: origin in the skull, -Z out of the face. P = { frame, scale, open (degrees), keys = { fur, furDark, face,
+-- faceDark, brow, nose, mouth, tooth, eye }, crest (false | 4 keys), crestH, muzzleW, muzzleL, browTilt,
+-- eye = { w, h, y }, fangs = { upper, lower, extra (len), tusks (len) }, ears, extras(K, cf, p, v, JAW) }
+H.GHEAD_HINGE = Vector3.new(0, -0.2, -0.36)
+H.GHEAD_EAR = Vector3.new(0.5, 0.2, -0.16)
+function H.gorillaHead(K, P)
+	local F = P.frame
+	local k = P.keys or {}
+	local fur, furDark = k.fur or "Fur", k.furDark or "FurDark"
+	local face, faceDark = k.face or "Skin", k.faceDark or "SkinDark"
+	local brow, nose = k.brow or faceDark, k.nose or faceDark
+	local mouth, tooth = k.mouth or "Mouth", k.tooth or "Tooth"
+	local mw, ml = P.muzzleW or 1, P.muzzleL or 1
+	local fg = P.fangs or {}
+	local function cf(px, py, pz, ax, ay, az)
+		return F * CFrame.new(px, py, pz) * CFrame.Angles(rad(ax or 0), rad(ay or 0), rad(az or 0))
+	end
+	local function p(px, py, pz)
+		return F * Vector3.new(px, py, pz)
+	end
+	local function v(px, py, pz)
+		return F:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
+	end
+	K:scaled(F.Position, P.scale or 1, function()
+		-- skull and a thick nape running back into the neck
+		K:block("Head", fur, cf(0, 0.2, -0.1), Vector3.new(0.96, 0.8, 0.86))
+		K:block("Head", furDark, cf(0, 0.0, 0.24, 14, 0, 0), Vector3.new(0.9, 0.66, 0.52))
+		-- sagittal crest: stepped up from the brow to a peak at the top of the skull
+		if P.crest ~= false then
+			-- a domed base, two roof plates meeting in a peaked ridge, a faceted cap along the top
+			local ck = P.crest or { fur, furDark, fur, furDark }
+			local hh = P.crestH or 1
+			K:block("Head", ck[1], cf(0, 0.6, -0.08, -8, 0, 0), Vector3.new(0.84, 0.22, 0.82))
+			for _, x in { 1, -1 } do
+				K:block("Head", ck[2], cf(0.16 * x, 0.68 + 0.08 * hh, -0.02, -12, 0, -34 * x), Vector3.new(0.46, 0.2, 0.74))
+			end
+			K:block("Head", ck[3], cf(0, 0.8 + 0.12 * hh, 0.02, -18, 0, 0), Vector3.new(0.18, 0.24 + 0.14 * hh, 0.6))
+			K:block("Head", ck[4], cf(0, 0.9 + 0.22 * hh, 0.05, -22, 0, 45), Vector3.new(0.2, 0.2, 0.52))
+		end
+		-- forehead sloping up from the brow into the crest, cheeks of fur framing the face
+		K:block("Head", fur, cf(0, 0.52, -0.44, -28, 0, 0), Vector3.new(0.86, 0.18, 0.42))
+		for _, x in { 1, -1 } do
+			K:block("Head", fur, cf(0.45 * x, 0.1, -0.36, 0, -14 * x, 0), Vector3.new(0.2, 0.64, 0.52))
+		end
+		-- the bare face: a flat mask round the eyes, cheekbones
+		K:block("Head", face, cf(0, 0.17, -0.58), Vector3.new(0.76, 0.5, 0.14))
+		for _, x in { 1, -1 } do
+			K:block("Head", face, cf(0.29 * x, 0.1, -0.62, 0, -20 * x, 0), Vector3.new(0.24, 0.2, 0.16))
+		end
+		-- the heavy brow ridge overhanging the eyes, in an angry V
+		local bt = P.browTilt or 12
+		for _, x in { 1, -1 } do
+			K:block("Head", brow, cf(0.22 * x, 0.45, -0.66, -6, -6 * x, bt * x), Vector3.new(0.52, 0.2, 0.3))
+		end
+		K:block("Head", brow, cf(0, 0.4, -0.68), Vector3.new(0.22, 0.16, 0.26))
+		-- small deep-set glowing eyes in dark sockets
+		local e = P.eye or {}
+		local ew, eh, ey = e.w or 0.13, e.h or 0.05, e.y or 0.26
+		for _, x in { 1, -1 } do
+			K:block("Head", "Socket", cf(0.2 * x, ey + 0.01, -0.665, 0, 0, bt * 0.8 * x), Vector3.new(ew + 0.1, eh + 0.08, 0.04))
+			K:block("Head", k.eye or "Eye", cf(0.2 * x, ey, -0.69, 0, 0, bt * 0.8 * x), Vector3.new(ew, eh, 0.03))
+		end
+		-- a wide, flat nose set into the face: bridge, broad pad, flared nostrils
+		K:block("Head", nose, cf(0, 0.2, -0.68), Vector3.new(0.14, 0.14, 0.08))
+		K:block("Head", nose, cf(0, 0.09, -0.73, 12, 0, 0), Vector3.new(0.38 * mw, 0.18, 0.12))
+		for _, x in { 1, -1 } do
+			K:block("Head", nose, cf(0.2 * mw * x, 0.06, -0.72, 0, -22 * x, 0), Vector3.new(0.09, 0.13, 0.12))
+			K:block("Head", "Socket", cf(0.085 * x, 0.06, -0.795, 12, 0, -22 * x), Vector3.new(0.11, 0.06, 0.02))
+		end
+		-- the broad muzzle and upper lip, the roof of the mouth
+		K:block("Head", face, cf(0, -0.1, -0.72), Vector3.new(0.72 * mw, 0.15, 0.34 * ml))
+		K:block("Head", face, cf(0, -0.1, -0.73), Vector3.new(0.5 * mw, 0.23, 0.36 * ml))
+		for _, x in { 1, -1 } do
+			K:block("Head", face, cf(0.25 * mw * x, -0.1, -0.72, 0, 0, 45), Vector3.new(0.16, 0.16, 0.34 * ml))
+		end
+		K:block("Head", mouth, cf(0, -0.215, -0.64), Vector3.new(0.56 * mw, 0.04, 0.4 * ml))
+		-- a few sharp fangs
+		for _, x in { 1, -1 } do
+			H.fang(K, "Head", tooth, p(0.21 * mw * x, -0.19, -0.84 * ml), v(0, -1, -0.1), fg.upper or 0.2, 0.08)
+			if fg.extra then
+				H.fang(K, "Head", tooth, p(0.09 * mw * x, -0.19, -0.86 * ml), v(0, -1, -0.06), fg.extra, 0.05)
+			end
+		end
+		-- the massive jaw
+		local JAW = F * CFrame.new(H.GHEAD_HINGE) * CFrame.Angles(rad(-(P.open or 12)), 0, 0)
+		local function jp(px, py, pz)
+			return JAW * Vector3.new(px, py, pz)
+		end
+		K:block("Jaw", fur, JAW * CFrame.new(0, -0.1, 0.08), Vector3.new(0.9, 0.3, 0.46))
+		K:block("Jaw", face, JAW * CFrame.new(0, -0.12, -0.32 * ml), Vector3.new(0.68 * mw, 0.18, 0.42 * ml))
+		K:block("Jaw", face, JAW * CFrame.new(0, -0.13, -0.33 * ml), Vector3.new(0.46 * mw, 0.28, 0.44 * ml))
+		for _, x in { 1, -1 } do
+			K:block("Jaw", face, JAW * CFrame.new(0.22 * mw * x, -0.16, -0.32 * ml) * CFrame.Angles(0, 0, rad(45)), Vector3.new(0.16, 0.16, 0.42 * ml))
+		end
+		K:block("Jaw", faceDark, JAW * CFrame.new(0, -0.27, -0.26 * ml), Vector3.new(0.56 * mw, 0.06, 0.38 * ml))
+		K:block("Jaw", mouth, JAW * CFrame.new(0, 0.0, -0.3 * ml), Vector3.new(0.54 * mw, 0.04, 0.4 * ml))
+		local up = JAW:VectorToWorldSpace(Vector3.new(0, 1, -0.08)).Unit
+		for _, x in { 1, -1 } do
+			H.fang(K, "Jaw", tooth, jp(0.15 * mw * x, -0.01, -0.46 * ml), up, fg.lower or 0.14, 0.07)
+			if fg.tusks then
+				H.fang(K, "Jaw", tooth, jp(0.27 * mw * x, -0.02, -0.4 * ml), JAW:VectorToWorldSpace(Vector3.new(0.3 * x, 1, -0.15)).Unit, fg.tusks, 0.085)
+			end
+		end
+		if P.ears then
+			for _, x in { 1, -1 } do
+				local g = x == 1 and "EarL" or "EarR"
+				K:block(g, faceDark, cf(0.5 * x, 0.2, -0.16, 0, -18 * x, 0), Vector3.new(0.09, 0.22, 0.18))
+				K:block(g, face, cf(0.53 * x, 0.2, -0.17, 0, -18 * x, 0), Vector3.new(0.04, 0.14, 0.11))
+			end
+		end
+		if P.extras then
+			P.extras(K, cf, p, v, JAW)
+		end
+	end)
+end
+
 return H
