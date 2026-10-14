@@ -3,9 +3,10 @@ local H = require(script.Parent.Helpers)
 
 -- Venom Jungle / Common / poison: a vine raptor. A thick-set dilophosaur pitched forward on heavy digitigrade legs with
 -- a raised sickle claw, raptor arms, and a long muscular tail wound with thorned vines that ends in a barbed vine lash.
--- Mid jungle-green crusted scales, bark-brown down the back, a pale belly, glowing lime venom veins down the flanks, a
--- row of bold purple spines from neck to tail. Face: a heavy bark brow over small lime eyes, a toothy snout, twin purple
--- blade crests and a big poison frill (purple membrane on dark spines, lime eyespots) fanned round its neck.
+-- Crusted scales shading from dark bark and jungle green on the back to light moss and cream underneath, glowing lime
+-- venom seams down the flanks, a row of bold purple spines from neck to tail. Face: a heavy bark brow over small lime
+-- eyes, a toothy snout, twin purple blade crests and a poison frill (purple membrane on dark spines, lime eyespots)
+-- swept back behind the skull.
 local HEAD = CFrame.new(0, 3.5, -1.86) * CFrame.Angles(rad(-10), 0, 0)
 local SKULL = { 0.74, 0.52, 0.66 }
 
@@ -15,27 +16,28 @@ return {
 	Gait = "Biped",
 	Emotes = { "Look", "Roar", "Wiggle" },
 	Palette = {
-		Hide = { "4A7438", Material = "Slate" },
-		HideDark = { "30502A", Material = "Slate" },
-		HideLight = { "6C9248", Material = "Slate" },
-		Back = { "5A3E26", Material = "Wood" },
-		Belly = "D2C88A",
-		Belly2 = "B8AE70",
+		Hide = { "4C7838", Material = "Slate" },
+		HideDark = { "2C4622", Material = "Slate" },
+		HideLight = { "8CAE5A", Material = "Slate" },
+		Back = { "30221A", Material = "Wood" },
+		Belly = "DCD4A2",
+		Belly2 = "C4BA84",
+		SeamLip = { "1C2814", Material = "Slate" },
 		Bark = { "6A4A2E", Material = "Wood" },
 		Frill = "8A34C8",
 		FrillDark = "5E2392",
 		FrillSpine = "2E1A24",
 		Spine = "7A2CB8",
 		SpineTip = "C9A8F0",
-		Spot = { "A8FF3A", Neon = true },
-		Venom = { "A8FF3A", Neon = true },
+		Spot = { "58D22E", Neon = true },
+		Venom = { "58D22E", Neon = true },
 		Thorn = "3A2410",
 		ThornTip = "D8C8A0",
 		Vine = "3E6024",
 		Leaf = "7ABA44",
 		Tooth = "EFE8C8",
 		Mouth = "6A1A3A",
-		Eye = { "C6FF3A", Neon = true },
+		Eye = { "6FE83A", Neon = true },
 		Socket = "0E140A",
 		Claw = "2A2016",
 		ClawTip = "D8CFA8",
@@ -51,7 +53,7 @@ return {
 	},
 	Parents = { Jaw = "Head" },
 	Build = function(K)
-		local skin = H.skin({ stripe = 34, band = 88, flank = 108, every = 2 })
+		local skin = H.skin({ stripe = 32, band = 66, flank = 102, every = 2, upper = "HideDark" })
 		local crust = { w = 0.5, l = 0.34, t = 0.12, lift = 5, jitter = 2.5, sink = 0.5, overlap = 0.9 }
 		local belly = { key = "Belly", key2 = "Belly2", arc = 40, t = 0.12, wide = 1.05 }
 		local function tube(group, nodes, tile)
@@ -89,11 +91,11 @@ return {
 		K:ridge("Head", neck, { every = 0.26, height = function(u) return 0.3 + u * 0.12 end, thick = 0.1, key = "Spine", tip = "SpineTip", lean = 34, sink = 0.85 })
 		K:ridge("Body", body, { every = 0.28, height = function(u) return 0.48 - u * 0.12 end, thick = 0.12, key = "Spine", tip = "SpineTip", lean = 30, sink = 0.85 })
 		K:ridge("Tail", tail, { to = tail.total * 0.75, every = 0.3, height = function(u) return 0.34 - u * 0.2 end, thick = 0.1, key = "Spine", tip = "SpineTip", lean = 38, sink = 0.85 })
-		-- glowing lime venom veins down the flanks and the neck
+		-- glowing lime venom seams down the flanks and the neck, sunk between dark lips
 		for _, x in { 1, -1 } do
-			H.vein(K, "Body", "Venom", body, rad(72) * x, 0.1, body.total - 0.1, { width = 0.07, height = 0.08, lift = 0.02, wander = 18, forks = 2 })
-			H.vein(K, "Head", "Venom", neck, rad(70) * x, 0.1, neck.total - 0.1, { width = 0.06, height = 0.07, lift = 0.02, wander = 14 })
-			H.vein(K, "Tail", "Venom", tail, rad(76) * x, 0.1, tail.total * 0.6, { width = 0.06, height = 0.07, lift = 0.02, wander = 14, taper = true })
+			H.vein(K, "Body", "Venom", body, rad(76) * x, 0.1, body.total - 0.1, { width = 0.06, height = 0.1, lift = 0.04, wander = 16, forks = 2, lip = "SeamLip", lipW = 0.06 })
+			H.vein(K, "Head", "Venom", neck, rad(74) * x, 0.1, neck.total - 0.1, { width = 0.05, height = 0.09, lift = 0.04, wander = 12, lip = "SeamLip", lipW = 0.05 })
+			H.vein(K, "Tail", "Venom", tail, rad(78) * x, 0.1, tail.total * 0.6, { width = 0.05, height = 0.09, lift = 0.04, wander = 12, taper = true, lip = "SeamLip", lipW = 0.05 })
 		end
 		-- thorned vines wound round the tail
 		local n = 26
@@ -138,7 +140,8 @@ return {
 			foot = Vector3.new(0.52, 0.26, 0.62),
 			toe = { 0.16, 0.34 },
 			claw = { 0.3, 0.085 },
-			muscle = "HideLight",
+			core = "HideDark",
+			muscle = "Hide",
 			armour = "Bark",
 			scutes = "Back",
 		})
@@ -152,6 +155,7 @@ return {
 			hand = Vector3.new(0.22, 0.14, 0.24),
 			fwd = Vector3.new(0, -0.4, -1),
 			claws = { n = 3, len = 0.32, w = 0.065, curl = 36 },
+			core = "HideDark",
 		})
 
 		-- head: a heavy bark brow over small lime eyes, a toothy snout, twin purple blade crests
@@ -172,14 +176,14 @@ return {
 			K:plate("Head", { "FrillDark", "Spine", "SpineTip" }, R.p(0.13 * x, top - 0.02, -0.66), R.v(0.12 * x, 1, 0), R.v(0, 0, 1), { h = 0.5, w = 0.6, t = 0.07, n = 3, lean = 28 })
 			K:block("Head", "Bark", R.cf(0.2 * x, top + 0.02, -0.2, -6, 0, 10 * x), Vector3.new(0.3, 0.12, 0.46))
 		end
-		-- the poison frill fanned round the neck: dark spines, purple membrane, lime eyespots
+		-- the poison frill swept back behind the skull: dark spines, purple membrane, lime eyespots
 		local spines = {}
 		local N = 11
 		for i = 0, N - 1 do
-			local a = rad(-115 + 230 * i / (N - 1))
-			local dir = R.v(math.sin(a), math.cos(a) * 0.9, 0.55)
-			local base = R.p(math.sin(a) * 0.26, 0.2 + math.cos(a) * 0.2, 0.12)
-			local len = 0.95 + (math.cos(a) > 0.3 and 0.15 or 0)
+			local a = rad(-110 + 220 * i / (N - 1))
+			local dir = R.v(math.sin(a), math.cos(a) * 0.8, 1.25)
+			local base = R.p(math.sin(a) * 0.24, 0.18 + math.cos(a) * 0.18, 0.2)
+			local len = 0.58 + (math.cos(a) > 0.3 and 0.08 or 0)
 			K:chain("Head", { "FrillSpine", "FrillSpine", "SpineTip" }, base, dir, R.v(0, 0, 1), { n = 3, len = len, w0 = 0.09, w1 = 0.06, bend = 8 })
 			spines[i + 1] = { base = base, dir = dir, len = len }
 		end
