@@ -10,10 +10,11 @@
 --   KaijuMotion.Limbs(st, t)          sets group.anim for every body group of the rig
 --
 -- Gaits:
---   Biped    rexes, Pebblesaur, Prismling: two-legged stomp, little arms tucked in, the tail counter-swings the hips,
+--   Biped    the rexes: two-legged stomp, little arms tucked in, the tail counter-swings the hips,
 --            the head bobs; Roar opens the jaw
 --   Knuckle  apes: knuckle-walk with arms and legs in diagonal pairs, body leaning forward, shoulders rolling; ChestBeat
---   Trot     Snowpup (dog), Frostrhino: diagonal-pair trot; the dog's tail never stops wagging; PlayBow / Paw
+--   Trot     Snowpup (wolf), Frostrhino, Prismling (winged crystal drake: WingL / WingR sway, beat and flare);
+--            diagonal-pair trot; PlayBow / Paw
 --   Amble    Tuskit (mammoth): elephant lateral-sequence walk (back-left, front-left, back-right, front-right), slow
 --            and heavy, ears fanning, trunk swinging; Trumpet raises the trunk
 --   Crawl    Chompling (croc), Scorchback (ankylosaur): low sprawling walk, the spine bends side to side and the tail
@@ -358,6 +359,13 @@ function KaijuMotion.Limbs(st, t)
 				pitch = lerp(pitch, 1.2 + math.sin(e * PI * 4) * 0.15, env) -- curls food up to its mouth
 			end
 			a = CFrame.Angles(pitch, 0, math.sin(t * 1.3 + seed) * 0.1)
+		elseif n == "WingL" or n == "WingR" then
+			-- wings: a slow breathing sway at rest, beating while it moves, flared wide on emotes
+			local roll = math.sin(t * 1.3 + seed) * 0.07 + math.sin(ph * 2) * 0.32 * mb
+			if emote then
+				roll += 0.35 * env
+			end
+			a = CFrame.Angles(0, 0, side * roll)
 		elseif n == "Fins" then
 			a = CFrame.Angles(0, 0, math.sin(t * 4 + seed) * 0.08)
 		elseif n == "Cloud" then
