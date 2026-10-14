@@ -2,11 +2,12 @@ local rad = math.rad
 local GK = require(script.Parent.GuardianKit)
 local H = GK.H
 
--- Venom Jungle guardian: Thornmaw, a tyrant grown out of the jungle floor. A towering rex in deep jungle green, banded
--- dark down the back, its head one great flytrap: two leaf-shaped jaws lined with long spines, glowing magenta inside,
+-- Venom Jungle guardian: Thornmaw, a tyrant grown out of the jungle floor. A towering rex shading from near-black down
+-- the back through jungle green to a pale belly, its head one great flytrap: two leaf-shaped jaws lined with long
+-- spines around a recessed throat (dark maroon deep inside, magenta toward the lips, rows of inner spines, tendrils),
 -- lime nectar dripping from them, hinged on a heavy bulb with small lime eyes under a bark brow and two thorn horns.
 -- Jagged thorn petals frame the head, angled forward. Bark armour on the shoulders and thighs, moss on the back, big
--- thorns down the spine over a glowing lime seam, vines wound round the limbs and tail, a thorned seed-pod tail club.
+-- thorns down the spine over a glowing lime seam sunk between dark lips, vines wound round the limbs and tail, a thorned seed-pod tail club.
 return {
 	Seed = 431,
 	Vary = 0.06,
@@ -14,21 +15,24 @@ return {
 	RootSize = { 7.9, 6.3, 10 },
 	HipHeight = 1.7,
 	Palette = {
-		Hide = "2F4C22",
-		HideDark = "1F3317",
-		HideLight = "4E6C30",
+		Hide = "3A5C2A",
+		HideDark = "22361A",
+		HideLight = "6A8C44",
 		Back = "16240F",
-		Belly = "A9A060",
-		Belly2 = "8F8850",
+		Belly = "C8C28E",
+		Belly2 = "B0AA78",
+		SeamLip = "0E160A",
 		Armour = { "4A3420", Material = "Wood" },
 		ArmourLight = { "6B4E30", Material = "Wood" },
 		Bark = { "4A3420", Material = "Wood" },
 		BarkDark = { "2E2014", Material = "Wood" },
 		Moss = "5E8C2E",
-		Maw = { "D0307A", Neon = true },
-		MawDeep = "5A1030",
+		Maw = { "E0408A", Neon = true },
+		MawDeep = "3A0A1E",
+		MawMid = "7A1A44",
+		MawLip = "B0306A",
 		Cilia = "D6DC8A",
-		Nectar = { "B6FF3A", Neon = true },
+		Nectar = { "58D22E", Neon = true },
 		Petal = "6B2E8A",
 		PetalDark = "4A1F62",
 		Thorn = "3A2410",
@@ -39,7 +43,7 @@ return {
 		PodDark = "3A1A48",
 		Tooth = "E8E2B8",
 		Mouth = "5A1030",
-		Eye = { "C6FF3A", Neon = true },
+		Eye = { "6FE83A", Neon = true },
 		Socket = "0E140A",
 		Claw = "2A2016",
 		ClawTip = "D8CFA8",
@@ -65,17 +69,17 @@ return {
 		end
 
 		H.rex(K, {
-			color = H.skin({ stripe = 34, band = 86, flank = 106, every = 3 }),
+			color = H.skin({ stripe = 32, band = 68, flank = 104, every = 3, upper = "HideDark" }),
 			tiles = { torso = H.plates(0.66), neck = H.plates(0.6), tail = H.plates(0.52, 5) },
 			thighArmour = "Bark",
 			brow = "BarkDark",
 			tailTip = { "Pod", "Thorn" },
 			headScale = 1.12,
 			crest = function(K, torso, neck, tail)
-				-- a glowing lime seam down the spine under big hooked thorns
+				-- a glowing lime seam sunk down the spine under big hooked thorns
 				for _, seg in { { "Head", neck }, { "Body", torso }, { "Tail", tail } } do
 					local g, samples = seg[1], seg[2]
-					H.vein(K, g, "Nectar", samples, 0, 0.05, samples.total - (g == "Tail" and 0.5 or 0.05), { lift = 0.02, wander = 6, width = 0.1, height = 0.08, step = 0.3 })
+					H.vein(K, g, "Nectar", samples, 0, 0.05, samples.total - (g == "Tail" and 0.5 or 0.05), { lift = 0.05, wander = 6, width = 0.08, height = 0.12, step = 0.3, lip = "SeamLip", lipW = 0.08 })
 				end
 				K:ridge("Head", neck, { every = 0.3, height = 0.46, thick = 0.13, key = "Thorn", tip = "ThornTip", lean = 28, sink = 0.85 })
 				K:ridge("Body", torso, { every = 0.34, height = function(u) return 0.86 - u * 0.22 end, thick = 0.16, key = "Thorn", tip = "ThornTip", lean = 22, sink = 0.85 })
@@ -98,7 +102,7 @@ return {
 					H.eye(K, "Head", hcf(0.42 * x, 0.44, -0.46, 0, -34 * x, 12 * x), 0.16, 0.05)
 					H.curve(K, "Head", { "Bark", "Thorn", "ThornTip" }, { hp(0.34 * x, 0.64, -0.2), hp(0.56 * x, 1.0, -0.1), hp(0.66 * x, 1.26, 0.2), hp(0.6 * x, 1.4, 0.56) }, 0.22, 0.06, 0.14)
 				end
-				local UF, LF = H.flytrap(K, { head = "Head", jaw = "Jaw", frame = HEAD * CFrame.new(0, -0.1, -0.36), size = 1.35, open = 28, keys = { shell = "Hide", shellDark = "HideDark", glow = "Maw", deep = "MawDeep", spine = "Cilia", spineTip = "ThornTip" } })
+				local UF, LF = H.flytrap(K, { head = "Head", jaw = "Jaw", frame = HEAD * CFrame.new(0, -0.1, -0.36), size = 1.35, open = 28, keys = { shell = "Hide", shellDark = "HideDark", glow = "Maw", deep = "MawDeep", lining = "MawMid", lip = "MawLip", tooth = "Cilia", spine = "Cilia", spineTip = "ThornTip" } })
 				-- nectar dripping from both jaws
 				for _, d in { { 0.3, -0.9 }, { -0.36, -1.4 }, { 0.1, -1.8 } } do
 					K:block("Head", "Nectar", UF * CFrame.new(d[1], -0.2, d[2]), Vector3.new(0.06, 0.32, 0.06))
