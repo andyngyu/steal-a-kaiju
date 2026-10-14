@@ -1,7 +1,7 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Lava Lagoon / Rare / fire: a volcanic ankylosaur, a walking lava field. A wide dome of basalt armour plates with
+-- Lava Lagoon / Rare / fire (accent: red): a volcanic ankylosaur, a walking lava field. A wide dome of basalt armour plates with
 -- magma glowing in every seam, rows of flank spikes, a beaked horned head with ember eyes, stout pillar legs and a
 -- massive basalt tail club split by molten cracks.
 local HEAD = CFrame.new(0, 1.32, -1.32) * CFrame.Angles(rad(-6), 0, 0)
@@ -12,23 +12,23 @@ return {
 	Gait = "Crawl",
 	Emotes = { "Look", "TailSwing" },
 	Palette = {
-		Hide = { "2E2725", Material = "Basalt" },
-		HideDark = { "1E1918", Material = "Basalt" },
-		HideLight = { "4A3B34", Material = "Basalt" },
-		Back = { "161212", Material = "Basalt" },
-		Belly = { "5A2C1C", Material = "Basalt" },
-		Belly2 = { "44210F", Material = "Basalt" },
-		Magma = { "E2470F", Neon = true },
-		MagmaHot = { "FF7A1A", Neon = true },
-		Armour = { "35302E", Material = "Basalt" },
-		ArmourLight = { "554A42", Material = "Basalt" },
+		Hide = { "82604E", Material = "Basalt" },
+		HideDark = { "5E4436", Material = "Basalt" },
+		HideLight = { "A27C66", Material = "Basalt" },
+		Back = { "3A2820", Material = "Basalt" },
+		Belly = { "FF3A1A", Neon = true },
+		Belly2 = { "A23A22", Material = "Basalt" },
+		Magma = { "FF2E14", Neon = true },
+		MagmaHot = { "FF5A2A", Neon = true },
+		Armour = { "8C6450", Material = "Basalt" },
+		ArmourLight = { "B08A72", Material = "Basalt" },
 		Tooth = "E2D2B4",
-		Mouth = { "C8380C", Neon = true },
-		Eye = { "FFAA22", Neon = true },
+		Mouth = { "FF2E14", Neon = true },
+		Eye = { "FF5A2A", Neon = true },
 		Socket = "0C0909",
 		Claw = "151214",
 		ClawTip = "6A5A50",
-		Spike = { "7C7066", Material = "Basalt" },
+		Spike = { "BCA08C", Material = "Basalt" },
 	},
 	Joints = {
 		Head = { 0, 1.42, -0.98 },
@@ -64,6 +64,8 @@ return {
 		-- armour: a central row of plates with molten tips, studs, and long spikes jutting from the flanks
 		K:ridge("Body", body, { style = "plate", keys = { "Armour", "ArmourLight", "MagmaHot" }, from = 0.3, to = body.total - 0.3, every = 0.44, height = function(u) return 0.36 + 0.1 * math.sin(u * math.pi) end, thick = 0.18, lean = 10 })
 		H.studs(K, "Body", body, { rad(38), rad(-38) }, 0.44, 0.3, 0.3, body.total - 0.3, { "Armour", "ArmourLight" })
+		H.cracks(K, "Body", "Magma", body, { rad(18), rad(-18), rad(60), rad(-60), rad(102), rad(-102) }, 0.2, body.total - 0.2, 0.26, 0.1, 0.12)
+		H.cracks(K, "Tail", "Magma", tail, { rad(50), rad(-50) }, 0.15, tail.total - 0.2, 0.28, 0.07, 0.08)
 		for s = 0.2, body.total - 0.1, 0.4 do
 			local smp = K:at(body, s)
 			for _, x in { 1, -1 } do

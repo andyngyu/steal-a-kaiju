@@ -184,7 +184,8 @@ end
 --   tiles = { torso, neck, tail } (tile tables), belly = belly table, color = skin fn, core = core key,
 --   crest(K, torso, neck, tail) for the spine, head(K, hcf, hp, hv) for horns / extras on the head,
 --   jawExtra(K, jcf), extras(K, parts) for everything else (parts = { torso, neck, tail, thighs = { L, R } }),
---   thighArmour (key), brow (key), mouthGlow (key for the palate / tongue), legCore / footCore (keys), tailTip (keys)
+--   thighArmour (key), brow (key), mouthGlow (key for the palate / tongue), legCore / footCore (keys), tailTip (keys),
+--   headScale (the head and jaw scaled about the head's origin), neckScale (neck radii)
 H.REX_HEAD = CFrame.new(0, 3.66, -1.5) * CFrame.Angles(rad(-8), 0, 0)
 H.REX_HINGE = Vector3.new(0, -0.16, -0.2)
 H.REX_JOINTS = {
@@ -210,10 +211,11 @@ function H.rex(K, P)
 		{ 0, 2.76, 0.86, rx = 0.94, ru = 0.82, rd = 0.8 },
 		{ 0, 2.74, 1.22, rx = 0.78, ru = 0.7, rd = 0.62 },
 	}, { step = 0.44, core = core, coreCap = P.coreCap, coreScale = P.coreScale or 0.9, tile = tiles.torso or H.plates(0.74), belly = belly, color = color })
+	local ns = P.neckScale or 1
 	local neck = K:tube("Head", {
-		{ 0, 3.6, -1.48, rx = 0.6, ru = 0.58, rd = 0.66 },
-		{ 0, 3.48, -1.16, rx = 0.7, ru = 0.66, rd = 0.76 },
-		{ 0, 3.22, -0.76, rx = 0.84, ru = 0.8, rd = 0.9 },
+		{ 0, 3.6, -1.48, rx = 0.6 * ns, ru = 0.58 * ns, rd = 0.66 * ns },
+		{ 0, 3.48, -1.16, rx = 0.7 * ns, ru = 0.66 * ns, rd = 0.76 * ns },
+		{ 0, 3.22, -0.76, rx = 0.84 * ns, ru = 0.8 * ns, rd = 0.9 * ns },
 	}, { step = 0.36, core = core, coreCap = P.coreCap, coreScale = P.coreScale or 0.9, tile = tiles.neck or H.plates(0.66), belly = belly, color = color })
 	local tail = K:tube("Tail", {
 		{ 0, 2.8, 1.1, rx = 0.76, ru = 0.7, rd = 0.64 },
@@ -270,6 +272,7 @@ function H.rex(K, P)
 	local function hv(px, py, pz)
 		return HEAD:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
 	end
+	K:scaled(HEAD.Position, P.headScale or 1, function()
 	K:block("Head", "Hide", hcf(0, 0.22, -0.38), Vector3.new(1.02, 0.72, 0.84))
 	K:block("Head", "Hide", hcf(0, 0.12, -1.08), Vector3.new(0.84, 0.52, 0.8))
 	K:block("Head", "Hide", hcf(0, 0.07, -1.62, -4, 0, 0), Vector3.new(0.7, 0.44, 0.42))
@@ -310,6 +313,7 @@ function H.rex(K, P)
 	if P.jawExtra then
 		P.jawExtra(K, jcf)
 	end
+	end)
 
 	local parts = { torso = torso, neck = neck, tail = tail, thighs = thighs }
 	if P.crest then
@@ -602,7 +606,7 @@ end
 -- Crab body plan (Scuttle): a wide armoured carapace with a spiked rim, eye stalks with glowing eyes, two big serrated
 -- pincers held up and three jointed legs a side. Keys: Shell, ShellDark, ShellLight, Belly, Armour, ArmourLight, Spike,
 -- SpikeTip, Claw (pincer), ClawDark, Tooth, Mouth, Eye, Socket. P: core / coreScale / overlap (glowing seams), crest(K,
--- shell) for crystals / spikes on top, rim = spikes round the rim (default true)
+-- shell) for crystals / spikes on top, rim = spikes round the rim (default true), clawScale = { left, right }
 H.CRAB_JOINTS = {
 	ClawL = { 1.0, 1.08, -0.5 },
 	ClawR = { -1.0, 1.08, -0.5 },
@@ -665,8 +669,10 @@ function H.crab(K, P)
 		K:block(ge, "Socket", CFrame.new(0.39 * x, 1.94, -0.78) * CFrame.Angles(0, rad(45), 0), Vector3.new(0.17, 0.15, 0.17))
 		H.point(K, ge, "Eye", Vector3.new(0.4 * x, 2.06, -0.82), Vector3.new(0.2 * x, 1, -0.3), 0.12)
 		K:block(ge, "Eye", CFrame.new(0.39 * x, 1.96, -0.86), Vector3.new(0.12, 0.06, 0.04))
-		-- the pincer arm: shoulder, forearm, the claw held up and forward
+		-- the pincer arm: shoulder, forearm, the claw held up and forward (scaled about its shoulder: uneven claws)
 		local gc = x == 1 and "ClawL" or "ClawR"
+		local cs = P.clawScale and (x == 1 and P.clawScale[1] or P.clawScale[2]) or 1
+		K:scaled(Vector3.new(1.0 * x, 1.1, -0.5), cs, function()
 		H.limb(K, gc, {
 			{ 1.0 * x, 1.1, -0.5, 0.2 },
 			{ 1.42 * x, 1.18, -0.86, 0.18 },
@@ -683,6 +689,7 @@ function H.crab(K, P)
 		K:chain(gc, { "Claw", "Claw", "ClawDark" }, palm * Vector3.new(0, -0.18, -0.36), (fingerFwd - up * 0.1).Unit, side, { n = 3, len = 0.84, w0 = 0.34, w1 = 0.14, bend = 14, depth = 0.8 })
 		K:chain(gc, { "Claw", "Claw", "ClawDark" }, palm * Vector3.new(0, 0.2, -0.3), (fingerFwd + up * 0.45).Unit, side, { n = 3, len = 0.74, w0 = 0.28, w1 = 0.13, bend = -20, depth = 0.8 })
 		H.teeth(K, gc, "Tooth", palm * Vector3.new(0, -0.02, -0.46), palm * Vector3.new(0, 0.0, -0.94), 4, up, side, 0.07, 0.045)
+		end)
 		-- the walking legs: out and up to the knee, then down to a pointed tip
 		for i, z in { -0.32, 0.14, 0.58 } do
 			local g = "Leg" .. ({ "A", "B", "C" })[i] .. (x == 1 and "L" or "R")
@@ -709,7 +716,8 @@ end
 -- each about its joint), a neck rearing up like a cobra into a horned dragon head with frills, long fangs, a half-open
 -- jaw and a forked tongue (Tongue flicks). Keys: Hide, HideDark, HideLight, Back, Belly, Belly2, Horn, HornLight,
 -- Tooth, Mouth, Tongue, Eye, Socket. P: color, crest(K, segs) (segs = { Seg1 = samples, ..., Neck = samples }),
--- head(K, hcf, hp, hv), core / coreScale / coreCap / overlap
+-- head(K, hcf, hp, hv), core / coreScale / coreCap / overlap, headBuild(K) (a species' own head instead of the default:
+-- it must build groups Head, Jaw and Tongue itself, see H.serpentTongue)
 H.SERPENT_HEAD = CFrame.new(0, 2.34, -1.14) * CFrame.Angles(rad(-14), 0, 0)
 H.SERPENT_HINGE = Vector3.new(0, -0.14, -0.12)
 H.SERPENT_JOINTS = {
@@ -758,6 +766,10 @@ function H.serpent(K, P)
 		P.crest(K, segs)
 	end
 
+	if P.headBuild then
+		P.headBuild(K)
+		return segs
+	end
 	-- head: a horned dragon-serpent skull, long fangs, frills fanning back from the jaw
 	local HEAD = H.SERPENT_HEAD
 	local function hcf(px, py, pz, ax, ay, az)
@@ -808,6 +820,282 @@ function H.serpent(K, P)
 		K:block("Tongue", "Tongue", T0 * CFrame.new(0.04 * x, 0, -0.46) * CFrame.Angles(0, rad(-14 * x), 0), Vector3.new(0.05, 0.035, 0.22))
 	end
 	return segs
+end
+
+-- ------------------------------------------------------------------------------------------------------------------
+-- A reptile head in its own frame (origin = the back of the skull at mouth height, facing -Z): skull, snout and muzzle,
+-- flared cheek muscles, a beveled snout, scales down the top, a V brow over slit eyes, rows of teeth and a hinged lower
+-- jaw (group "Jaw"). P = { frame, skull = { w, h, l }, snout = { w, h, l }, tip = { w, h, l }, open (degrees),
+-- teeth = { h, thick }, brow = key, browSize = { w, h, l }, eye = { w, h }, cheek (width), jaw = { w, h },
+-- keys = { hide, dark, back, belly, mouth, tooth } }. Returns { cf, p, v, JAW, jcf, zEnd, top, zSkull }
+function H.reptileHead(K, P)
+	local F = P.frame
+	local ks = P.keys or {}
+	local hide, dark, back, belly, mouth, tooth = ks.hide or "Hide", ks.dark or "HideDark", ks.back or "Back", ks.belly or "Belly", ks.mouth or "Mouth", ks.tooth or "Tooth"
+	local sk, sn, tp = P.skull, P.snout, P.tip
+	local function cf(px, py, pz, ax, ay, az)
+		return F * CFrame.new(px, py, pz) * CFrame.Angles(rad(ax or 0), rad(ay or 0), rad(az or 0))
+	end
+	local function p(px, py, pz)
+		return F * Vector3.new(px, py, pz)
+	end
+	local function v(px, py, pz)
+		return F:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
+	end
+	local zS = -sk[3] / 2
+	local zN = -sk[3] + 0.08 - sn[3] / 2
+	local zT = zN - sn[3] / 2 + 0.06 - tp[3] / 2
+	local zEnd = zT - tp[3] / 2
+	local yS, yN, yT = 0.07 + sk[2] / 2, 0.01 + sn[2] / 2, -0.01 + tp[2] / 2
+	K:block("Head", hide, cf(0, yS, zS), Vector3.new(sk[1], sk[2], sk[3]))
+	K:block("Head", hide, cf(0, yN, zN), Vector3.new(sn[1], sn[2], sn[3]))
+	K:block("Head", hide, cf(0, yT, zT, -4, 0, 0), Vector3.new(tp[1], tp[2], tp[3]))
+	local z0 = -sk[3] * 0.4
+	K:block("Head", mouth, cf(0, -0.02, (z0 + zEnd) / 2 + 0.04), Vector3.new(sn[1] * 0.84, 0.06, math.abs(zEnd - z0) - 0.08))
+	-- dark scales down the top of the skull, snout and muzzle
+	for _, t in { { zS, yS + sk[2] / 2, sk[1] * 0.8, sk[3] }, { zN, yN + sn[2] / 2, sn[1] * 0.56, sn[3] }, { zT, yT + tp[2] / 2, tp[1] * 0.6, tp[3] } } do
+		local n = math.max(1, math.floor(t[4] / 0.3 + 0.5))
+		for i = 0, n - 1 do
+			local z = t[1] + t[4] / 2 - (i + 0.5) * t[4] / n
+			K:block("Head", i % 2 == 0 and back or hide, cf(0, t[2], z, -10 + K:rand(-3, 3), K:rand(-3, 3), 0), Vector3.new(t[3], 0.08, t[4] / n + 0.06))
+		end
+	end
+	local cw = P.cheek or 0.26
+	local e = P.eye or { 0.18, 0.05 }
+	local th = P.teeth or { 0.1, 0.06 }
+	local bs = P.browSize or { sk[1] * 0.44, 0.17, sk[3] * 0.62 }
+	for _, x in { 1, -1 } do
+		K:block("Head", hide, cf((sk[1] / 2 - cw * 0.15) * x, yS - sk[2] * 0.2, zS + 0.02, 0, -10 * x, 6 * x), Vector3.new(cw, sk[2] * 0.82, sk[3] * 0.9))
+		K:block("Head", dark, cf(sn[1] * 0.3 * x, yN + sn[2] / 2 - 0.05, zN, -2, 0, -30 * x), Vector3.new(sn[1] * 0.36, 0.1, sn[3] * 0.92))
+		local ex, ey, ez = (sk[1] / 2 - 0.1) * x, yS + sk[2] * 0.16, zS - sk[3] / 2 - 0.02
+		K:block("Head", P.brow or dark, cf(sk[1] * 0.27 * x, ey + bs[2] * 0.9, ez + bs[3] * 0.2, -8, -12 * x, 15 * x), Vector3.new(bs[1], bs[2], bs[3]))
+		H.eye(K, "Head", cf(ex, ey, ez - 0.01, 0, -32 * x, 12 * x), e[1], e[2])
+		local n = math.max(4, math.floor((math.abs(zEnd) - sk[3] * 0.7) / 0.15))
+		H.teeth(K, "Head", tooth, p((sn[1] / 2 - 0.05) * x, -0.02, -sk[3] * 0.7), p((tp[1] / 2 - 0.05) * x, -0.02, zEnd + 0.08), n, v(0, -1, 0.12), v(1, 0, 0), th[1], th[2])
+	end
+	H.teeth(K, "Head", tooth, p(-tp[1] * 0.28, -0.01, zEnd + 0.03), p(tp[1] * 0.28, -0.01, zEnd + 0.03), 3, v(0, -1, 0.1), v(0, 0, 1), th[1] * 0.8, th[2])
+	-- the lower jaw, hinged under the back of the skull
+	local hinge = Vector3.new(0, 0, -sk[3] * 0.25)
+	local JAW = F * CFrame.new(hinge) * CFrame.Angles(rad(-(P.open or 14)), 0, 0)
+	local L = math.abs(zEnd - hinge.Z) - 0.02
+	local jw = P.jaw and P.jaw[1] or sn[1] * 0.96
+	local jh = P.jaw and P.jaw[2] or sn[2] * 0.55
+	local function jcf(px, py, pz, ax, ay, az)
+		return JAW * CFrame.new(px, py, pz) * CFrame.Angles(rad(ax or 0), rad(ay or 0), rad(az or 0))
+	end
+	K:block("Jaw", hide, jcf(0, -jh / 2, -L / 2), Vector3.new(jw, jh, L))
+	K:block("Jaw", hide, jcf(0, -jh * 0.55, -0.12), Vector3.new(math.max(jw, sk[1] * 0.78), jh * 1.15, 0.5))
+	K:block("Jaw", belly, jcf(0, -jh - 0.01, -L * 0.45), Vector3.new(jw * 0.8, 0.05, L * 0.8))
+	K:block("Jaw", mouth, jcf(0, 0.01, -L * 0.52), Vector3.new(jw * 0.76, 0.04, L * 0.84))
+	for _, x in { 1, -1 } do
+		H.teeth(K, "Jaw", tooth, JAW * Vector3.new((jw / 2 - 0.06) * x, 0, -L * 0.3), JAW * Vector3.new((jw / 2 - 0.08) * x, 0, -L + 0.08), math.max(4, math.floor(L * 0.7 / 0.15)), JAW:VectorToWorldSpace(Vector3.new(0, 1, -0.1)).Unit, JAW:VectorToWorldSpace(Vector3.xAxis), th[1] * 0.8, th[2] * 0.85)
+	end
+	return { cf = cf, p = p, v = v, JAW = JAW, jcf = jcf, zEnd = zEnd, top = yS + sk[2] / 2, zSkull = zS, eyeY = yS + sk[2] * 0.16 }
+end
+
+-- biped hind legs from the left leg's points (mirrored): hip, thigh, knee, ankle, foot top as { x, y, z, r [, ru] };
+-- P.stance = { dz left, dz right } (a foot ahead / behind), P.foot (Vector3), P.toe = { w, l }, P.claw = { len, w },
+-- P.core / P.footCore / P.toeKey, P.muscle (key or false), P.armour (key on the outer thigh), P.scutes (key down the shin)
+function H.bipedLegs(K, P)
+	local out = {}
+	for _, x in { 1, -1 } do
+		local g = x == 1 and "LegL" or "LegR"
+		local dz = P.stance and (x == 1 and P.stance[1] or P.stance[2]) or 0
+		local pts = {}
+		for i, q in P.pts do
+			local f = (i - 1) / (#P.pts - 1)
+			pts[i] = { q[1] * x, q[2], q[3] + dz * f, q[4], q[5] }
+		end
+		local core, footKey = P.core or "Hide", P.footCore or "HideDark"
+		local leg = H.limb(K, g, pts, { step = 0.34, cores = { core, core, core, footKey } })
+		out[g] = leg
+		if P.muscle ~= false then
+			K:tile(g, P.muscle or "HideDark", K:at(leg[1], leg[1].total * 0.5), rad(25) * x, pts[1][4] * 1.4, leg[1].total * 0.9, 0.14, 8, 2, 0.4)
+		end
+		if P.armour then
+			K:tile(g, P.armour, K:at(leg[1], leg[1].total * 0.42), rad(95) * x, pts[1][4] * 1.3, leg[1].total * 0.8, 0.15, 4, 2, 0.45)
+		end
+		if P.scutes then
+			H.scutes(K, g, leg[3], 0.2, leg[3].total - 0.14, 3, pts[3][4] * 1.2, 0.36, P.scutes)
+		end
+		local last = pts[#pts]
+		local fs = P.foot or Vector3.new(0.6, 0.28, 0.7)
+		local fz = last[3] - fs.Z * 0.28
+		K:block(g, footKey, CFrame.new(last[1], fs.Y / 2, fz) * CFrame.Angles(0, rad(-6 * x), 0), fs)
+		local toe = P.toe or { 0.18, 0.38 }
+		local claw = P.claw or { 0.32, 0.09 }
+		for t = -1, 1 do
+			local dirT = CFrame.Angles(0, rad(t * 20 - 6 * x), 0):VectorToWorldSpace(Vector3.new(0, 0, -1))
+			local base = Vector3.new(last[1] + t * fs.X * 0.32, fs.Y * 0.4, fz - fs.Z * 0.42)
+			K:block(g, P.toeKey or "Hide", CFrame.lookAt(base + dirT * toe[2] / 2, base + dirT * 2), Vector3.new(toe[1], toe[1] * 1.1, toe[2]))
+			K:chain(g, { "Claw", "Claw", "ClawTip" }, base + dirT * toe[2] * 0.95 + Vector3.new(0, 0.02, 0), (dirT - Vector3.new(0, 0.25, 0)).Unit, dirT:Cross(Vector3.yAxis), { n = 3, len = claw[1], w0 = claw[2], w1 = claw[2] * 0.6, bend = -28 })
+		end
+	end
+	return out
+end
+
+-- biped arms from the left arm's shoulder, elbow, wrist { x, y, z, r } (mirrored); P.hand (Vector3), P.fwd (where the
+-- hand points), P.claws = { n, len, w, spread, fan, curl }, P.core / P.handKey
+function H.bipedArms(K, P)
+	local out = {}
+	for _, x in { 1, -1 } do
+		local g = x == 1 and "ArmL" or "ArmR"
+		local pts = {}
+		for i, q in P.pts do
+			pts[i] = { q[1] * x, q[2], q[3], q[4] }
+		end
+		out[g] = H.limb(K, g, pts, { step = 0.26, core = P.core or "Hide" })
+		local w = pts[#pts]
+		local hs = P.hand or Vector3.new(0.24, 0.16, 0.26)
+		local fwd = (P.fwd or Vector3.new(0, -0.2, -1)).Unit
+		local hp = Vector3.new(w[1], w[2], w[3]) + fwd * hs.Z * 0.4
+		K:block(g, P.handKey or "Hide", CFrame.lookAt(hp, hp + fwd), hs)
+		local c = P.claws or {}
+		H.claws(K, g, hp + fwd * hs.Z * 0.45, fwd, Vector3.xAxis, { n = c.n or 3, spread = c.spread or hs.X * 0.7, fan = c.fan or 26, len = c.len or 0.34, w = c.w or 0.07, curl = c.curl or 30 })
+	end
+	return out
+end
+
+-- a rounded stone dome laid on a surface (pebble armour): three stacked slabs stepping in like a river stone
+function H.pebble(K, group, keys, pos, nrm, along, s)
+	local side = nrm:Cross(along)
+	if side.Magnitude < 1e-3 then
+		side = nrm:Cross(Vector3.xAxis)
+	end
+	local base = CFrame.fromMatrix(pos, side.Unit, nrm.Unit) * CFrame.Angles(0, rad(K:rand(-4, 4)), 0)
+	K:block(group, keys[1], base * CFrame.new(0, s * 0.06, 0), Vector3.new(s, s * 0.26, s * 0.9))
+	K:block(group, keys[2] or keys[1], base * CFrame.new(0, s * 0.2, 0), Vector3.new(s * 0.74, s * 0.22, s * 0.68))
+	K:block(group, keys[3] or keys[2] or keys[1], base * CFrame.new(0, s * 0.31, 0), Vector3.new(s * 0.44, s * 0.14, s * 0.4))
+end
+
+-- a crystal wing (in its own group): spars fanning from `root` between `out` (the leading edge) and `back`, glass panes
+-- between the spars in a colour sweep, neon tips. P = { span, spars, spread (degrees), keys (panes), spar, edge }
+function H.wing(K, group, root, out, back, P)
+	out = out.Unit
+	back = (back - out * back:Dot(out)).Unit
+	local nrm = out:Cross(back).Unit
+	local n = P.spars or 4
+	local dirs, lens = {}, {}
+	for i = 1, n do
+		local a = rad(8 + (i - 1) / (n - 1) * (P.spread or 62))
+		dirs[i] = (out * math.cos(a) + back * math.sin(a)).Unit
+		lens[i] = P.span * (1 - (i - 1) * 0.15)
+		K:chain(group, { P.spar, P.spar, P.edge }, root, dirs[i], nrm, { n = 3, len = lens[i], w0 = 0.1, w1 = 0.06, bend = 0, tipH = 0.14 })
+	end
+	for i = 1, n - 1 do
+		for k, f in { 0.3, 0.56, 0.8 } do
+			local a = root + dirs[i] * lens[i] * f
+			local b = root + dirs[i + 1] * lens[i + 1] * f
+			local across = b - a
+			local key = P.keys[((i - 1) + (k - 1)) % #P.keys + 1]
+			K:block(group, key, CFrame.fromMatrix((a + b) / 2, across.Unit, nrm), Vector3.new(across.Magnitude + 0.08, 0.05, P.span * 0.28 * (1.1 - f * 0.4)))
+		end
+	end
+end
+
+-- ------------------------------------------------------------------------------------------------------------------
+-- An ape head in its own frame (origin = the back of the skull, facing -Z), scaled by P.scale about that origin: a
+-- furred cranium with a sagittal crest, fur framing a bare face, a heavy brow ridge angled into a scowl over small
+-- glowing eyes, a protruding muzzle with flared nostrils, fangs, a hinged jaw (group "Jaw") and optional ears (EarL /
+-- EarR). P = { frame, scale, fur, furDark, face, faceDark, brow, open (degrees), ears = true, crest = { keys },
+-- extras(K, cf, p, v) }
+H.APEHEAD_HINGE = Vector3.new(0, -0.2, -0.36)
+H.APEHEAD_EAR = Vector3.new(0.52, 0.16, -0.3)
+function H.apeHeadJoint(frame, scale, localPoint)
+	return frame.Position + (frame * localPoint - frame.Position) * (scale or 1)
+end
+function H.apeHead(K, P)
+	local F = P.frame
+	local fur, furDark = P.fur or "Fur", P.furDark or "FurDark"
+	local face, faceDark = P.face or "Skin", P.faceDark or "SkinDark"
+	local function cf(px, py, pz, ax, ay, az)
+		return F * CFrame.new(px, py, pz) * CFrame.Angles(rad(ax or 0), rad(ay or 0), rad(az or 0))
+	end
+	local function p(px, py, pz)
+		return F * Vector3.new(px, py, pz)
+	end
+	local function v(px, py, pz)
+		return F:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
+	end
+	K:scaled(F.Position, P.scale or 1, function()
+		K:block("Head", fur, cf(0, 0.22, -0.3), Vector3.new(0.98, 0.84, 0.8))
+		K:block("Head", furDark, cf(0, 0.6, -0.26, -10, 0, 0), Vector3.new(0.66, 0.24, 0.74))
+		local crest = P.crest or { furDark, furDark, furDark }
+		for i, z in { 0.06, -0.2, -0.46 } do
+			K:block("Head", crest[i], cf(0, 0.76 + (i == 2 and 0.05 or 0), z, -16 + i * 6, 0, 0), Vector3.new(0.22, 0.34 - i * 0.04, 0.32))
+		end
+		for _, x in { 1, -1 } do
+			K:block("Head", fur, cf(0.47 * x, 0.04, -0.46, 0, -14 * x, 6 * x), Vector3.new(0.2, 0.66, 0.5))
+		end
+		K:block("Head", face, cf(0, 0.18, -0.7), Vector3.new(0.8, 0.66, 0.14))
+		for _, x in { 1, -1 } do
+			K:block("Head", P.brow or faceDark, cf(0.23 * x, 0.44, -0.79, -6, -8 * x, 12 * x), Vector3.new(0.48, 0.2, 0.3))
+			H.eye(K, "Head", cf(0.21 * x, 0.28, -0.8, 0, -12 * x, 10 * x), 0.13, 0.045)
+		end
+		K:block("Head", face, cf(0, -0.02, -0.9), Vector3.new(0.64, 0.38, 0.36))
+		K:block("Head", faceDark, cf(0, 0.12, -1.07, -10, 0, 0), Vector3.new(0.4, 0.2, 0.12))
+		for _, x in { 1, -1 } do
+			K:block("Head", "Socket", cf(0.1 * x, 0.1, -1.14), Vector3.new(0.1, 0.07, 0.04))
+			K:spike("Head", "Tooth", p(0.2 * x, -0.2, -1.02), v(0, -1, -0.05), v(0, 0, 1), 0.16, 0.06)
+		end
+		K:block("Head", "Mouth", cf(0, -0.21, -0.9), Vector3.new(0.5, 0.06, 0.3))
+		H.teeth(K, "Head", "Tooth", p(-0.12, -0.2, -1.05), p(0.12, -0.2, -1.05), 3, v(0, -1, 0), v(0, 0, 1), 0.07, 0.05)
+		local JAW = F * CFrame.new(H.APEHEAD_HINGE) * CFrame.Angles(rad(-(P.open or 10)), 0, 0)
+		K:block("Jaw", face, JAW * CFrame.new(0, -0.1, -0.5), Vector3.new(0.6, 0.22, 0.56))
+		K:block("Jaw", fur, JAW * CFrame.new(0, -0.14, -0.16), Vector3.new(0.82, 0.28, 0.46))
+		K:block("Jaw", "Mouth", JAW * CFrame.new(0, 0.02, -0.52), Vector3.new(0.44, 0.04, 0.44))
+		for _, x in { 1, -1 } do
+			K:spike("Jaw", "Tooth", JAW * Vector3.new(0.19 * x, 0, -0.72), JAW:VectorToWorldSpace(Vector3.new(0, 1, 0.05)).Unit, JAW:VectorToWorldSpace(Vector3.zAxis), 0.13, 0.06)
+		end
+		H.teeth(K, "Jaw", "Tooth", JAW * Vector3.new(-0.1, 0, -0.76), JAW * Vector3.new(0.1, 0, -0.76), 3, JAW:VectorToWorldSpace(Vector3.yAxis), JAW:VectorToWorldSpace(Vector3.zAxis), 0.06, 0.05)
+		if P.ears then
+			for _, x in { 1, -1 } do
+				local g = x == 1 and "EarL" or "EarR"
+				K:block(g, faceDark, cf(0.52 * x, 0.16, -0.3, 0, -20 * x, 0), Vector3.new(0.1, 0.26, 0.22))
+				K:block(g, fur, cf(0.49 * x, 0.18, -0.24, 0, -20 * x, 0), Vector3.new(0.08, 0.32, 0.28))
+			end
+		end
+		if P.extras then
+			P.extras(K, cf, p, v)
+		end
+	end)
+end
+
+-- an ape arm (the left arm's points, mirrored by x): shoulder -> elbow -> wrist, a big fist planted on its knuckles.
+-- P = { pts = { shoulder, elbow, wrist } as { x, y, z, r }, fist (Vector3), fistY (centre height), core, fur / foreFur
+-- (tile tables), color(th, ring), fistKey, knuckleKey } -> arm segments, fist CFrame
+function H.apeArm(K, g, x, P)
+	local pts = {}
+	for i, q in P.pts do
+		pts[i] = { q[1] * x, q[2], q[3], q[4] }
+	end
+	local arm = H.limb(K, g, pts, { step = 0.4, cores = { P.core or "Fur", P.core or "Fur" }, tiles = { P.fur, P.foreFur }, color = P.color })
+	local w = pts[#pts]
+	local fs = P.fist or Vector3.new(0.66, 0.6, 0.66)
+	local fc = CFrame.new(w[1], P.fistY or (fs.Y / 2 + 0.04), w[3] - 0.08) * CFrame.Angles(0, rad(-8 * x), 0)
+	K:block(g, P.fistKey or "Skin", fc, fs)
+	for f = 1, 4 do
+		K:block(g, P.knuckleKey or "SkinDark", fc * CFrame.new((f - 2.5) / 4 * fs.X, -fs.Y * 0.28, -fs.Z * 0.44), Vector3.new(fs.X * 0.21, fs.Y * 0.44, fs.Z * 0.32))
+	end
+	-- close the wrist into the fist
+	local wp = Vector3.new(w[1], w[2], w[3])
+	local top = fc.Position + Vector3.new(0, fs.Y * 0.3, 0)
+	K:block(g, P.core or "Fur", CFrame.lookAt((wp + top) / 2, wp) * CFrame.Angles(0, 0, rad(45)), Vector3.new(w[4] * 1.3, w[4] * 1.3, (wp - top).Magnitude + w[4]))
+	return arm, fc
+end
+
+-- clean, deliberate fur plates (no tousle): rows that follow the body
+function H.cleanFur(w, n, l)
+	return { w = w, n = n, l = l, t = 0.13, lift = 7, jitter = 0.5, sink = 0.45, overlap = 1.08 }
+end
+
+-- the serpents' forked tongue (group "Tongue", flicked by KaijuMotion), lying in the mouth of a head framed by `frame`
+function H.serpentTongue(K, frame, key)
+	local T0 = frame * CFrame.new(0, -0.18, -0.7) * CFrame.Angles(rad(-10), 0, 0)
+	K:block("Tongue", key or "Tongue", T0, Vector3.new(0.08, 0.04, 0.74))
+	for _, x in { 1, -1 } do
+		K:block("Tongue", key or "Tongue", T0 * CFrame.new(0.04 * x, 0, -0.46) * CFrame.Angles(0, rad(-14 * x), 0), Vector3.new(0.05, 0.035, 0.22))
+	end
 end
 
 return H

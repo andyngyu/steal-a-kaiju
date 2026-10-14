@@ -1,7 +1,8 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Lava Lagoon / Uncommon / fire: a volcanic toad. Squat and broad, warty basalt hide studded with glowing ember warts,
+-- Lava Lagoon / Uncommon / fire (accent: bright orange): a volcanic toad. Squat and broad, rust-red warty hide studded
+-- with glowing ember warts and split by magma seams, a glowing belly,
 -- swollen glowing glands behind the eyes, ember eyes on raised turrets under horned brows, a huge wide jaw, heavy
 -- folded hind legs ready to spring.
 return {
@@ -10,16 +11,16 @@ return {
 	Gait = "Hop",
 	Emotes = { "BigHop", "Look" },
 	Palette = {
-		Hide = { "3A2C27", Material = "Basalt" },
-		HideDark = { "251C19", Material = "Basalt" },
-		HideLight = { "5C4538", Material = "Basalt" },
-		Back = { "1A1312", Material = "Basalt" },
-		Belly = { "7A3E22", Material = "Basalt" },
-		Belly2 = { "5E2E18", Material = "Basalt" },
-		Ember = { "FF6A1A", Neon = true },
-		Magma = { "E2470F", Neon = true },
-		Armour = { "302A29", Material = "Basalt" },
-		ArmourLight = { "4D4440", Material = "Basalt" },
+		Hide = { "8C3424", Material = "Basalt" },
+		HideDark = { "622418", Material = "Basalt" },
+		HideLight = { "B4523A", Material = "Basalt" },
+		Back = { "44190F", Material = "Basalt" },
+		Belly = { "FF6A10", Neon = true },
+		Belly2 = { "B04A1C", Material = "Basalt" },
+		Ember = { "FF6A10", Neon = true },
+		Magma = { "FF4A0E", Neon = true },
+		Armour = { "5A3428", Material = "Basalt" },
+		ArmourLight = { "7A4A36", Material = "Basalt" },
 		Tooth = "E2D2B4",
 		Mouth = { "C8380C", Neon = true },
 		Eye = { "FFC233", Neon = true },
@@ -43,7 +44,7 @@ return {
 		}, { step = 0.4, core = "Hide", coreScale = 0.74, tile = H.plates(0.6, nil, 0.13), belly = { key = "Belly", key2 = "Belly2", arc = 56, t = 0.12, wide = 1.1 }, color = H.skin({ stripe = 36, band = 90, flank = 112, every = 2 }) })
 		-- warts: basalt knobs and glowing embers all over the back
 		H.studs(K, "Body", body, { 0, rad(34), rad(-34), rad(66), rad(-66) }, 0.42, 0.24, 0.25, body.total - 0.25, { "HideLight", "Ember", "Armour", "HideLight", "Ember" })
-		H.cracks(K, "Body", "Magma", body, { rad(90), rad(-90) }, 0.2, body.total - 0.2, 0.3, 0.07, 0.07)
+		H.cracks(K, "Body", "Ember", body, { rad(22), rad(-22), rad(58), rad(-58), rad(96), rad(-96) }, 0.15, body.total - 0.15, 0.24, 0.09, 0.09)
 		-- front legs: short, elbows out
 		for _, x in { 1, -1 } do
 			H.quadLeg(K, x == 1 and "LegFL" or "LegFR", {
