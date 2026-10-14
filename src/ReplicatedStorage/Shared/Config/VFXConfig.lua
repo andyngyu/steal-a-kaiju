@@ -64,6 +64,8 @@ VFXConfig.Guardian = {
 ---------------------------------------------------------------- biome weather + lighting mood (crossfades as you walk)
 -- Lighting values are offsets from Lighting.KaijuColor / Atmosphere as they are at start (Tint replaces the tint;
 -- Saturation / Brightness are added; Haze is added to Atmosphere.Density). Zones without Lighting use the base look.
+-- Optional sky: AtmoColor / AtmoDecay / AtmoHaze / AtmoGlare replace the Atmosphere's own (a high AtmoHaze with a grey
+-- colour turns the sky overcast); WeatherFX blends its events from these.
 VFXConfig.Weather = {
 	Fade = 2, -- seconds
 	PebblePlains = {
@@ -87,11 +89,13 @@ VFXConfig.Weather = {
 	},
 	SunkenAbyss = {
 		Bubbles = { Rate = 34, Color = hex("D8FBFF") },
-		Lighting = { Tint = hex("CDEFF2"), Saturation = 0.06, Brightness = -0.01, Haze = 0.12 }, -- teal water light
+		-- bright teal water light, the sky an aqua haze as if seen from under the sea
+		Lighting = { Tint = hex("D6F6F0"), Saturation = 0.14, Brightness = 0.02, Haze = 0.06, AtmoColor = hex("8EE0DA"), AtmoDecay = hex("2F8F98"), AtmoHaze = 2.0, AtmoGlare = 0 },
 	},
 	StormSpires = {
 		Rain = { Rate = 150, Color = hex("C8D2E6") },
-		Lighting = { Tint = hex("F0F0EC"), Saturation = -0.2, Brightness = 0.03, Haze = -0.04 }, -- pale, greyed storm light, clear air
+		-- overcast and darker: a grey hazed sky, greyed light, but clear air so the spires still read
+		Lighting = { Tint = hex("E6E8EC"), Saturation = -0.2, Brightness = -0.04, Haze = -0.02, AtmoColor = hex("8C9098"), AtmoDecay = hex("4E525A"), AtmoHaze = 2.8, AtmoGlare = 0 },
 	},
 	CosmicRift = {
 		Stardust = { Rate = 40, Color = hex("E8D8FF") },
