@@ -8,6 +8,7 @@
 --   T.massif(parent, o)   the same, rugged: sliced front to back, strata per slice, a crest profile, crags on top
 --   T.boulder / T.cairn   rounded boulders and stacks;  T.arcBone / T.chain  bones and other bent shapes
 --   T.wildflowers, T.footprint, T.crack, T.cloneProp
+--   T.stretch / T.at      lay a layout drawn for one span of the lane onto a longer one
 -- Everything inside the walkable area is non-colliding unless stated (guardians chase in straight lines).
 local T = {}
 local K
@@ -34,6 +35,29 @@ function T.edge(points)
 		end
 		return points[#points][2]
 	end
+end
+
+-- A biome's hand-drawn layout (positions written for its original span oldA..oldB) laid onto its lane newA..newB:
+-- X(x) moves an original position onto the lane, U(x) takes a lane position back to the original terms (for rules like
+-- "the clearing is x 388..434"), k is the stretch. Only where things sit moves; sizes and spacings stay as they are.
+function T.stretch(oldA, oldB, newA, newB)
+	local k = (newB - newA) / (oldB - oldA)
+	return function(x)
+		return newA + (x - oldA) * k
+	end, function(x)
+		return oldA + (x - newA) / k
+	end, k
+end
+
+-- a copy of a { { x, ... }, ... } point list with every x moved by X
+function T.at(pts, X)
+	local out = {}
+	for i, p in pts do
+		local q = table.clone(p)
+		q[1] = X(p[1])
+		out[i] = q
+	end
+	return out
 end
 
 -- 0..1 noise
