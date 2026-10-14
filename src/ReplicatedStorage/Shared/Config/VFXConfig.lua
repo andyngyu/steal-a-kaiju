@@ -87,11 +87,11 @@ VFXConfig.Weather = {
 	},
 	SunkenAbyss = {
 		Bubbles = { Rate = 34, Color = hex("D8FBFF") },
-		Lighting = { Tint = hex("C8E8FF"), Saturation = 0.04, Brightness = -0.04, Haze = 0.24 }, -- deep-blue murk
+		Lighting = { Tint = hex("CDEFF2"), Saturation = 0.06, Brightness = -0.01, Haze = 0.12 }, -- teal water light
 	},
 	StormSpires = {
 		Rain = { Rate = 150, Color = hex("C8D2E6") },
-		Lighting = { Tint = hex("D6DCEE"), Saturation = -0.14, Brightness = -0.07, Haze = 0.2 }, -- grey storm light
+		Lighting = { Tint = hex("F0F0EC"), Saturation = -0.2, Brightness = 0.03, Haze = -0.04 }, -- pale, greyed storm light, clear air
 	},
 	CosmicRift = {
 		Stardust = { Rate = 40, Color = hex("E8D8FF") },
