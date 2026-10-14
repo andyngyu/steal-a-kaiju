@@ -2,8 +2,10 @@
 --   * detail groups (the Citadel's interior and walls, each biome's decor, props, trees, paths, flows and scatter) are
 --     taken out of this client's workspace while the camera and the character are both far along the canyon from them,
 --     and put back before either gets close (only this client's copy: other players and the server are unaffected).
---     Each biome's silhouette - floor, cliffs, ridges, gate, volcano, glacier, lava - always stays, so the view down the
---     canyon (through the Grand Gate, past the Maw) never shows a gap.
+--     Each open biome's silhouette - floor, cliffs, ridges, gate, volcano, glacier, lava - always stays, so the view down
+--     the canyon (through the Grand Gate, past the Maw) never shows a gap. The locked biomes past Frostfang (Venom Jungle,
+--     Sunken Abyss, Storm Spires, Cosmic Rift) also take their whole body away while the camera is far back down the
+--     canyon, where the haze hides them anyway (each one appears well before it could be seen clearly).
 --   * lights, particles, fire and smoke in the Citadel and the canyon switch off beyond FX_RANGE from the camera
 -- Never touched: Zone, NestSite, Sign, Border (scripts read them), the market, plots, leaderboards, statues, Horizon.
 -- Groups are ranges along X (the map runs along +X); "show" when the camera or the character is inside [x0, x1].
@@ -28,12 +30,28 @@ local function detail(biome, extra)
 	end
 	return t
 end
+-- a biome's body: its floor, its gate and the named Refined parts (cliffs, walls, ridges, landmarks)
+local function body(biome, extra)
+	local t = { "Lane." .. biome .. ".Floor", "Lane." .. biome .. ".Gate" }
+	for _, n in extra do
+		table.insert(t, "Lane." .. biome .. ".Refined." .. n)
+	end
+	return t
+end
 local GROUPS = {
 	{ name = "CitadelInside", paths = { "Citadel.Gardens", "Citadel.Avenue", "Citadel.Frames", "Citadel.Hall" }, x0 = -math.huge, x1 = 470 },
 	{ name = "CitadelWalls", paths = { "Citadel.Walls", "Citadel.Towers", "Citadel.Backdrop" }, x0 = -math.huge, x1 = 640 },
 	{ name = "PebbleDetail", paths = detail("PebblePlains", { "Scatter", "Greenery", "Fossils", "Path", "Transition" }), x0 = -400, x1 = 700 },
 	{ name = "LavaDetail", paths = detail("LavaLagoon", { "Scatter", "Heights", "Path", "Flows", "Transition", "Bridge" }), x0 = 300, x1 = 950 },
 	{ name = "FrostDetail", paths = detail("FrostfangPeaks", { "Scatter", "Pines", "Path", "Ice" }), x0 = 500, x1 = 1200 },
+	{ name = "VenomDetail", paths = detail("VenomJungle", { "Scatter", "Greenery", "Path", "Flows", "Vines", "Fungi", "Bridge", "Courtyard", "Bridges" }), x0 = 650, x1 = 1250 },
+	{ name = "VenomBody", paths = body("VenomJungle", { "Liquid", "Cliffs", "Walls", "Back", "Temple", "Mushrooms" }), x0 = 450, x1 = math.huge },
+	{ name = "AbyssDetail", paths = detail("SunkenAbyss", { "Scatter", "Life", "Path", "Reef", "Weed", "Jellyfish", "Ruins" }), x0 = 880, x1 = 1480 },
+	{ name = "AbyssBody", paths = body("SunkenAbyss", { "Liquid", "Cliffs", "Walls", "Back", "Whale", "Wreck" }), x0 = 680, x1 = math.huge },
+	{ name = "StormDetail", paths = detail("StormSpires", { "Scatter", "Path", "Scorch", "Coils", "Altar" }), x0 = 1130, x1 = 1750 },
+	{ name = "StormBody", paths = body("StormSpires", { "Liquid", "Cliffs", "Walls", "Back", "Spires", "Islands", "Sky" }), x0 = 900, x1 = math.huge },
+	{ name = "CosmicDetail", paths = detail("CosmicRift", { "Scatter", "Path", "Heights", "Plinths" }), x0 = 1400, x1 = math.huge },
+	{ name = "CosmicBody", paths = body("CosmicRift", { "Liquid", "Cliffs", "Walls", "Back", "Sky", "Rift", "VoidGate" }), x0 = 1150, x1 = math.huge },
 }
 
 local function find(path)

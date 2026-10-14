@@ -8,7 +8,8 @@
 --             (KaijuFX still does the shell burst, flash and grand light pillar)
 --   purchases coins spray off the player; trails: colour swirl (buy) / ring burst (equip); pen upgrade: golden
 --             shockwave + confetti across the pen
---   weather   Pebble Plains pollen + leaves, Lava Lagoon embers + ash, Frostfang Peaks snow; lighting mood per biome
+--   weather   Pebble Plains pollen + leaves, Lava Lagoon embers + ash, Frostfang Peaks snow, Venom Jungle spores, Sunken
+--             Abyss bubbles, Storm Spires rain, Cosmic Rift stardust; lighting mood per biome
 --   guardians roar: sonic rings from the mouth, ground shockwave, dust, flying rocks, camera shake nearby;
 --             glowing eyes while awake; dust puff (sparks in lava, snow in frost) on every stomp (on KaijuFX's footfall
 --             markers StepAt / StepPos once they arrive, else on a timer)
@@ -967,24 +968,65 @@ end
 
 ---------------------------------------------------------------- weather + lighting mood
 local safeX = 302
+-- Zones come from the lane's Zone parts (each carries its BiomeId and spans its biome's X range), so they always match
+-- the built map. (They used to be summed from BiomeConfig lengths plus a 3-stud border the map doesn't have, which
+-- drifted 3 studs further out per biome.)
+local laneZones = {}
+local function readZones()
+	local map = workspace:FindFirstChild("Map")
+	local lane = map and map:FindFirstChild("Lane")
+	local list = {}
+	if lane then
+		for _, m in lane:GetChildren() do
+			local z = m:FindFirstChild("Zone")
+			if z and z:IsA("BasePart") then
+				table.insert(list, { x0 = z.Position.X - z.Size.X / 2, x1 = z.Position.X + z.Size.X / 2, id = z:GetAttribute("BiomeId") or m.Name })
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.x0 < b.x0
+	end)
+	laneZones = list
+end
 task.spawn(function()
 	local map = workspace:WaitForChild("Map", 30)
-	if map then
-		safeX = map:GetAttribute("SafeZoneX") or (map:FindFirstChild("SafeZoneLine") and map.SafeZoneLine.Position.X) or safeX
+	if not map then
+		return
+	end
+	safeX = map:GetAttribute("SafeZoneX") or (map:FindFirstChild("SafeZoneLine") and map.SafeZoneLine.Position.X) or safeX
+	local lane = map:WaitForChild("Lane", 30)
+	if lane then
+		readZones()
+		lane.ChildAdded:Connect(function()
+			task.wait(1)
+			readZones()
+		end)
+		lane.ChildRemoved:Connect(readZones)
 	end
 end)
 local function zoneAt(x)
 	if x < safeX then
 		return "Hub"
 	end
-	local x0, last = safeX, nil
+	local last
+	for _, z in laneZones do
+		last = z.id
+		if x < z.x1 then
+			return z.id
+		end
+	end
+	if last then
+		return last
+	end
+	-- map not read yet: sum the open biomes' lengths
+	local x0 = safeX
 	for _, biome in BiomeConfig.List do
 		last = biome.Id
-		local x1 = x0 + biome.Length + 3
-		if x < x1 then
+		x0 += biome.Length
+		if x < x0 then
 			return biome.Id
 		end
-		x0 = x1
 	end
 	return last
 end
@@ -1072,6 +1114,51 @@ weatherEmitter("FrostfangPeaks", "Snow", skyBox, {
 	Size = seq(0, 0.55, 1, 0.45),
 	Transparency = seq(0, 0.05, 0.9, 0.05, 1, 1),
 	Lifetime = NumberRange.new(5, 7),
+})
+weatherEmitter("VenomJungle", "Spores", airBox, {
+	Texture = T.Soft,
+	LightEmission = 0.8,
+	Speed = NumberRange.new(0.3, 1),
+	SpreadAngle = Vector2.new(180, 180),
+	Acceleration = Vector3.new(0.3, 0.4, 0.2),
+	Size = seq(0, 0, 0.25, 0.3, 0.8, 0.3, 1, 0),
+	Transparency = seq(0, 0.2, 1, 1),
+	Lifetime = NumberRange.new(5, 9),
+})
+weatherEmitter("SunkenAbyss", "Bubbles", groundBox, {
+	Texture = T.Soft,
+	LightEmission = 0.3,
+	EmissionDirection = Enum.NormalId.Top,
+	Speed = NumberRange.new(2, 4),
+	SpreadAngle = Vector2.new(15, 15),
+	Acceleration = Vector3.new(0, 1.2, 0),
+	Size = seq(0, 0.2, 1, 0.5),
+	Transparency = seq(0, 0.3, 0.85, 0.4, 1, 1),
+	Lifetime = NumberRange.new(5, 8),
+})
+weatherEmitter("StormSpires", "Rain", skyBox, {
+	Texture = T.Soft,
+	LightEmission = 0,
+	LightInfluence = 1,
+	EmissionDirection = Enum.NormalId.Bottom,
+	Orientation = Enum.ParticleOrientation.VelocityParallel,
+	Speed = NumberRange.new(55, 65),
+	SpreadAngle = Vector2.new(4, 4),
+	Acceleration = Vector3.new(6, 0, 2),
+	Squash = NumberSequence.new(3),
+	Size = NumberSequence.new(0.18),
+	Transparency = seq(0, 0.35, 1, 0.35),
+	Lifetime = NumberRange.new(0.7, 0.9),
+})
+weatherEmitter("CosmicRift", "Stardust", airBox, {
+	Texture = T.Soft,
+	LightEmission = 1,
+	Speed = NumberRange.new(0.2, 0.8),
+	SpreadAngle = Vector2.new(180, 180),
+	Acceleration = Vector3.new(0, 0.25, 0),
+	Size = seq(0, 0, 0.3, 0.25, 0.7, 0.25, 1, 0),
+	Transparency = seq(0, 0.1, 1, 1),
+	Lifetime = NumberRange.new(4, 7),
 })
 
 local cc = Lighting:FindFirstChild("KaijuColor")
