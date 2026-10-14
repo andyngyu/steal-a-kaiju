@@ -16,6 +16,7 @@
 --   EndCap   closes the canyon after the last biome when that biome has no refine module of its own
 --   local B = require(game.ServerStorage.Tools.CanyonBuilder:Clone())
 --   B.Ensure()                                          make the lane models of BiomeConfig biomes that have none yet
+--   B.Relayout()                                        move every lane to BiomeConfig's lengths (then B.Build them)
 --   B.Build({ "PebblePlains" })                         every section for that biome
 --   B.Build({ "LavaLagoon" }, { "Cliffs", "Gate" })      just those sections
 -- The new biomes (Venom Jungle, Sunken Abyss, Storm Spires, Cosmic Rift) are built by CanyonBuilder.NewBiome from their
@@ -147,6 +148,84 @@ function B.Ensure()
 		prev = model or prev
 	end
 	return #made > 0 and table.concat(made, "\n") or "all lanes exist"
+end
+
+------------------------------------------------------------------------------- lane lengths
+-- Moves every lane to BiomeConfig's lengths, back to back from the safe line (Map attribute SafeZoneX): the Zone, the
+-- Border, the speed Sign and the NEST sign by the gate move with the lane's start, the NestSite goes to NestAt of the
+-- new length, the old decor is stretched along with the lane, and so are the props a locked biome keeps in
+-- ServerStorage.LockedLaneProps. The first lane's stretch starts at the end of the Grand Gate's tunnel (x 350), which
+-- stays put. The ground, cliffs and set pieces are then rebuilt with B.Build (every refine module lays its layout onto
+-- its lane's length). Returns what moved.
+function B.Relayout()
+	local BiomeConfig = fresh(ReplicatedStorage.Shared.Config.BiomeConfig)
+	local lane = workspace.Map.Lane
+	local safeX = workspace.Map:GetAttribute("SafeZoneX") or 302
+	local list = table.clone(BiomeConfig.All)
+	table.sort(list, function(a, b)
+		return a.Order < b.Order
+	end)
+	local store = ServerStorage:FindFirstChild("LockedLaneProps")
+	local function shift(inst, dx)
+		if inst:IsA("Model") then
+			inst:PivotTo(inst:GetPivot() + Vector3.new(dx, 0, 0))
+		elseif inst:IsA("BasePart") then
+			inst.CFrame += Vector3.new(dx, 0, 0)
+		end
+	end
+	local x0 = safeX
+	local out = {}
+	for _, cfg in list do
+		local model = lane:FindFirstChild(cfg.Id)
+		local zone = model and model:FindFirstChild("Zone")
+		if zone then
+			local o0, o1 = zone.Position.X - zone.Size.X / 2, zone.Position.X + zone.Size.X / 2
+			local n0, n1 = x0, x0 + cfg.Length
+			local pin = (o0 <= safeX + 0.5) and math.max(o0, 350) or o0 -- the tunnel stays where it is
+			local function map(x)
+				if x <= pin then
+					return x + (n0 - o0)
+				end
+				local p1 = pin + (n0 - o0)
+				return p1 + (x - pin) * (n1 - p1) / (o1 - pin)
+			end
+			local start = n0 - o0
+			zone.Size = Vector3.new(cfg.Length, zone.Size.Y, zone.Size.Z)
+			zone.CFrame = CFrame.new((n0 + n1) / 2, zone.Position.Y, zone.Position.Z)
+			local border = model:FindFirstChild("Border")
+			if border then
+				shift(border, start)
+			end
+			local sign = model:FindFirstChild("Sign")
+			if sign then
+				shift(sign, start)
+			end
+			local nest = model:FindFirstChild("NestSite")
+			local nestDx = 0
+			if nest then
+				nestDx = (n0 + cfg.NestAt * cfg.Length) - nest:GetPivot().X
+				shift(nest, nestDx)
+			end
+			local moved = 0
+			local decor = model:FindFirstChild("Decor")
+			for _, d in decor and decor:GetChildren() or {} do
+				if d.Name:sub(1, 8) == "NestSign" then
+					shift(d, start) -- it stands by the gate
+				elseif d:IsA("Model") or d:IsA("BasePart") then
+					local x = d:IsA("Model") and d:GetPivot().X or d.Position.X
+					shift(d, map(x) - x)
+				end
+				moved += 1
+			end
+			local held = store and store:FindFirstChild(cfg.Id)
+			for _, d in held and held:GetChildren() or {} do
+				shift(d, start)
+			end
+			table.insert(out, string.format("%s x %d..%d (was %d..%d), nest %.1f, %d decor", cfg.Id, n0, n1, o0, o1, n0 + cfg.NestAt * cfg.Length, moved))
+			x0 = n1
+		end
+	end
+	return table.concat(out, "\n")
 end
 
 ------------------------------------------------------------------------------- the biomes
