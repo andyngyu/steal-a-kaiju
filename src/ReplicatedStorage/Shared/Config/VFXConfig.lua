@@ -69,6 +69,7 @@ VFXConfig.Weather = {
 	PebblePlains = {
 		Pollen = { Rate = 18, Color = hex("FFF6B0") },
 		Leaves = { Rate = 7, Color = hex("7FD957") },
+		Lighting = { Tint = hex("FFF4DE"), Saturation = 0.08, Brightness = 0.03, Haze = -0.06 }, -- warm and bright
 	},
 	LavaLagoon = {
 		Embers = { Rate = 55, Color = hex("FF7A1F") },
