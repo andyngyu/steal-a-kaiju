@@ -1,0 +1,12 @@
+# Roblox place / model files (the game itself lives in Studio)
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+*.lock
+
+# editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
