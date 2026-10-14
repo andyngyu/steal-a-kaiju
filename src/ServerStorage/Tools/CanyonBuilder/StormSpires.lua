@@ -1,4 +1,4 @@
--- Storm Spires (x 1302..1577), built by CanyonBuilder.NewBiome: a slate canyon under a pale, wheeling storm.
+-- Storm Spires (layout drawn for x 1302..1577, laid onto the lane with T.stretch), built by CanyonBuilder.NewBiome: a slate canyon under a pale, wheeling storm.
 -- Palette: charcoal and slate greys (no blue cast), pale storm-cloud greys overhead, bright yellow-white lightning,
 -- small touches of electric blue.
 --   Ground     slate in four greys, cracked into plates (dark crack lines, tilted plates, rubble), wet patches, lichen,
@@ -21,6 +21,7 @@ local hex = Color3.fromHex
 return function(b, K, T)
 	local P = K.P
 	local XA, XB = b.x0, b.x1
+	local X, U, KX = T.stretch(1302, 1577, XA, XB)
 	local NX = XA + (b.NestAt or 0.55) * (XB - XA)
 	local C, rng
 	local heroTip
@@ -49,7 +50,7 @@ return function(b, K, T)
 	local CS = game:GetService("CollectionService")
 
 	---------------------------------------------------------------- layout
-	local POOLS = { { 1330, 66, 6 }, { 1392, -40, 5 }, { 1426, 50, 6 }, { 1512, -42, 6 }, { 1548, 58, 5 }, { 1362, -70, 6 } }
+	local POOLS = T.at({ { 1330, 66, 6 }, { 1392, -40, 5 }, { 1426, 50, 6 }, { 1512, -42, 6 }, { 1548, 58, 5 }, { 1362, -70, 6 }, { 1460, 62, 5 }, { 1484, -60, 6 } }, X)
 	local function liquidGap(x, z)
 		local g = math.huge
 		for _, p in POOLS do
@@ -58,7 +59,7 @@ return function(b, K, T)
 		end
 		return g
 	end
-	local STRIKES = { { 1346, 30 }, { 1410, -30 }, { 1494, 36 }, { 1540, -20 }, { 1386, 44 } }
+	local STRIKES = T.at({ { 1346, 30 }, { 1410, -30 }, { 1494, 36 }, { 1540, -20 }, { 1386, 44 }, { 1452, -36 }, { 1518, 40 } }, X)
 	local function nearStrike(x, z)
 		for _, s in STRIKES do
 			if (x - s[1]) ^ 2 + (z - s[2]) ^ 2 < 36 then
@@ -285,15 +286,15 @@ return function(b, K, T)
 		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.62,
-		edgeN = { { 1302, 65 }, { 1312, 66 }, { 1324, 76 }, { 1340, 88 }, { 1358, 90 }, { 1372, 76 }, { 1386, 66 }, { 1400, 70 }, { 1414, 82 }, { 1430, 92 }, { 1476, 92 }, { 1490, 80 }, { 1504, 70 }, { 1518, 74 }, { 1534, 88 }, { 1552, 88 }, { 1564, 72 }, { 1572, 66 }, { 1577, 65 } },
-		edgeS = { { 1302, 65 }, { 1314, 64 }, { 1328, 72 }, { 1344, 84 }, { 1360, 86 }, { 1374, 72 }, { 1388, 64 }, { 1402, 68 }, { 1418, 80 }, { 1434, 90 }, { 1472, 90 }, { 1488, 76 }, { 1502, 66 }, { 1516, 70 }, { 1532, 86 }, { 1550, 90 }, { 1564, 74 }, { 1572, 66 }, { 1577, 65 } },
+		edgeN = T.at({ { 1302, 65 }, { 1312, 66 }, { 1324, 76 }, { 1340, 88 }, { 1358, 90 }, { 1372, 76 }, { 1386, 66 }, { 1400, 70 }, { 1414, 82 }, { 1430, 92 }, { 1476, 92 }, { 1490, 80 }, { 1504, 70 }, { 1518, 74 }, { 1534, 88 }, { 1552, 88 }, { 1564, 72 }, { 1572, 66 }, { 1577, 65 } }, X),
+		edgeS = T.at({ { 1302, 65 }, { 1314, 64 }, { 1328, 72 }, { 1344, 84 }, { 1360, 86 }, { 1374, 72 }, { 1388, 64 }, { 1402, 68 }, { 1418, 80 }, { 1434, 90 }, { 1472, 90 }, { 1488, 76 }, { 1502, 66 }, { 1516, 70 }, { 1532, 86 }, { 1550, 90 }, { 1564, 74 }, { 1572, 66 }, { 1577, 65 } }, X),
 		paths = {
-			{ { 1302, 0, 14 }, { 1318, -6, 12 }, { 1336, -10, 12 }, { 1352, -2, 12 }, { 1368, 8, 12 }, { 1384, 10, 12 }, { 1400, 4, 12 }, { 1418, -4, 12 }, { 1436, 0, 12 } },
-			{ { 1436, 0, 8 }, { 1439, 14, 7 }, { 1446, 26, 7 }, { 1461, 26, 7 }, { 1468, 14, 7 }, { 1471, 0, 8 } },
-			{ { 1436, 0, 8 }, { 1439, -14, 7 }, { 1446, -26, 7 }, { 1461, -26, 7 }, { 1468, -14, 7 }, { 1471, 0, 8 } },
-			{ { 1471, 0, 12 }, { 1486, 8, 12 }, { 1502, 10, 12 }, { 1518, 2, 12 }, { 1534, -8, 12 }, { 1550, -6, 12 }, { 1566, 0, 12 }, { 1577, 0, 13 } },
-			{ { 1368, 8, 6 }, { 1366, 40, 6 }, { 1362, 62, 6 } }, -- to the north pocket's coil
-			{ { 1534, -8, 6 }, { 1537, -40, 6 }, { 1540, -64, 6 } }, -- to the south pocket's coil
+			T.at({ { 1302, 0, 14 }, { 1318, -6, 12 }, { 1336, -10, 12 }, { 1352, -2, 12 }, { 1368, 8, 12 }, { 1384, 10, 12 }, { 1400, 4, 12 }, { 1418, -4, 12 }, { 1436, 0, 12 } }, X),
+			T.at({ { 1436, 0, 8 }, { 1439, 14, 7 }, { 1446, 26, 7 }, { 1461, 26, 7 }, { 1468, 14, 7 }, { 1471, 0, 8 } }, X),
+			T.at({ { 1436, 0, 8 }, { 1439, -14, 7 }, { 1446, -26, 7 }, { 1461, -26, 7 }, { 1468, -14, 7 }, { 1471, 0, 8 } }, X),
+			T.at({ { 1471, 0, 12 }, { 1486, 8, 12 }, { 1502, 10, 12 }, { 1518, 2, 12 }, { 1534, -8, 12 }, { 1550, -6, 12 }, { 1566, 0, 12 }, { 1577, 0, 13 } }, X),
+			T.at({ { 1368, 8, 6 }, { 1366, 40, 6 }, { 1362, 62, 6 } }, X), -- to the north pocket's coil
+			T.at({ { 1534, -8, 6 }, { 1537, -40, 6 }, { 1540, -64, 6 } }, X), -- to the south pocket's coil
 		},
 		liquid = {
 			gap = liquidGap,
@@ -360,7 +361,7 @@ return function(b, K, T)
 
 	function th.height(_, _, x, n)
 		local h = 48 + n * 32
-		if x < 1320 or x > 1560 then
+		if x < XA + 18 or x > XB - 17 then
 			h = math.max(h, 66 + n * 10)
 		end
 		return math.floor(h / 2 + 0.5) * 2
@@ -393,7 +394,7 @@ return function(b, K, T)
 		local spires = ctx.sub("Spires")
 		-- the lightning spires (the ones that read from the gate are key-lit), arcs between neighbours
 		local tips = {}
-		local spots = { { 1334, 1, 112, 104, true }, { 1372, -1, 108, 116, true }, { 1412, 1, 116, 128, true }, { NX, 1, 124, 170, true }, { 1478, -1, 112, 132, true }, { 1520, 1, 110, 110 }, { 1556, -1, 114, 124 }, { 1346, -1, 120, 96 }, { 1540, 1, 126, 100 } }
+		local spots = { { X(1334), 1, 112, 104, true }, { X(1372), -1, 108, 116, true }, { X(1412), 1, 116, 128, true }, { NX, 1, 124, 170, true }, { X(1478), -1, 112, 132, true }, { X(1520), 1, 110, 110 }, { X(1556), -1, 114, 124 }, { X(1346), -1, 120, 96 }, { X(1540), 1, 126, 100 }, { X(1392), 1, 118, 96 }, { X(1454), -1, 120, 104 } }
 		for _, s in spots do
 			local tip = spire(spires, Vector3.new(s[1], 0, s[2] * s[3]), s[4], s[4] > 150 and 24 or 15, s[5])
 			table.insert(tips, { p = tip, side = s[2] })
@@ -407,7 +408,7 @@ return function(b, K, T)
 		end
 		-- floating islands chained to the cliff tops, the big one over the nest
 		local isl = ctx.sub("Islands")
-		for _, d in { { 1342, 66, 58, 11, true }, { 1398, 84, -52, 13, true }, { 1500, 92, 50, 15 }, { 1546, 72, -64, 10 }, { NX - 6, 118, -18, 17, true } } do
+		for _, d in { { X(1342), 66, 58, 11, true }, { X(1398), 84, -52, 13, true }, { X(1500), 92, 50, 15 }, { X(1546), 72, -64, 10 }, { NX - 6, 118, -18, 17, true }, { X(1470), 80, -56, 12 } } do
 			local _, bottom = island(isl, Vector3.new(d[1], d[2], d[3]), d[4], d[5])
 			local ends
 			if math.abs(d[3]) < 30 then
@@ -423,11 +424,11 @@ return function(b, K, T)
 		-- Tesla coils in the pockets (only the one near the gate carries a light)
 		local coils = ctx.sub("Coils")
 		for _, cp in { { 1360, 70, 18, 3.2, true }, { 1541, -72, 20, 3.4 }, { 1528, 70, 14, 2.6 } } do
-			teslaCoil(coils, Vector3.new(cp[1], 0, cp[2]), cp[3], cp[4], { light = cp[5] and 36 or nil })
+			teslaCoil(coils, Vector3.new(X(cp[1]), 0, cp[2]), cp[3], cp[4], { light = cp[5] and 36 or nil })
 		end
 		-- the storm: a dark cloud swirling over the far end (spiral arms, a dark mass between them, a funnel under its
 		-- eye), turned slowly by BiomeFX, lightning flickering inside it, a bolt now and then down to a spire
-		local vx, vy = 1520, 206
+		local vx, vy = X(1520), 206
 		local vortex = K.model(sky, "StormVortex")
 		vortex:SetAttribute("SpinSpeed", 3.5)
 		CS:AddTag(vortex, "SpinCloud")
@@ -459,7 +460,7 @@ return function(b, K, T)
 		-- a low, dense cloud ceiling over the rest of the biome (the swirl covers the far end): from the lane the sky is
 		-- overcast and dark, with a few gaps; the spires stay under it
 		local deck = K.model(sky, "CloudDeck")
-		for x = XA - 14, 1436, 24 do
+		for x = XA - 14, X(1436), 24 do
 			for z = -156, 156, 26 do
 				if rng:NextNumber() < 0.8 then
 					puff(deck, Vector3.new(x + rng:NextNumber(-8, 8), rng:NextNumber(176, 196), z + rng:NextNumber(-8, 8)), rng:NextNumber(26, 38), rng:NextNumber() < 0.45, true)
@@ -468,7 +469,7 @@ return function(b, K, T)
 		end
 		-- strike marks: scorched patches with glowing fulgurite (smoke only near the gate, where it can be seen)
 		for _, s in STRIKES do
-			if s[1] < 1400 then
+			if U(s[1]) < 1400 then
 				T.crack(scatter, Vector3.new(s[1], 0, s[2]), rng:NextNumber(0, math.pi * 2), 3, rng, { dark = SCORCH, glow = BOLT, smoke = hex("8A8C92"), smokeSize = 1.5, smokeOpacity = 0.06 })
 			else
 				crackLine(scatter, Vector3.new(s[1], 0, s[2]), rng:NextNumber(0, math.pi * 2), 4, true)
@@ -484,7 +485,7 @@ return function(b, K, T)
 		end
 		-- the slate floor broken up: crack networks, tilted plates, rubble
 		local floor = ctx.sub("Slate")
-		for _ = 1, 34 do
+		for _ = 1, math.floor(34 * KX) do
 			local x, z = spot(2, 18)
 			if x then
 				local yaw = rng:NextNumber(0, math.pi * 2)
@@ -494,14 +495,14 @@ return function(b, K, T)
 				end
 			end
 		end
-		for _ = 1, 26 do
+		for _ = 1, math.floor(26 * KX) do
 			local x, z = spot(3, 20)
 			if x then
 				local w, d = rng:NextNumber(3, 5.5), rng:NextNumber(2.4, 4)
 				K.part(floor, "SlatePlate", Vector3.new(w, 0.5, d), CFrame.new(x, 0.12, z) * CFrame.Angles(math.rad(rng:NextNumber(-7, 7)), rng:NextNumber(0, math.pi), math.rad(rng:NextNumber(-7, 7))), SLATE[rng:NextInteger(1, 4)]:Lerp(Color3.new(1, 1, 1), 0.08), { studs = K.TOP, solid = false })
 			end
 		end
-		for i = 1, 18 do
+		for i = 1, math.floor(18 * KX) do
 			local x, z = spot(3)
 			if x then
 				local r = rng:NextNumber(1.4, 3.2)
@@ -512,7 +513,7 @@ return function(b, K, T)
 					K.part(floor, "Rubble", Vector3.new(s * 1.4, s, s * 1.2), CFrame.new(q + Vector3.new(0, s * 0.35, 0)) * CFrame.Angles(rng:NextNumber(0, 1), rng:NextNumber(0, 3), rng:NextNumber(0, 1)), ROCK[rng:NextInteger(2, 4)], { solid = false })
 				end
 			end
-			if i <= 8 then
+			if i <= 8 * KX then
 				x, z = spot(4)
 				if x then
 					local h = rng:NextNumber(6, 12)
@@ -521,7 +522,7 @@ return function(b, K, T)
 					K.box(m, "CopperBand", x - 1.5, x + 1.5, h * 0.6, h * 0.6 + 0.6, z - 1.1, z + 1.1, COPPER, { solid = false })
 				end
 			end
-			if i <= 6 then
+			if i <= 6 * KX then
 				x, z = spot(4)
 				if x then
 					local m = K.model(scatter, "DeadTree")
