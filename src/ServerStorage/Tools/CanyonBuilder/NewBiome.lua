@@ -70,7 +70,8 @@ return function(b, K, T, th)
 		return l
 	end
 	-- a ParticleEmitter (default sparkle texture). o: colors {c0, c1}, size {s0, s1}, rate, speed {a, b}, life {a, b},
-	-- spread, accel (Vector3), light (emission), dir (NormalId), transparency {t0, t1}
+	-- spread, accel (Vector3), light (emission), dir (NormalId), transparency {t0, t1}, texture, squash (number: > 0
+	-- stretches tall), orientation (Enum.ParticleOrientation), rotSpeed {a, b}
 	function ctx.emit(part, o)
 		local e = Instance.new("ParticleEmitter")
 		e.Name = o.name or "Particles"
@@ -91,6 +92,19 @@ return function(b, K, T, th)
 		e.EmissionDirection = o.dir or Enum.NormalId.Top
 		if o.lockedToPart then
 			e.LockedToPart = true
+		end
+		if o.texture then
+			e.Texture = o.texture
+		end
+		if o.squash then
+			e.Squash = NumberSequence.new(o.squash)
+		end
+		if o.orientation then
+			e.Orientation = o.orientation
+		end
+		if o.rotSpeed then
+			e.RotSpeed = NumberRange.new(o.rotSpeed[1], o.rotSpeed[2])
+			e.Rotation = NumberRange.new(0, 360)
 		end
 		e.Parent = part
 		return e
@@ -146,7 +160,7 @@ return function(b, K, T, th)
 		end
 	end
 
-	-- real fire: an invisible anchor with a Fire in the theme's colours and a light
+	-- real fire: an invisible anchor with a Fire in the theme's colours and a light (range 0: no light)
 	function ctx.fire(parent, pos, size, c1, c2, lightColor, range)
 		local a = ctx.anchor(parent, pos)
 		local f = Instance.new("Fire")
@@ -155,7 +169,9 @@ return function(b, K, T, th)
 		f.Color = c1
 		f.SecondaryColor = c2 or c1
 		f.Parent = a
-		ctx.light(a, lightColor or c1, range or size * 4, 1.6)
+		if range ~= 0 then
+			ctx.light(a, lightColor or c1, range or size * 4, 1.6)
+		end
 		return a
 	end
 	-- a Kit plaque (Antique lettering) recoloured: style = { board, frame, line, text, neon }
@@ -227,7 +243,9 @@ return function(b, K, T, th)
 		end
 		local _, s0 = k:GetBoundingBox()
 		k:ScaleTo(k:GetScale() * height / s0.Y)
-		k:PivotTo(CFrame.lookAt(at, at + Vector3.new(facing.X, 0, facing.Z)))
+		-- turn it so its root faces `facing` (the root's look is the kaiju's forward; the model's pivot may be offset)
+		local want = CFrame.lookAt(root.Position, root.Position + Vector3.new(facing.X, 0, facing.Z))
+		k:PivotTo(want * root.CFrame:Inverse() * k:GetPivot())
 		local cf, s = k:GetBoundingBox()
 		k:PivotTo(k:GetPivot() + Vector3.new(at.X - cf.X, at.Y - (cf.Y - s.Y / 2), at.Z - cf.Z))
 		k.Name = "Silhouette"

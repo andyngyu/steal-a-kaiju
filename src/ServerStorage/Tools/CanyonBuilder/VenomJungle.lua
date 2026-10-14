@@ -1,14 +1,25 @@
 -- Venom Jungle (x 827..1052), built by CanyonBuilder.NewBiome: a steaming jungle canyon in mossy dark stone.
---   Ground     jungle floor (grass, moss, mud, fallen leaves); meltwater, slush and snow where it meets Frostfang; a
---              packed-earth path that forks round the nest's temple courtyard
---   Toxic      four toxic falls off the cliffs into glowing pools, and a creek from the north pool to the south one that
---              the path crosses on a plank bridge
+-- Palette: jungle greens, with toxic lime (the falls, pools, glyphs) and poison purple (strata veins, mushrooms,
+-- thorns, flowers) as the accents; a green humid haze for a sky (VFXConfig.Weather.VenomJungle).
+--   Ground     jungle floor (grass, moss, mud, fallen leaves) broken up by gnarled roots, raised moss carpets, murky
+--              puddles and poison flowers; meltwater, slush and snow where it meets Frostfang; a packed-earth path that
+--              forks round the nest's temple courtyard
+--   Rock       dark mossy strata with poison-purple veins, rugged crags behind (T.massif), the far ranges paler sage
+--   Toxic      four toxic falls pouring off the cliffs in translucent layers (a dark body, a glowing lime sheet,
+--              wandering bright streaks, lips over every ledge, foam at the foot) into glowing pools; the two seen from
+--              the gate also stream, splash and steam (particles). A creek runs from the north pool to the south one
+--              that the path crosses on a plank bridge
 --   Temple     a stepped temple at the back of the north clearing: glyph bands, a shrine with eyes glowing in its door,
 --              serpent heads, green fire; the nest sits in its paved courtyard ringed with broken pillars
 --   Mushrooms  a grove of giant glowing mushrooms behind lowered cliffs in the south, more in the pockets and up top
 --   Bridges    two rope-and-plank vine bridges strung between the cliff tops high over the path
---   Gate       the Temple Gate: stepped stone pylons, a glyph-carved lintel, a great serpent over the way in
+--   Gate       the Temple Gate: stepped stone pylons, a glyph-carved lintel, a great serpent over the way in; while
+--              locked: thorned vines strung from the pylons to a stone serpent coiled round an eye seal, a toxic haze
+--              with spores, a giant serpent's silhouette rearing behind with lime eyes, a mossy carved-stone COMING SOON
+-- Lights: only what reads from the gate (the gate fires, the near falls and pools, the near mushrooms; key lights on
+-- the temple's eyes, the two biggest mushrooms and the serpent); nothing lit deep inside.
 local hex = Color3.fromHex
+local TEX = require(game:GetService("ReplicatedStorage").Shared.Config.VFXConfig).Textures
 
 return function(b, K, T)
 	local P = K.P
@@ -17,7 +28,8 @@ return function(b, K, T)
 	local C, rng
 
 	---------------------------------------------------------------- colours
-	local ROCK = { hex("2B3326"), hex("3B4434"), hex("525C44"), hex("67704F"), accent = hex("4E6B3A") }
+	local ROCK = { hex("2B3326"), hex("3B4434"), hex("525C44"), hex("67704F"), accent = hex("4A3060") }
+	local FARROCK = { hex("5E7A58"), hex("6C8864"), hex("7A9670"), hex("88A47C") }
 	local GRASS = { hex("3D7B31"), hex("36702B"), hex("2F6627"), hex("467F35") }
 	local MUD = { hex("5A4630"), hex("4A3A28") }
 	local BANK = hex("3A2E20")
@@ -29,8 +41,12 @@ return function(b, K, T)
 	local SLABS = { hex("8A8C78"), hex("767A66"), hex("9A9C86") }
 	local CAPS = { hex("2F7A36"), hex("2A6B30"), hex("358A3C"), hex("276030") }
 	local SNOW = hex("F4FAFF")
-	local TOXIC = { hex("5ED12F"), hex("4CB828"), hex("79E43C") }
+	local TOXIC = { hex("7CF03A"), hex("6AE02E"), hex("94FF4A") }
 	local GLOW = hex("7DFF4A")
+	local LIME, POISON = hex("B4FF3A"), hex("B04CFF")
+	local FALLB, FOAMC = hex("4CC834"), hex("E6FFB8") -- a fall's body, its foam and streaks
+	local VINE2, THORN = hex("254C1F"), hex("3A1F4A")
+	local PUDDLE = hex("2E4430")
 	local STONE = { hex("6E7560"), hex("616853"), hex("7A806A"), hex("575E4A") } -- temple stone
 	local TRIM = hex("3A4032")
 	local BARK = { hex("5A3F28"), hex("4A3322"), hex("3E2B1C") }
@@ -152,7 +168,9 @@ return function(b, K, T)
 		else
 			gills = K.box(m, "Gills", c.X - r * 0.6, c.X + r * 0.6, c.Y - 0.35, c.Y + 0.02, c.Z - r * 0.6, c.Z + r * 0.6, look.gill, { neon = true, solid = false, shadow = false })
 		end
-		if o.light ~= false then
+		if o.key then
+			C.keyLight(gills, look.glow, math.min(60, r * 2.4 + 8), r > 8 and 2.2 or 1.3)
+		elseif o.light then
 			C.light(gills, look.glow, math.min(60, r * 2.4 + 8), r > 8 and 2 or 1.3)
 		end
 		return m
@@ -162,10 +180,109 @@ return function(b, K, T)
 		local m = K.model(parent, "ShroomCluster")
 		for i = 1, n do
 			local off = i == 1 and Vector3.zero or Vector3.new(rng:NextNumber(-2.4, 2.4), 0, rng:NextNumber(-2.4, 2.4))
-			mushroom(m, at + off, rng:NextNumber(1.2, 3.6), rng:NextNumber(0.7, 1.6), look, { light = false })
+			mushroom(m, at + off, rng:NextNumber(1.2, 3.6), rng:NextNumber(0.7, 1.6), look)
 		end
-		C.light(C.anchor(m, at + Vector3.new(0, 2, 0)), look.glow, 12, 1)
+		if at.X < 900 then -- lit only where the gate sees them
+			C.light(C.anchor(m, at + Vector3.new(0, 2, 0)), look.glow, 12, 1)
+		end
 		return m
+	end
+	-- a toxic fall down a cliff column's faces: per layer a dark see-through body, a lime glowing sheet in front and a
+	-- few short bright streaks (staggered, so it reads as flowing, not as a stripe); it runs across each ledge and lips
+	-- over its edge; foam at the foot. fx (the falls seen from the gate): a stream of drops pouring off the lip, mist
+	-- and splashing drops at the foot, a light. Returns the foot.
+	local function toxicFall(parent, col, side, x, w, fx)
+		local m = K.model(parent, "ToxicFall")
+		local L = col.layers
+		local top = col.top or L[#L].yt
+		local lo, hi = col.x0 + w / 2 + 0.3, col.x1 - w / 2 - 0.3
+		x = math.clamp(x, lo, math.max(lo, hi))
+		for i = #L, 1, -1 do
+			local l = L[i]
+			local yt = i == #L and top + 1.4 or l.yt
+			local f = l.f
+			local ww = w * (1 + (#L - i) * 0.07)
+			-- short segments that wander and change width, the glowing sheet narrower and off-centre on each
+			local y = yt
+			while y > l.yb + 0.01 do
+				local seg = math.min(y - l.yb, rng:NextNumber(2.4, 4.4))
+				local sw = ww * rng:NextNumber(0.78, 1.08)
+				local sx = math.clamp(x + rng:NextNumber(-0.6, 0.6), col.x0 + sw / 2 + 0.2, math.max(col.x0 + sw / 2 + 0.2, col.x1 - sw / 2 - 0.2))
+				K.box(m, "FallBody", sx - sw / 2, sx + sw / 2, y - seg, y, side * (f - 0.9), side * (f + 0.05), FALLB, { transparency = 0.3, solid = false, shadow = false })
+				local gw = sw * rng:NextNumber(0.35, 0.6)
+				local gx = sx + rng:NextNumber(-(sw - gw) / 2, (sw - gw) / 2)
+				K.box(m, "FallSheet", gx - gw / 2, gx + gw / 2, y - seg, y, side * (f - 1.25), side * (f - 0.9), LIME, { neon = true, transparency = 0.72, solid = false, shadow = false })
+				y -= seg
+			end
+			for _ = 1, 3 do
+				local sx = x + rng:NextNumber(-ww * 0.4, ww * 0.4)
+				local len = math.min(yt - l.yb, rng:NextNumber(2.5, 6))
+				local sy = rng:NextNumber(l.yb, math.max(l.yb, yt - len))
+				K.box(m, "FallStreak", sx - 0.18, sx + 0.18, sy, sy + len, side * (f - 1.45), side * (f - 1.2), FOAMC, { neon = true, transparency = 0.3, solid = false, shadow = false })
+			end
+			local nxt = L[i - 1]
+			if nxt and nxt.f < f - 0.3 then
+				K.box(m, "FallLip", x - ww / 2, x + ww / 2, l.yb - 0.2, l.yb + 0.5, side * (nxt.f - 1.2), side * (f - 0.9), FALLB, { transparency = 0.25, solid = false, shadow = false })
+				K.box(m, "FallLipGlow", x - ww * 0.4, x + ww * 0.4, l.yb + 0.3, l.yb + 0.65, side * (nxt.f - 1.3), side * (f - 0.9), LIME, { neon = true, transparency = 0.4, solid = false, shadow = false })
+			end
+		end
+		local foot = Vector3.new(x, 0, side * (L[1].f - 1.2))
+		for k = 0, 5 do
+			local a = k / 6 * math.pi * 2
+			local p = foot + Vector3.new(math.cos(a) * w * 0.6, 0, math.sin(a) * w * 0.45 - side * 1.6)
+			K.box(m, "Foam", p.X - 0.9, p.X + 0.9, -0.5, rng:NextNumber(0.2, 0.9), p.Z - 0.9, p.Z + 0.9, FOAMC, { transparency = 0.35, solid = false, shadow = false })
+		end
+		if fx then
+			local h = top + 1.4
+			local tFall = (-6 + math.sqrt(36 + 4 * 15 * h)) / 30 -- h = 6 t + 15 t^2 (speed 6, accel 30)
+			local lip = C.anchor(m, Vector3.new(x, h, side * (L[#L].f - 1.1)), Vector3.new(w * 0.8, 0.2, 0.4))
+			C.emit(lip, { name = "Stream", texture = TEX.Soft, colors = { LIME, FALLB }, size = { 1, 0.7 }, rate = 30, speed = { 5, 7 }, life = { tFall * 0.92, tFall }, spread = 2, accel = Vector3.new(0, -30, 0), light = 0.6, dir = Enum.NormalId.Bottom, transparency = { 0.35, 0.55 }, squash = 1.2, orientation = Enum.ParticleOrientation.VelocityParallel })
+			local pool = C.anchor(m, foot + Vector3.new(0, 0.8, -side * 2.5), Vector3.new(w * 1.4, 0.4, 4))
+			C.emit(pool, { name = "Mist", texture = TEX.Soft, colors = { hex("DFFFC8"), hex("9BE07A") }, size = { 3, 9 }, rate = 5, speed = { 0.5, 2 }, life = { 3, 5 }, spread = 60, accel = Vector3.new(0, 0.9, 0), light = 0.2, transparency = { 0.72, 1 }, rotSpeed = { -20, 20 } })
+			C.emit(pool, { name = "Splash", texture = TEX.Soft, colors = { FOAMC, LIME }, size = { 0.45, 0.2 }, rate = 14, speed = { 5, 9 }, life = { 0.5, 0.9 }, spread = 45, accel = Vector3.new(0, -32, 0), light = 0.5, transparency = { 0.1, 0.5 } })
+			C.keyLight(pool, LIME, 28, 1.6)
+		end
+		return foot
+	end
+	-- a thick vine strung from a to c, sagging, leaves and purple thorns along it, now and then a poison bloom
+	local function heavyVine(parent, a, c, sag, w)
+		local n = math.max(4, math.floor((c - a).Magnitude / 6))
+		local pts = {}
+		for i = 0, n do
+			local t = i / n
+			local p = a:Lerp(c, t) - Vector3.new(0, sag * 4 * t * (1 - t), 0)
+			if i > 0 and i < n then
+				p += Vector3.new(rng:NextNumber(-0.6, 0.6), rng:NextNumber(-0.8, 0.8), rng:NextNumber(-0.8, 0.8))
+			end
+			table.insert(pts, p)
+		end
+		T.chain(parent, "Vine", pts, { w or 1.4 }, { VINE, VINE2 }, { studs = K.SIDES, solid = false, shadow = false })
+		for i = 1, n do
+			local p = pts[i]:Lerp(pts[i + 1], 0.5)
+			local a2 = rng:NextNumber(0, math.pi * 2)
+			K.part(parent, "Leaf", Vector3.new(2, 0.25, 1.1), CFrame.new(p) * CFrame.Angles(a2, rng:NextNumber(0, 3), 0) * CFrame.new(1.2, 0, 0), i % 2 == 0 and VLEAF or LEAF[2], { solid = false, shadow = false })
+			K.part(parent, "Thorn", Vector3.new(0.35, 1.3, 0.35), CFrame.new(p) * CFrame.Angles(rng:NextNumber(-1.2, 1.2), 0, rng:NextNumber(-1.2, 1.2)) * CFrame.new(0, 0.9, 0), THORN, { solid = false, shadow = false })
+			if i % 3 == 0 then
+				K.box(parent, "Bloom", p.X - 0.6, p.X + 0.6, p.Y + 0.5, p.Y + 1.5, p.Z - 0.6, p.Z + 0.6, i % 2 == 0 and POISON or LIME, { neon = true, solid = false, shadow = false })
+			end
+		end
+		return pts
+	end
+	-- a gnarled root snaking along the ground from `at`, half buried
+	local function root(parent, at, yaw, len)
+		local pts = { at + Vector3.new(0, 0.8, 0) }
+		local p, a = at, yaw
+		local n = math.max(3, math.floor(len / 3.5))
+		for i = 1, n do
+			a += rng:NextNumber(-0.5, 0.5)
+			p += Vector3.new(math.cos(a), 0, math.sin(a)) * len / n
+			table.insert(pts, Vector3.new(p.X, i == n and -0.2 or rng:NextNumber(0.15, 0.7), p.Z))
+		end
+		local widths = {}
+		for i = 1, n do
+			widths[i] = 1.6 - 1.0 * (i - 1) / math.max(1, n - 1)
+		end
+		T.chain(parent, "Root", pts, widths, { BARK[2], BARK[3] }, { studs = K.SIDES, solid = false })
 	end
 	local function log(parent, at, len, yaw)
 		local m = K.model(parent, "FallenLog")
@@ -249,6 +366,8 @@ return function(b, K, T)
 		gateOpenH = 60,
 		blendLen = 26,
 		rock = ROCK,
+		farRock = FARROCK,
+		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.55,
 		edgeN = { { 827, 65 }, { 836, 66 }, { 846, 74 }, { 858, 86 }, { 876, 88 }, { 886, 74 }, { 896, 66 }, { 903, 74 }, { 910, 90 }, { 992, 90 }, { 999, 80 }, { 1006, 72 }, { 1016, 84 }, { 1030, 84 }, { 1040, 70 }, { 1047, 66 }, { 1052, 65 } },
@@ -376,28 +495,21 @@ return function(b, K, T)
 	---------------------------------------------------------------- features
 	function th.features(ctx)
 		local flows, scatter, greens = ctx.sub("Flows"), ctx.sub("Scatter"), ctx.sub("Greenery")
-		-- toxic falls into the pools; the pools glow and bubble
+		-- toxic falls into the pools (the two seen from the gate stream, splash and steam); those pools glow and bubble
 		local nFalls = 0
 		for _, f in { { 1, 888 }, { -1, 874 }, { 1, 1005 }, { -1, 1016 } } do
 			local col = ctx.nearestCol(f[1], f[2], 34)
 			if col then
-				local foot = T.cascade(flows, col, f[1], { x = (col.x0 + col.x1) / 2, w = rng:NextNumber(3.2, 4.4), colors = TOXIC, neon = true, rng = rng, name = "ToxicFall" })
-				if foot then
-					local a = ctx.anchor(flows, foot + Vector3.new(0, 1, -f[1] * 2))
-					local s = Instance.new("Smoke")
-					s.Size = 3
-					s.RiseVelocity = 3
-					s.Opacity = 0.1
-					s.Color = hex("9BE07A")
-					s.Parent = a
-					nFalls += 1
-				end
+				toxicFall(flows, col, f[1], (col.x0 + col.x1) / 2, rng:NextNumber(4, 5.2), f[2] < 900)
+				nFalls += 1
 			end
 		end
 		for _, p in POOLS do
-			local a = ctx.anchor(flows, Vector3.new(p[1], 0, p[2]), Vector3.new(p[3] * 1.3, 0.4, p[3] * 1.3))
-			ctx.light(a, GLOW, 18, 1.1)
-			ctx.emit(a, { name = "ToxicBubbles", colors = { hex("D8FFB8"), GLOW }, size = { 0.45, 0.15 }, rate = 5, speed = { 1, 2.5 }, life = { 1.2, 2.2 }, spread = 35, light = 0.7 })
+			if p[1] < 900 then
+				local a = ctx.anchor(flows, Vector3.new(p[1], 0, p[2]), Vector3.new(p[3] * 1.3, 0.4, p[3] * 1.3))
+				ctx.light(a, GLOW, 18, 1.1)
+				ctx.emit(a, { name = "ToxicBubbles", texture = TEX.Soft, colors = { hex("D8FFB8"), LIME }, size = { 0.45, 0.15 }, rate = 5, speed = { 1, 2.5 }, life = { 1.2, 2.2 }, spread = 35, light = 0.7 })
+			end
 		end
 		table.insert(ctx.report, nFalls .. " toxic falls")
 
@@ -475,14 +587,14 @@ return function(b, K, T)
 		for _, ex in { -1.7, 1.7 } do
 			eye = K.box(tm, "Eye", TX + ex - 0.7, TX + ex + 0.7, sy + 5.4, sy + 6.2, sz - 0.4, sz - 0.25, GLOW, { neon = true, solid = false, shadow = false })
 		end
-		ctx.light(eye, GLOW, 26, 2)
+		ctx.keyLight(eye, GLOW, 30, 2.2)
 		for _, sx in { -1, 1 } do
 			K.box(tm, "DoorPillar", TX + sx * 5.6 - 1.2, TX + sx * 5.6 + 1.2, sy, sy + 13, sz - 1.2, sz + 0.5, STONE[1], { studs = K.SIDES, solid = false })
 			serpentHead(tm, CFrame.lookAt(Vector3.new(TX + sx * 13.5, sy + 0.6, sz + 3), Vector3.new(TX + sx * 13.5, sy + 0.6, 0)), 0.85)
 			local bp = Vector3.new(TX + sx * 7.5, sy, TZ + 30)
 			ctx.octagon(tm, "Brazier", bp, 1.8, sy, sy + 1.6, P.Iron, { solid = false })
 			ctx.octagon(tm, "BrazierBowl", bp, 2.4, sy + 1.6, sy + 2.6, TRIM, { solid = false })
-			ctx.fire(tm, bp + Vector3.new(0, 2.8, 0), 5, GLOW, hex("2E9E22"), GLOW, 24)
+			ctx.fire(tm, bp + Vector3.new(0, 2.8, 0), 5, GLOW, hex("2E9E22"), GLOW, 0)
 		end
 		-- trees growing on the tiers' ends
 		for _, t in { { TX - 31, 1, 13 }, { TX + 31, 1, 15 }, { TX - 18, 3, 11 }, { TX + 22, 2, 12 } } do
@@ -523,12 +635,12 @@ return function(b, K, T)
 
 		-- the giant mushroom grove (south, behind lowered cliffs) and more in the pockets
 		local grove = ctx.sub("Mushrooms")
-		for _, g in { { 942, -104, 52, 17, 1 }, { 963, -99, 42, 13, 2 }, { 929, -97, 38, 10, 3 }, { 976, -110, 60, 15, 1 }, { 953, -93, 36, 8, 2 } } do
-			mushroom(grove, Vector3.new(g[1], 0, g[2]), g[3], g[4], LOOKS[g[5]])
+		for _, g in { { 942, -104, 52, 17, 1, true }, { 963, -99, 42, 13, 2 }, { 929, -97, 38, 10, 3 }, { 976, -110, 60, 15, 1, true }, { 953, -93, 36, 8, 2 } } do
+			mushroom(grove, Vector3.new(g[1], 0, g[2]), g[3], g[4], LOOKS[g[5]], { key = g[6] })
 		end
 		for _, g in { { 864, 80, 14, 5, 2 }, { 1021, 76, 12, 4.5, 1 }, { 1030, -67, 16, 6, 3 }, { 852, -64, 10, 4, 1 }, { 905, -58, 8, 3.4, 3 }, { 990, 70, 9, 3.6, 2 } } do
 			if ctx.pathGap(g[1], g[2]) > 3 and ctx.liquidGap(g[1], g[2]) > 3 then
-				mushroom(grove, Vector3.new(g[1], 0, g[2]), g[3], g[4], LOOKS[g[5]])
+				mushroom(grove, Vector3.new(g[1], 0, g[2]), g[3], g[4], LOOKS[g[5]], { light = g[1] < 900 })
 			end
 		end
 
@@ -561,7 +673,7 @@ return function(b, K, T)
 			if t.z1 > t.z0 and rng:NextNumber() < (t.big and 0.5 or 0.32) then
 				local at = Vector3.new(t.x + rng:NextNumber(-3, 3), t.y, t.side * rng:NextNumber(t.z0, t.z1))
 				if rng:NextNumber() < 0.16 then
-					mushroom(greens, at, rng:NextNumber(8, 16), rng:NextNumber(3.5, 6.5), LOOKS[rng:NextInteger(1, #LOOKS)], { light = false })
+					mushroom(greens, at, rng:NextNumber(8, 16), rng:NextNumber(3.5, 6.5), LOOKS[rng:NextInteger(1, #LOOKS)])
 				else
 					tree(greens, at, t.big and rng:NextNumber(18, 28) or rng:NextNumber(12, 18), { small = true })
 				end
@@ -596,10 +708,10 @@ return function(b, K, T)
 					shroomCluster(scatter, Vector3.new(x, 0, z), rng:NextInteger(3, 5))
 				end
 			end
-			if i <= 8 then
+			if i <= 12 then
 				x, z = spot(2)
 				if x then
-					T.wildflowers(scatter, Vector3.new(x, 0, z), 3, 6, { hex("FF5CC8"), hex("B47CFF"), hex("FFD84A"), hex("FF7A3D") }, hex("2F6E2A"), rng)
+					T.wildflowers(scatter, Vector3.new(x, 0, z), 3, 6, { POISON, hex("8A3CE0"), LIME, hex("D070FF") }, hex("2F6E2A"), rng)
 				end
 			end
 			if i <= 5 then
@@ -613,6 +725,36 @@ return function(b, K, T)
 				if x then
 					local r = rng:NextNumber(1.4, 3)
 					T.boulder(scatter, Vector3.new(x, 0, z), r, ctx.rockAt, rng, { solid = r > 2.2, moss = MOSS2 })
+				end
+			end
+		end
+		-- the floor broken up: gnarled roots out from the margins, raised moss carpets, murky puddles
+		local floor = ctx.sub("Floor")
+		for _ = 1, 18 do
+			local side = rng:NextNumber() < 0.5 and 1 or -1
+			local x = rng:NextNumber(XA + 24, XB - 10)
+			local z = side * (ctx.edge[side](x) - rng:NextNumber(1, 4))
+			if not (side > 0 and inTemple(x)) and ctx.liquidGap(x, z) > 3 then
+				root(floor, Vector3.new(x, 0, z), side > 0 and -math.pi / 2 + rng:NextNumber(-0.7, 0.7) or math.pi / 2 + rng:NextNumber(-0.7, 0.7), rng:NextNumber(8, 16))
+			end
+		end
+		for _ = 1, 20 do
+			local x, z = spot(2)
+			if x then
+				for k = 1, rng:NextInteger(2, 3) do
+					local w, d = rng:NextNumber(2.5, 5), rng:NextNumber(2, 4)
+					local cx, cz = x + rng:NextNumber(-2, 2), z + rng:NextNumber(-2, 2)
+					K.part(floor, "MossCarpet", Vector3.new(w, 0.3 + k * 0.08, d), CFrame.new(cx, 0.12, cz) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), k == 1 and MOSS or MOSS2, { studs = K.TOP, solid = false, shadow = false })
+				end
+			end
+		end
+		for _ = 1, 14 do
+			local x, z = spot(3)
+			if x then
+				local pd = K.part(floor, "Puddle", Vector3.new(rng:NextNumber(3, 6), 0.12, rng:NextNumber(2.4, 4.5)), CFrame.new(x, 0.03, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), PUDDLE, { transparency = 0.12, solid = false, shadow = false })
+				pd.Reflectance = 0.25
+				if rng:NextNumber() < 0.3 then
+					K.part(floor, "PuddleGlint", Vector3.new(pd.Size.X * 0.5, 0.13, pd.Size.Z * 0.4), pd.CFrame, LIME, { neon = true, transparency = 0.6, solid = false, shadow = false })
 				end
 			end
 		end
@@ -645,7 +787,6 @@ return function(b, K, T)
 			local px, pz = c.X + math.cos(a) * 10.4, c.Z + math.sin(a) * 10.4
 			K.box(art, "Petal", px - 0.5, px + 0.5, 0, 0.6, pz - 0.5, pz + 0.5, k % 2 == 0 and GLOW or hex("C77DFF"), { neon = true, solid = false, shadow = false })
 		end
-		ctx.light(ctx.anchor(art, Vector3.new(c.X, 2.5, c.Z)), GLOW, 16, 0.8)
 	end
 
 	---------------------------------------------------------------- the Temple Gate
@@ -732,6 +873,72 @@ return function(b, K, T)
 			K.box(g, "Moss", gx - 8.5, gx + 8.5, 78, 78.6, mz - rng:NextNumber(4, 8), mz + rng:NextNumber(4, 8), MOSS2, { studs = K.TOP, solid = false })
 		end
 		ctx.plaque(g, CFrame.lookAt(Vector3.new(gx - 8.6, 66.6, 0), Vector3.new(gx - 30, 66.6, 0)), 58, 7.6, "VENOM JUNGLE", { board = hex("1F2E1A"), frame = STONE[3], line = GLOW, text = hex("D8FFB8"), neon = true })
+	end
+
+	---------------------------------------------------------------- the lock: vines, a serpent-coiled seal, the serpent behind
+	-- the seal: a stone serpent coiled in a ring round an eye carved in stone, its head reared over the top
+	local function seal(parent, c)
+		local m = K.model(parent, "SerpentSeal")
+		local R, n = 7, 14
+		for i = 0, n - 1 do
+			local a = (i + 0.5) / n * math.pi * 2 + math.pi / 2
+			if i ~= 0 then -- the gap at the top, where the head rears out
+				local p = c + Vector3.new(0, math.sin(a) * R, math.cos(a) * R)
+				local out = Vector3.new(0, math.sin(a), math.cos(a))
+				local len = 2 * math.pi * R / n * 1.12
+				K.part(m, "Coil", Vector3.new(3, 3, len), CFrame.fromMatrix(p, Vector3.xAxis, out), i % 2 == 0 and SCALE or SCALE2, { studs = K.SIDES, solid = false })
+				K.part(m, "CoilBelly", Vector3.new(0.4, 1.4, len * 0.9), CFrame.fromMatrix(p - Vector3.new(1.55, 0, 0), Vector3.xAxis, out), BELLY, { solid = false })
+			end
+		end
+		for _, rot in { 0, 45 } do
+			K.part(m, "SealStone", Vector3.new(1.2, 9.4, 9.4), CFrame.new(c) * CFrame.Angles(math.rad(rot), 0, 0), STONE[4], { studs = K.SIDES, solid = false })
+		end
+		for _, rot in { 0, 45 } do
+			K.part(m, "SealIris", Vector3.new(0.3, 5.6, 5.6), CFrame.new(c - Vector3.new(0.7, 0, 0)) * CFrame.Angles(math.rad(rot), 0, 0), POISON, { neon = true, solid = false, shadow = false })
+		end
+		K.part(m, "SealPupil", Vector3.new(0.3, 4.6, 1), CFrame.new(c - Vector3.new(0.9, 0, 0)), LIME, { neon = true, solid = false, shadow = false })
+		serpentHead(m, CFrame.lookAt(c + Vector3.new(0.5, R + 1, 0), c + Vector3.new(-30, R - 1, 0)), 0.8)
+		T.chain(m, "CoilTail", { c + Vector3.new(0, -R + 0.8, 1.8), c + Vector3.new(-0.5, -R - 1.5, 5), c + Vector3.new(-0.8, -R - 2.2, 8) }, { 1.6, 0.9 }, { SCALE2 }, { solid = false })
+		return m
+	end
+	-- the COMING SOON tablet: carved mossy stone, lime glyph edge, moss on top, vines over its corners, poison blooms
+	local function stoneTablet(parent, cf, w, h, text)
+		local s = C.plaque(parent, cf, w, h, text, { board = hex("26331F"), frame = STONE[3], line = LIME, text = hex("ECFFD8"), neon = true })
+		local fw = math.max(0.8, h * 0.1)
+		local W = w + fw * 2
+		K.part(s, "Moss", Vector3.new(W * 0.7, 0.6, 2.2), cf * CFrame.new(-W * 0.1, h / 2 + fw + 0.2, 0), MOSS2, { studs = K.TOP, solid = false })
+		K.part(s, "Moss", Vector3.new(W * 0.3, 0.5, 2), cf * CFrame.new(W * 0.3, h / 2 + fw + 0.15, 0), MOSS, { studs = K.TOP, solid = false })
+		for _, sx in { -1, 1 } do
+			local top = (cf * CFrame.new(sx * (W / 2 - 1.5), h / 2 + fw, -1.2)).Position
+			C.strand(s, top, h + fw * 2 - 0.5, VINE, VLEAF, 0.6)
+			K.part(s, "Bloom", Vector3.new(1, 1, 0.5), cf * CFrame.new(sx * (W / 2 - 1.5), h / 2 - 1, -1.5), sx > 0 and POISON or LIME, { neon = true, solid = false, shadow = false })
+		end
+		return s
+	end
+	function th.lock(ctx, cs, gx)
+		local H = th.gateOpenH
+		-- a faint toxic haze across the opening, spores drifting in it
+		local field = K.box(cs, "Field", gx - 0.2, gx + 0.2, 0, H, -59, 59, LIME, { neon = true, transparency = 0.94, solid = false, shadow = false })
+		ctx.emit(field, { name = "Spores", texture = TEX.Soft, colors = { LIME, POISON }, size = { 0.5, 0.2 }, rate = 14, speed = { 0.3, 1 }, life = { 3, 5 }, spread = 180, light = 0.8, dir = Enum.NormalId.Left })
+		-- the seal high in the opening, thorned vines strung to it from the pylons (the serpent shows below it)
+		local sc = Vector3.new(gx - 1.8, 49, 0)
+		for _, s in { -1, 1 } do
+			for _, e in { { 59, 4, 1.6 }, { 34, -4, 3.2 } } do
+				heavyVine(cs, Vector3.new(gx - 1.2, e[1], s * 60), sc + Vector3.new(0, e[2], s * 6.5), e[3], 1.5)
+			end
+			-- and a loose one draped low across the corner
+			heavyVine(cs, Vector3.new(gx - 1.2, 18, s * 60), Vector3.new(gx - 1.2, 3, s * 34), 2, 1.1)
+		end
+		seal(cs, sc)
+		-- the kaiju beyond: a giant serpent rearing, black against the haze, lime eyes
+		local k = ctx.silhouette(cs, "InfernoSerpent", Vector3.new(gx + 50, 0, -22), Vector3.new(-1, 0, 0.75), 48, { eye = LIME, body = hex("060A06"), lift = hex("142012") })
+		if k then
+			ctx.keyLight(ctx.anchor(cs, Vector3.new(gx + 76, 32, 0)), LIME, 60, 2.6)
+		end
+		for _, f in { -1, 1 } do
+			local x = gx + f * 1.3
+			stoneTablet(cs, CFrame.lookAt(Vector3.new(x, 10.5, 0), Vector3.new(x + f * 20, 10.5, 0)), 40, 8.4, "COMING SOON").Name = "ComingSoon"
+		end
 	end
 
 	return require(script.Parent.NewBiome)(b, K, T, th)

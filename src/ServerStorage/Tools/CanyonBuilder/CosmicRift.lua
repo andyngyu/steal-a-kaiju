@@ -18,22 +18,24 @@ return function(b, K, T)
 	local C, rng
 
 	---------------------------------------------------------------- colours
-	local ROCK = { hex("140E24"), hex("1F1838"), hex("2B2250"), hex("3E3270"), accent = hex("4A2A78") }
-	local SAND = { hex("1C1435"), hex("221A40"), hex("181030"), hex("2A2050") }
-	local NEBULA = { hex("3A1A4A"), hex("1A2A5A"), hex("2E1A55") }
-	local GLINT = hex("6A5AB0")
-	local EDGE = hex("2F2650")
-	local ROAD = { hex("3A2F5C"), hex("2F2650"), hex("443870") }
-	local SLABS = { hex("5A4A8A"), hex("4A3D78"), hex("6A5AA0") }
+	local ROCK = { hex("120C1E"), hex("1E1632"), hex("2C2148"), hex("40305E"), accent = hex("6A1E5E") }
+	local FARROCK = { hex("6A5888"), hex("786698"), hex("8674A6"), hex("9482B4") }
+	local SAND = { hex("2A2046"), hex("30264E"), hex("251C40"), hex("382C58") }
+	local NEBULA = { hex("4A1E56"), hex("3A1A5E"), hex("5A2266") }
+	local GLINT = hex("8A78C8")
+	local EDGE = hex("1E1632")
+	local ROAD = { hex("4A3D74"), hex("40346A"), hex("54467E") }
+	local SLABS = { hex("6A5A9A"), hex("5A4A88"), hex("7A6AAA") }
 	local SLATED = { hex("4B5363"), hex("3A3550"), hex("2A2245") } -- Storm's slate fading out
 	local STARMAP = { hex("140E24"), hex("4A3D78") }
-	local VOID = { hex("5A2BC8"), hex("4A22B0"), hex("6E3CE0") }
+	local VOID = { hex("7A2BD8"), hex("9A2FD0"), hex("C040E0") }
 	local CAPS = { hex("2E2450"), hex("3A2E63"), hex("251C42") }
-	local VIOLET, PINK, CYAN, WHITE = hex("B45CFF"), hex("FF5CC8"), hex("5CE1FF"), hex("F0D8FF")
-	local LOOKS = {
+	local VIOLET, PINK, WHITE = hex("B45CFF"), hex("FF4FD8"), hex("F6EEFF")
+	local MAGENTA = hex("E030C0")
+	local LOOKS = { -- violet, magenta, and starlight white
 		{ body = hex("8A3CE0"), tip = hex("D8B0FF"), light = VIOLET },
-		{ body = hex("E04CA8"), tip = hex("FFC2E8"), light = PINK },
-		{ body = hex("3CB8E0"), tip = hex("C2F4FF"), light = CYAN },
+		{ body = hex("D83AB8"), tip = hex("FFC2EE"), light = PINK },
+		{ body = hex("D8CCF0"), tip = hex("FFFFFF"), light = WHITE },
 	}
 	local DARK = hex("221A40")
 
@@ -60,8 +62,25 @@ return function(b, K, T)
 			local h = (i == 1 and rng:NextNumber(5, 7) or rng:NextNumber(2.4, 4.6)) * s
 			C.crystal(m, at + off - Vector3.new(0, 0.4, 0), h, h * 0.24, look.body, look.tip, true)
 		end
-		if o.light ~= false then
+		if o.light then
 			C.light(C.anchor(m, at + Vector3.new(0, 2.5 * s, 0)), look.light, 10 + 6 * s, 1.3)
+		end
+		return m
+	end
+	-- a plate of cracked void rock pushed up out of the sand, magenta light glowing in its cracks
+	local function voidPlate(parent, at, s)
+		local m = K.model(parent, "VoidRock")
+		local yaw = rng:NextNumber(0, math.pi)
+		local F = CFrame.new(at) * CFrame.Angles(math.rad(rng:NextNumber(-6, 6)), yaw, math.rad(rng:NextNumber(-6, 6)))
+		local w, d = rng:NextNumber(5, 8) * s, rng:NextNumber(4, 6) * s
+		K.part(m, "VoidSlab", Vector3.new(w, 0.9 * s, d), F * CFrame.new(0, 0.2, 0), ROCK[2], { studs = K.TOP, solid = false })
+		K.part(m, "VoidSlab", Vector3.new(w * 0.45, 0.7 * s, d * 0.5), F * CFrame.new(w * 0.2, 0.75 * s, -d * 0.15) * CFrame.Angles(0, 0.4, 0), ROCK[1], { studs = K.TOP, solid = false })
+		local p = Vector3.new(-w / 2 + 0.6, 0, rng:NextNumber(-d / 4, d / 4))
+		for _ = 1, 3 do
+			local q = Vector3.new(p.X + w / 3, 0, math.clamp(p.Z + rng:NextNumber(-d / 3, d / 3), -d / 2 + 0.4, d / 2 - 0.4))
+			local mid, len = (p + q) / 2, (q - p).Magnitude
+			K.part(m, "VoidCrack", Vector3.new(len + 0.3, 0.12, 0.35), F * CFrame.lookAt(mid + Vector3.new(0, 0.2 + 0.46 * s, 0), q + Vector3.new(0, 0.2 + 0.46 * s, 0)) * CFrame.Angles(0, math.pi / 2, 0), MAGENTA, { neon = true, solid = false, shadow = false })
+			p = q
 		end
 		return m
 	end
@@ -106,6 +125,8 @@ return function(b, K, T)
 		gateOpenH = 60,
 		blendLen = 26,
 		rock = ROCK,
+		farRock = FARROCK,
+		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.5,
 		edgeN = { { 1577, 65 }, { 1588, 66 }, { 1600, 76 }, { 1616, 88 }, { 1634, 90 }, { 1648, 76 }, { 1662, 66 }, { 1676, 70 }, { 1690, 82 }, { 1706, 92 }, { 1778, 92 }, { 1792, 80 }, { 1806, 70 }, { 1820, 76 }, { 1834, 84 }, { 1850, 80 }, { 1866, 74 }, { 1877, 72 } },
@@ -201,7 +222,7 @@ return function(b, K, T)
 			crystals(ctx.sub("Heights"), at, rng:NextNumber(1, 1.8), rng:NextInteger(1, 3), nil, { light = false })
 		end
 		if c.h > 26 and rng:NextNumber() < 0.22 then
-			T.faceCrack(ctx.sub("Heights"), c, side, rng, ({ VIOLET, PINK, CYAN })[rng:NextInteger(1, 3)], { neon = true, width = 0.4 })
+			T.faceCrack(ctx.sub("Heights"), c, side, rng, ({ VIOLET, MAGENTA, WHITE })[rng:NextInteger(1, 3)], { neon = true, width = 0.4 })
 		end
 	end
 
@@ -209,14 +230,23 @@ return function(b, K, T)
 	function th.features(ctx)
 		local sky, scatter, heights = ctx.sub("Sky"), ctx.sub("Scatter"), ctx.sub("Heights")
 		-- the planets
-		planet(sky, Vector3.new(1760, 250, -470), 80, { hex("C98A5A"), hex("E0B07A"), hex("A86A48"), hex("F0D0A0") })
+		-- a magenta-violet gas giant with pale rings, a pale lavender ice world, a grey moon
+		planet(sky, Vector3.new(1760, 250, -470), 80, { hex("7A2A9A"), hex("B048B8"), hex("5A2088"), hex("D070C8") })
 		local tilt = CFrame.new(1760, 250, -470) * CFrame.Angles(math.rad(18), 0, math.rad(-14))
 		for i = 0, 15 do
 			local a = i / 16 * math.pi * 2
-			K.part(sky, "PlanetRing", Vector3.new(50, 1.6, 26), tilt * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 128), i % 2 == 0 and hex("E8D2A8") or hex("BFA684"), { solid = false, shadow = false, transparency = 0.15 })
+			K.part(sky, "PlanetRing", Vector3.new(50, 1.6, 26), tilt * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 128), i % 2 == 0 and hex("F0E0FF") or hex("C8B4E8"), { solid = false, shadow = false, transparency = 0.15 })
 		end
-		planet(sky, Vector3.new(1960, 210, 430), 50, { hex("6A9AE0"), hex("4A7AC8"), hex("8AB8F0") })
+		planet(sky, Vector3.new(1960, 210, 430), 50, { hex("D8D0F0"), hex("B8ACE0"), hex("ECE6FF") })
 		planet(sky, Vector3.new(1650, 330, 300), 24, { hex("A8A4B8"), hex("8E8AA0") })
+		-- stars: white specks scattered over a dome above the biome
+		for _ = 1, 140 do
+			local a, e = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0.35, 1.3)
+			local d = rng:NextNumber(330, 420)
+			local p = Vector3.new(1720 + math.cos(a) * math.cos(e) * d, 40 + math.sin(e) * d, math.sin(a) * math.cos(e) * d)
+			local s = rng:NextNumber(1.2, 2.6)
+			K.part(sky, "Star", Vector3.new(s, s, s), CFrame.new(p) * CFrame.Angles(0, math.rad(45), math.rad(45)), rng:NextNumber() < 0.8 and WHITE or PINK, { neon = true, solid = false, shadow = false })
+		end
 		-- the Rift: a glowing tear in the sky beyond the end of the canyon, debris tumbling round it
 		local rift = ctx.sub("Rift")
 		local rx = 1975
@@ -234,7 +264,7 @@ return function(b, K, T)
 			z, y = nz, y + sh
 		end
 		local rc = K.part(rift, "RiftHeart", Vector3.new(1, 1, 1), CFrame.new(rx - 6, 180, 0), WHITE, { transparency = 1, solid = false, shadow = false })
-		ctx.light(rc, hex("D070FF"), 60, 3)
+		ctx.keyLight(rc, hex("E070FF"), 60, 3.5)
 		ctx.emit(rc, { name = "RiftDust", colors = { WHITE, VIOLET }, size = { 1.2, 0.2 }, rate = 12, speed = { 6, 14 }, life = { 4, 7 }, spread = 180, light = 1 })
 		for _ = 1, 12 do
 			asteroid(rift, Vector3.new(rx + rng:NextNumber(-30, 20), rng:NextNumber(50, 300), rng:NextNumber(-80, 80)), rng:NextNumber(3, 8))
@@ -246,8 +276,11 @@ return function(b, K, T)
 			asteroid(sky, Vector3.new(x, rng:NextNumber(36, 90), side * rng:NextNumber(50, 110)), rng:NextNumber(2.5, 6))
 		end
 		-- the giant crystal grove in the north pocket, clusters in the others
-		for _, g in { { 1622, 82, 2.6, 1 }, { 1612, 80, 2, 2 }, { 1630, 86, 2.2, 3 } } do
-			crystals(heights, Vector3.new(g[1], 0, g[2]), g[3] * 2.4, 4, LOOKS[g[4]])
+		for i, g in { { 1622, 82, 2.6, 1 }, { 1612, 80, 2, 2 }, { 1630, 86, 2.2, 3 } } do
+			local m = crystals(heights, Vector3.new(g[1], 0, g[2]), g[3] * 2.4, 4, LOOKS[g[4]])
+			if i == 1 then
+				ctx.keyLight(ctx.anchor(m, Vector3.new(g[1], 14, g[2] - 12)), VIOLET, 50, 2.4)
+			end
 		end
 		local function spot(margin, nestR)
 			for _ = 1, 40 do
@@ -260,7 +293,7 @@ return function(b, K, T)
 		for i = 1, 18 do
 			local x, z = spot(3)
 			if x then
-				crystals(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.7, 1.4), rng:NextInteger(2, 4), nil, { light = i % 2 == 0 })
+				crystals(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.7, 1.4), rng:NextInteger(2, 4), nil, { light = i % 2 == 0 and x < XA + 90 })
 			end
 			if i <= 10 then
 				x, z = spot(4)
@@ -275,7 +308,14 @@ return function(b, K, T)
 			local x, z = spot(1, 18)
 			if x then
 				local s = rng:NextNumber(0.2, 0.35)
-				K.box(scatter, "Stardust", x - s, x + s, 0, 0.12, z - s, z + s, ({ WHITE, VIOLET, CYAN })[rng:NextInteger(1, 3)], { neon = true, solid = false, shadow = false })
+				K.box(scatter, "Stardust", x - s, x + s, 0, 0.12, z - s, z + s, ({ WHITE, WHITE, VIOLET, PINK })[rng:NextInteger(1, 4)], { neon = true, solid = false, shadow = false })
+			end
+		end
+		-- plates of cracked void rock pushed up through the sand
+		for _ = 1, 22 do
+			local x, z = spot(3)
+			if x then
+				voidPlate(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.8, 1.3))
 			end
 		end
 		-- obelisks along the path
@@ -286,9 +326,11 @@ return function(b, K, T)
 		end
 		-- starlight pools glow
 		for _, p in POOLS do
-			local a = ctx.anchor(scatter, Vector3.new(p[1], 0, p[2]), Vector3.new(p[3] * 1.3, 0.4, p[3] * 1.3))
-			ctx.light(a, VIOLET, 18, 1.2)
-			ctx.emit(a, { name = "Starlight", colors = { WHITE, VIOLET }, size = { 0.35, 0.1 }, rate = 4, speed = { 0.5, 1.5 }, life = { 2, 3.5 }, spread = 60, light = 1 })
+			if p[1] < XA + 90 then -- only the pools seen from the gate are lit
+				local a = ctx.anchor(scatter, Vector3.new(p[1], 0, p[2]), Vector3.new(p[3] * 1.3, 0.4, p[3] * 1.3))
+				ctx.light(a, VIOLET, 18, 1.2)
+				ctx.emit(a, { name = "Starlight", colors = { WHITE, PINK }, size = { 0.35, 0.1 }, rate = 4, speed = { 0.5, 1.5 }, life = { 2, 3.5 }, spread = 60, light = 1 })
+			end
 		end
 		-- crystals and tall spikes up on the heights
 		for _, t in ctx.tops do
@@ -334,7 +376,7 @@ return function(b, K, T)
 			end
 		end
 		local heart = ctx.anchor(vg, pc - Vector3.new(2, 0, 0), Vector3.new(1, 60, 60))
-		ctx.light(heart, VIOLET, 60, 3)
+		ctx.keyLight(heart, PINK, 60, 3.5)
 		ctx.emit(heart, { name = "PortalSwirl", colors = { WHITE, VIOLET }, size = { 0.8, 0.1 }, rate = 25, speed = { 1, 3 }, life = { 2, 4 }, spread = 180, light = 1, dir = Enum.NormalId.Left })
 		-- the canyon stops here: an invisible wall in front of the portal
 		local wall = K.box(vg, "EndBarrier", RING.x - 3.5, RING.x - 2.5, -2, 120, -100, 100, DARK, { transparency = 1 })
@@ -378,7 +420,6 @@ return function(b, K, T)
 			local p = Vector3.new(c.X + math.cos(a) * 8.4, rng:NextNumber(2.2, 3.6), c.Z + math.sin(a) * 8.4)
 			ctx.crystal(art, p, rng:NextNumber(3, 4.6), 0.9, look.body, look.tip, true, CFrame.Angles(math.rad(rng:NextNumber(-20, 20)), a, math.rad(rng:NextNumber(-20, 20))))
 		end
-		ctx.light(ctx.anchor(art, Vector3.new(c.X, 3, c.Z)), VIOLET, 16, 1)
 		-- crystal plinths round the star map
 		local ring = ctx.sub("Plinths")
 		for k, deg in { 60, 90, 120, 240, 270, 300 } do
@@ -404,7 +445,7 @@ return function(b, K, T)
 			end
 			local look = LOOKS[s > 0 and 2 or 3]
 			ctx.crystal(g, Vector3.new(gx, 82, s * 74), 12, 3.4, look.body, look.tip, true, CFrame.Angles(0, math.rad(45), 0))
-			ctx.light(ctx.anchor(g, Vector3.new(gx, 88, s * 74)), look.light, 40, 2)
+			ctx.keyLight(ctx.anchor(g, Vector3.new(gx, 88, s * 74)), look.light, 40, 2)
 		end
 		-- the arch of floating stones
 		local R, cy = 62, 38
@@ -442,6 +483,86 @@ return function(b, K, T)
 		end
 		ctx.plaque(g, CFrame.lookAt(Vector3.new(gx - 4, 70, 0), Vector3.new(gx - 30, 70, 0)), 40, 6.4, "COSMIC RIFT", { board = hex("120C22"), frame = ROCK[4], line = VIOLET, text = hex("EAD8FF"), neon = true })
 		K.box(g, "PlaqueStone", gx - 3.4, gx + 3.4, 64.6, 75.4, -23, 23, ROCK[2], { studs = K.ALL, solid = false })
+	end
+
+	---------------------------------------------------------------- the lock: a swirling void seal, a crystal drake beyond it
+	-- one ring of the seal: segments round c in the gate's plane, every other one glowing; turns (BiomeFX SpinCloud,
+	-- SpinAxis X) at `spin` deg/s
+	local function sealRing(parent, c, R, thick, n, colA, colB, spin, gap)
+		local m = K.model(parent, "SealRing")
+		for i = 0, n - 1 do
+			if not gap or i % gap ~= 0 then
+				local a = (i + 0.5) / n * math.pi * 2
+				local out = Vector3.new(0, math.sin(a), math.cos(a))
+				local len = 2 * math.pi * R / n * 0.86
+				local glow = i % 2 == 0
+				K.part(m, glow and "SealGlow" or "SealStone", Vector3.new(glow and 0.8 or 1.6, thick, len), CFrame.fromMatrix(c + out * R, Vector3.xAxis, out), glow and colA or colB, { neon = glow, transparency = glow and 0.3 or nil, solid = false, shadow = false })
+			end
+		end
+		m:SetAttribute("SpinSpeed", spin)
+		m:SetAttribute("SpinAxis", "X")
+		game:GetService("CollectionService"):AddTag(m, "SpinCloud")
+		return m
+	end
+	-- the COMING SOON slab: polished obsidian strewn with stars, a magenta glowing edge, crystal shards on its corners
+	local function starSlab(parent, cf, w, h, text)
+		local s = C.plaque(parent, cf, w, h, text, { board = hex("0E0818"), frame = hex("2C2148"), line = PINK, text = hex("F4EAFF"), neon = true })
+		for _ = 1, 22 do
+			local x, y = rng:NextNumber(-w / 2 + 0.8, w / 2 - 0.8), rng:NextNumber(-h / 2 + 0.6, h / 2 - 0.6)
+			if math.abs(y) > h * 0.3 or math.abs(x) > w * 0.42 then -- round the lettering, not over it
+				local sz = rng:NextNumber(0.15, 0.3)
+				K.part(s, "Star", Vector3.new(sz, sz, 0.1), cf * CFrame.new(x, y, -0.56), WHITE, { neon = true, solid = false, shadow = false })
+			end
+		end
+		local fw = math.max(0.8, h * 0.1)
+		local W = w + fw * 2
+		for _, e in { { 0, h / 2 + fw + 0.15, W + 0.6, 0.3 }, { 0, -(h / 2 + fw + 0.15), W + 0.6, 0.3 }, { W / 2 + 0.15, 0, 0.3, h + fw * 2 }, { -(W / 2 + 0.15), 0, 0.3, h + fw * 2 } } do
+			K.part(s, "EdgeGlow", Vector3.new(e[3], e[4], 1.2), cf * CFrame.new(e[1], e[2], -0.2), MAGENTA, { neon = true, solid = false, shadow = false })
+		end
+		for _, sx in { -1, 1 } do
+			local base = (cf * CFrame.new(sx * (W / 2 - 1), h / 2 + fw, 0)).Position
+			C.crystal(s, base, 4, 1, LOOKS[sx > 0 and 2 or 1].body, LOOKS[sx > 0 and 2 or 1].tip, true, CFrame.Angles(0, 0, math.rad(-sx * 18)))
+		end
+		return s
+	end
+	function th.lock(ctx, cs, gx)
+		local H = th.gateOpenH
+		-- a faint violet veil across the opening, motes drifting in it
+		local field = K.box(cs, "Field", gx - 0.2, gx + 0.2, 0, H, -60, 60, VIOLET, { neon = true, transparency = 0.94, solid = false, shadow = false })
+		ctx.emit(field, { name = "VoidMotes", colors = { WHITE, PINK }, size = { 0.4, 0.1 }, rate = 16, speed = { 0.3, 1.2 }, life = { 3, 5 }, spread = 180, light = 1, dir = Enum.NormalId.Left })
+		-- the seal: rings of dark stone and glowing violet / magenta / white turning against each other round a black
+		-- core with a white star in it (open between the rings, so the drake shows through)
+		-- (low in the opening, so the drake's head and wings rise clear above it)
+		local c = Vector3.new(gx - 1.5, 24, 0)
+		sealRing(cs, c, 15, 1.2, 24, VIOLET, ROCK[3], 8)
+		sealRing(cs, c, 10.5, 1, 18, MAGENTA, ROCK[2], -14, 5)
+		sealRing(cs, c, 6.5, 0.9, 12, WHITE, ROCK[3], 22)
+		for _, rot in { 0, 45 } do
+			K.part(cs, "VoidCore", Vector3.new(0.6, 6.4, 6.4), CFrame.new(c) * CFrame.Angles(math.rad(rot), 0, 0), hex("06030C"), { solid = false, shadow = false })
+			K.part(cs, "CoreStar", Vector3.new(0.4, 3.6, 0.7), CFrame.new(c - Vector3.new(0.45, 0, 0)) * CFrame.Angles(math.rad(rot), 0, 0), WHITE, { neon = true, solid = false, shadow = false })
+			K.part(cs, "CoreStar", Vector3.new(0.4, 0.7, 3.6), CFrame.new(c - Vector3.new(0.45, 0, 0)) * CFrame.Angles(math.rad(rot), 0, 0), WHITE, { neon = true, solid = false, shadow = false })
+		end
+		-- spiral arms of white motes winding into the core
+		for arm = 0, 1 do
+			for k = 0, 6 do
+				local t = k / 6
+				local a = arm * math.pi + t * 3.4
+				local r = 3.6 + t * 14
+				local s = 0.35 + t * 0.4
+				K.part(cs, "SealMote", Vector3.new(0.3, s, s), CFrame.new(c + Vector3.new(-0.3, math.sin(a) * r, math.cos(a) * r)) * CFrame.Angles(math.rad(45), 0, 0), k % 3 == 0 and PINK or WHITE, { neon = true, solid = false, shadow = false })
+			end
+		end
+		ctx.keyLight(ctx.anchor(cs, c - Vector3.new(3, 0, 0)), PINK, 30, 1.8)
+		-- the kaiju beyond: a crystal drake, wings raised over the seal, eyes white-hot
+		-- (in line with the Void Gate's portal far behind, so it stands black against that glow down the lane)
+		local k = ctx.silhouette(cs, "Prismling", Vector3.new(gx + 52, 0, 3), Vector3.new(-1, 0, 0.25), 66, { eye = WHITE, body = hex("050309"), lift = hex("120C22") })
+		if k then
+			ctx.keyLight(ctx.anchor(cs, Vector3.new(gx + 72, 34, 0)), PINK, 60, 3.5)
+		end
+		for _, f in { -1, 1 } do
+			local x = gx + f * 1.3
+			starSlab(cs, CFrame.lookAt(Vector3.new(x, 4.6, 0), Vector3.new(x + f * 20, 4.6, 0)), 36, 6.6, "COMING SOON").Name = "ComingSoon"
+		end
 	end
 
 	return require(script.Parent.NewBiome)(b, K, T, th)
