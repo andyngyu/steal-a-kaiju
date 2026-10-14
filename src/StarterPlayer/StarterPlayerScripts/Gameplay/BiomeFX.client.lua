@@ -1,7 +1,8 @@
 -- BiomeFX: a little life for the canyon set pieces, client-only and purely cosmetic (never touches game state).
 --   FlickerBolt  models of neon bolt parts stay dark and strike now and then: a quick double flash, any lights inside
 --                them flaring with it. Attributes MinGap / MaxGap (seconds between strikes, default 2..6).
---   SpinCloud    models that turn slowly round a vertical axis through their centre. Attribute SpinSpeed (deg/s).
+--   SpinCloud    models that turn slowly round an axis through their centre. Attributes SpinSpeed (deg/s, negative
+--                turns the other way), SpinAxis ("Y" vertical, the default; "X" for a disc standing across the lane).
 -- Both only run while the camera is within RANGE. Parts the WorldCuller has taken out (Parent nil) are skipped; spin
 -- is applied from each part's rest pose, so they line up again when they come back. Reduced Effects halves the strikes.
 local CollectionService = game:GetService("CollectionService")
@@ -63,7 +64,7 @@ local function addSpin(m)
 	end
 	local cf = m:GetBoundingBox()
 	local centre = CFrame.new(cf.Position)
-	local e = { parts = {}, centre = centre, angle = 0, speed = math.rad(m:GetAttribute("SpinSpeed") or 3) }
+	local e = { parts = {}, centre = centre, angle = 0, speed = math.rad(m:GetAttribute("SpinSpeed") or 3), axis = m:GetAttribute("SpinAxis") or "Y" }
 	for _, d in m:GetDescendants() do
 		if d:IsA("BasePart") then
 			table.insert(e.parts, { d, centre:ToObjectSpace(d.CFrame) })
@@ -116,7 +117,7 @@ RunService.Heartbeat:Connect(function(dt)
 		for _, e in spins do
 			if (e.centre.Position - camPos).Magnitude < RANGE + 200 then
 				e.angle = (e.angle + e.speed * step) % (math.pi * 2)
-				local rot = e.centre * CFrame.Angles(0, e.angle, 0)
+				local rot = e.centre * (e.axis == "X" and CFrame.Angles(e.angle, 0, 0) or CFrame.Angles(0, e.angle, 0))
 				for _, p in e.parts do
 					if p[1].Parent then
 						p[1].CFrame = rot * p[2]
