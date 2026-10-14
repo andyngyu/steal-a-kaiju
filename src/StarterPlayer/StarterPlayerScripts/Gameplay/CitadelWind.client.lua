@@ -67,7 +67,9 @@ CollectionService:GetInstanceRemovedSignal(TAG):Connect(remove)
 
 local reduced = false
 local function rest(e)
-	workspace:BulkMoveTo(e.parts, e.rest, Enum.BulkMoveMode.FireCFrameChanged)
+	if e.parts[1].Parent then
+		workspace:BulkMoveTo(e.parts, e.rest, Enum.BulkMoveMode.FireCFrameChanged)
+	end
 	e.moving = false
 end
 Settings.Changed("ReducedEffects", function(on)
@@ -98,6 +100,8 @@ RunService.RenderStepped:Connect(function(dt)
 	for model, e in entries do
 		if not model.Parent then
 			entries[model] = nil
+		elseif not e.parts[1].Parent then
+			e.moving = false -- hidden by Gameplay.WorldCuller for now
 		elseif (e.centre - camPos).Magnitude < RANGE then
 			-- two mixed waves, so neighbours don't move in step and gusts come and go
 			local w = math.sin(t * e.speed + e.phase) * 0.75 + math.sin(t * e.speed * 2.3 + e.phase * 1.7) * 0.25
