@@ -1,5 +1,6 @@
--- Lava Lagoon, refined (CanyonBuilder section "Refine"). Rebuilds the biome's ground and surroundings (x 452..627) in
--- place, keeping its contracts: Zone (now 176 wide), NestSite, Sign, Border, Decor's NestSignLava, the Obsidian Maw gate.
+-- Lava Lagoon, refined (CanyonBuilder section "Refine"). Rebuilds the biome's ground and surroundings in place, keeping
+-- its contracts: Zone (now 176 wide), NestSite, Sign, Border, Decor's NestSignLava, the Obsidian Maw gate. The layout
+-- below was drawn for x 452..627 and is laid onto the lane with T.stretch (X() places, U() reads back).
 --   Ground     basalt in four dark tones with ash patches, an ash-gravel path with obsidian flagstones, a lava river
 --              (sunk below the ground, walkable) from a pool in the north pocket to one in the south, a stone bridge where
 --              the path crosses it, glowing crust round the lava, and towards Frostfang cooling obsidian, then frost
@@ -15,17 +16,19 @@ local hex = Color3.fromHex
 return function(b, K, T)
 	local model = b.model
 	local rng = Random.new(8081)
-	local XA, XB = 452, b.x1
+	local XA, XB = b.x0, b.x1
+	local X, U = T.stretch(452, 627, XA, XB)
 	local HALF = 88
 	local report = {}
 
 	---------------------------------------------------------------- layout
 	local edge = {
-		[1] = T.edge({ { 452, 65 }, { 460, 65 }, { 467, 70 }, { 474, 84 }, { 500, 86 }, { 507, 70 }, { 514, 62 }, { 522, 64 }, { 532, 72 }, { 544, 72 }, { 552, 66 }, { 560, 64 }, { 568, 76 }, { 576, 86 }, { 594, 86 }, { 600, 72 }, { 608, 65 }, { 627, 65 } }),
-		[-1] = T.edge({ { 452, 65 }, { 460, 63 }, { 466, 68 }, { 474, 82 }, { 498, 84 }, { 505, 68 }, { 512, 62 }, { 520, 64 }, { 528, 74 }, { 586, 74 }, { 594, 66 }, { 602, 62 }, { 612, 64 }, { 627, 65 } }),
+		[1] = T.edge(T.at({ { 452, 65 }, { 460, 65 }, { 467, 70 }, { 474, 84 }, { 500, 86 }, { 507, 70 }, { 514, 62 }, { 522, 64 }, { 532, 72 }, { 544, 72 }, { 552, 66 }, { 560, 64 }, { 568, 76 }, { 576, 86 }, { 594, 86 }, { 600, 72 }, { 608, 65 }, { 627, 65 } }, X)),
+		[-1] = T.edge(T.at({ { 452, 65 }, { 460, 63 }, { 466, 68 }, { 474, 82 }, { 498, 84 }, { 505, 68 }, { 512, 62 }, { 520, 64 }, { 528, 74 }, { 586, 74 }, { 594, 66 }, { 602, 62 }, { 612, 64 }, { 627, 65 } }, X)),
 	}
 	local function inWindow(x)
-		return x > 527 and x < 589
+		local xo = U(x)
+		return xo > 527 and xo < 589
 	end
 	local function height(side, x)
 		local n = T.n01(x / 18 + (side > 0 and 5.3 or 1.1), side * 3.7, 0.25)
@@ -33,7 +36,7 @@ return function(b, K, T)
 			return math.floor((14 + n * 10) / 2) * 2 -- the view out to the volcano
 		end
 		local h = 50 + n * 34
-		if x < 468 or x > 606 then
+		if x < XA + 16 or x > XB - 21 then
 			h = math.max(h, 64 + n * 12) -- either side of the gates
 		end
 		return math.floor(h / 2 + 0.5) * 2
@@ -46,6 +49,9 @@ return function(b, K, T)
 		{ { 504, -4, 6 }, { 506, 30, 6 }, { 500, 60, 6 }, { 494, 72, 6 } }, -- to the lava pool in the north pocket
 		{ { 580, 9, 6 }, { 584, 40, 6 }, { 584, 70, 6 } }, -- to the second north pocket
 	}
+	for i, p in PATHS do
+		PATHS[i] = T.at(p, X)
+	end
 	local function pathGap(x, z)
 		local best = math.huge
 		for _, p in PATHS do
@@ -54,8 +60,8 @@ return function(b, K, T)
 		end
 		return best
 	end
-	local RIVER = { { 486, 80, 7 }, { 489, 60, 6 }, { 485, 38, 6 }, { 489, 14, 6 }, { 484, -12, 6 }, { 487, -40, 6 }, { 485, -62, 6 }, { 486, -76, 7 } }
-	local POOLS = { { 486, 78, 10, 6.5 }, { 486, -77, 10, 6 }, { 588, 79, 7, 4.5 }, { 540, -44, 4.5, 3.2 } }
+	local RIVER = T.at({ { 486, 80, 7 }, { 489, 60, 6 }, { 485, 38, 6 }, { 489, 14, 6 }, { 484, -12, 6 }, { 487, -40, 6 }, { 485, -62, 6 }, { 486, -76, 7 } }, X)
+	local POOLS = T.at({ { 486, 78, 10, 6.5 }, { 486, -77, 10, 6 }, { 588, 79, 7, 4.5 }, { 540, -44, 4.5, 3.2 } }, X)
 	local function lavaGap(x, z) -- < 0 in the lava
 		local d, half = T.polyDistance(RIVER, x, z)
 		local best = d - half
@@ -69,7 +75,7 @@ return function(b, K, T)
 		return lavaGap(x, z) < 0 and pathGap(x, z) > 0
 	end
 	local nest = model:FindFirstChild("NestSite")
-	local NEST = nest and nest:GetPivot().Position or Vector3.new(548, 0, 0)
+	local NEST = nest and nest:GetPivot().Position or Vector3.new(X(548), 0, 0)
 	local function nearNest(x, z, r)
 		return (Vector3.new(x, 0, z) - Vector3.new(NEST.X, 0, NEST.Z)).Magnitude < r
 	end
@@ -89,7 +95,7 @@ return function(b, K, T)
 	local FLOW = { hex("FF5A12"), hex("F2470C"), hex("FF7418") } -- deep orange: bright yellow neon reads as a stripe
 	local LAVA = { hex("FF6A1A"), hex("FF7A1E"), hex("FF5414") }
 	local function cooling(x)
-		return math.clamp((x - 588) / 30, 0, 1)
+		return math.clamp((U(x) - 588) / 30, 0, 1)
 	end
 	local function capColor(x, r)
 		local c = CAPS[r:NextInteger(1, #CAPS)]
@@ -213,7 +219,7 @@ return function(b, K, T)
 			if lavaGap(x, z) < 2.6 then
 				return CRUST[n < 0.5 and 1 or 2]
 			end
-			local ash = x < 474 and 0.55 or 0.28
+			local ash = U(x) < 474 and 0.55 or 0.28
 			if n2 < ash then
 				return ASH[math.clamp(math.floor(n * 3) + 1, 1, 3)]
 			end
@@ -257,7 +263,7 @@ return function(b, K, T)
 		embers(a, 4 + p[3] * 0.8, 40)
 	end
 	for _, at in { { 488, 30 }, { 486, -48 } } do
-		local a = K.part(lavaFolder, "Glow", Vector3.new(1, 1, 1), CFrame.new(at[1], 1.5, at[2]), LAVA[1], { solid = false, transparency = 1, shadow = false })
+		local a = K.part(lavaFolder, "Glow", Vector3.new(1, 1, 1), CFrame.new(X(at[1]), 1.5, at[2]), LAVA[1], { solid = false, transparency = 1, shadow = false })
 		light(a, Color3.fromRGB(255, 120, 40), 18, 1.4)
 		embers(a, 4, 30)
 	end
@@ -291,14 +297,15 @@ return function(b, K, T)
 	end
 	-- the bridge where the path crosses the river: a stone slab with rough rock kerbs along both banks
 	local bridge = sub("Bridge")
-	K.box(bridge, "BridgeSlab", 478.5, 490.5, 0, 0.35, -21, -7, hex("5E4B47"), { studs = K.TOP, solid = false })
-	for _, bx in { 478.5, 490.5 } do
+	local BXc = X(484.5) -- where the path crosses the river
+	K.box(bridge, "BridgeSlab", BXc - 6, BXc + 6, 0, 0.35, -21, -7, hex("5E4B47"), { studs = K.TOP, solid = false })
+	for _, bx in { BXc - 6, BXc + 6 } do
 		for z = -21, -8, 2.6 do
 			T.boulder(bridge, Vector3.new(bx + rng:NextNumber(-0.4, 0.4), 0, z + 1.3), rng:NextNumber(0.6, 0.95), rockAt, rng)
 		end
 	end
-	for _, c in { { 478.5, -22 }, { 490.5, -22 }, { 478.5, -6 }, { 490.5, -6 } } do
-		T.boulder(bridge, Vector3.new(c[1], 0, c[2]), 1.3, rockAt, rng)
+	for _, c in { { -6, -22 }, { 6, -22 }, { -6, -6 }, { 6, -6 } } do
+		T.boulder(bridge, Vector3.new(BXc + c[1], 0, c[2]), 1.3, rockAt, rng)
 	end
 
 	---------------------------------------------------------------- cliffs, walls, ridges
@@ -354,7 +361,8 @@ return function(b, K, T)
 			end,
 			height = function(x)
 				local n = T.n01(x / 25 + side * 4.1, 2.7, side)
-				if side < 0 and x > 518 and x < 598 then
+				local xo = U(x)
+				if side < 0 and xo > 518 and xo < 598 then
 					return math.floor(22 + n * 10)
 				end
 				return math.floor(72 + n * 36)
@@ -408,8 +416,8 @@ return function(b, K, T)
 		return best
 	end
 	local nFalls = 0
-	for _, f in { { 1, 522 }, { -1, 490 }, { 1, 556 }, { -1, 514 } } do
-		local c = nearestCol(f[1], f[2])
+	for _, f in { { 1, 522 }, { -1, 490 }, { 1, 556 }, { -1, 514 }, { 1, 478 }, { -1, 572 } } do
+		local c = nearestCol(f[1], X(f[2]))
 		if c then
 			local foot = T.cascade(flows, c, f[1], { x = (c.x0 + c.x1) / 2, w = rng:NextNumber(1.3, 1.8), colors = FLOW, neon = true, rng = rng, name = "LavaFall" })
 			if foot then
@@ -448,44 +456,48 @@ return function(b, K, T)
 		end
 		return m
 	end
-	for _, s in { { 497, 81, 26, 5.5 }, { 477, -79, 22, 5 }, { 592, 81, 30, 6 }, { 560, -70, 20, 4.5 }, { 522, 59, 16, 4 }, { 470, 70, 14, 3.5 }, { 532, -69, 14, 3.5 } } do
-		spire(Vector3.new(s[1], 0, s[2]), s[3], s[4], rng:NextNumber(0.05, 0.22), true)
+	for _, s in { { 497, 81, 26, 5.5 }, { 477, -79, 22, 5 }, { 592, 81, 30, 6 }, { 560, -70, 20, 4.5 }, { 522, 59, 16, 4 }, { 470, 70, 14, 3.5 }, { 532, -69, 14, 3.5 }, { 548, 72, 18, 4 }, { 508, -74, 16, 4 } } do
+		spire(Vector3.new(X(s[1]), 0, s[2]), s[3], s[4], rng:NextNumber(0.05, 0.22), true)
 	end
 
 	---------------------------------------------------------------- a natural rock arch over the river, smoking cracks
 	local arch = sub("RockArch")
 	local APTS, AW = {}, {}
+	local AXc = X(486) -- over the river
 	for i = 0, 8 do
 		local a = math.rad(8 + 164 * i / 8)
-		APTS[i + 1] = Vector3.new(486 + math.cos(a) * 13, -3 + math.sin(a) * 17, -54 + math.sin(a * 2) * 1.5)
+		APTS[i + 1] = Vector3.new(AXc + math.cos(a) * 13, -3 + math.sin(a) * 17, -54 + math.sin(a * 2) * 1.5)
 		if i < 8 then
 			AW[i + 1] = 5.2 - math.sin(math.pi * (i + 0.5) / 8) * 2.2
 		end
 	end
 	local ARCH = {}
 	for i = 1, 8 do
-		ARCH[i] = tint(486, T.tone(ROCK, APTS[i], 0.35 + i * 0.03, rng))
+		ARCH[i] = tint(AXc, T.tone(ROCK, APTS[i], 0.35 + i * 0.03, rng))
 	end
 	T.chain(arch, "Arch", APTS, AW, ARCH)
 	for _, e in { APTS[1], APTS[9] } do
 		T.boulder(arch, Vector3.new(e.X, 0, e.Z), 3, rockAt, rng, { solid = true })
 	end
-	for _, c in { { 466, 36, 70 }, { 528, -36, 20 }, { 516, 44, 160 }, { 572, -40, 120 } } do
-		if lavaGap(c[1], c[2]) > 6 and pathGap(c[1], c[2]) > 4 then
-			T.crack(scatter, Vector3.new(c[1], 0, c[2]), math.rad(c[3]), 4, rng, { dark = hex("201A1A"), glow = MAG[1] })
+	for _, c in { { 466, 36, 70 }, { 528, -36, 20 }, { 516, 44, 160 }, { 572, -40, 120 }, { 500, 30, 40 }, { 556, 40, 140 } } do
+		local cx = X(c[1])
+		if lavaGap(cx, c[2]) > 6 and pathGap(cx, c[2]) > 4 then
+			T.crack(scatter, Vector3.new(cx, 0, c[2]), math.rad(c[3]), 4, rng, { dark = hex("201A1A"), glow = MAG[1] })
 		end
 	end
 
 	---------------------------------------------------------------- the transition into Frostfang: steam vents, frosted rocks, cooled decor
 	local trans = sub("Transition")
 	for _, c in { { 600, 30, 40 }, { 606, -36, 100 }, { 614, 46, 160 }, { 596, -12, 70 } } do
-		if pathGap(c[1], c[2]) > 3 then
-			T.crack(trans, Vector3.new(c[1], 0, c[2]), math.rad(c[3]), 3, rng, { dark = hex("1F2128"), glow = hex("C25A2A"), smoke = Color3.fromRGB(235, 242, 250), smokeSize = 3, smokeOpacity = 0.22 })
+		local cx = X(c[1])
+		if pathGap(cx, c[2]) > 3 then
+			T.crack(trans, Vector3.new(cx, 0, c[2]), math.rad(c[3]), 3, rng, { dark = hex("1F2128"), glow = hex("C25A2A"), smoke = Color3.fromRGB(235, 242, 250), smokeSize = 3, smokeOpacity = 0.22 })
 		end
 	end
 	for _, at in { { 604, 52 }, { 612, -48 }, { 620, 30 }, { 618, -22 } } do
-		local _, top = T.boulder(trans, Vector3.new(at[1], 0, at[2]), rng:NextNumber(1.6, 2.4), rockAt, rng, { solid = true })
-		K.box(trans, "SnowCap", at[1] - 1.8, at[1] + 1.8, top - 0.4, top + 0.5, at[2] - 1.6, at[2] + 1.6, SNOW[1], { studs = K.TOP, solid = false })
+		local ax = X(at[1])
+		local _, top = T.boulder(trans, Vector3.new(ax, 0, at[2]), rng:NextNumber(1.6, 2.4), rockAt, rng, { solid = true })
+		K.box(trans, "SnowCap", ax - 1.8, ax + 1.8, top - 0.4, top + 0.5, at[2] - 1.6, at[2] + 1.6, SNOW[1], { studs = K.TOP, solid = false })
 	end
 	for _, d in decor:GetChildren() do
 		if d:IsA("Model") and d.Name ~= "NestSignLava" and not d:GetAttribute("Weathered") then
@@ -516,7 +528,7 @@ return function(b, K, T)
 	local heights = sub("Heights")
 	local nTop = 0
 	for _, t in tops do
-		if t.z1 > t.z0 and cooling(t.x) < 0.5 and not (t.side < 0 and t.x > 524 and t.x < 594) then
+		if t.z1 > t.z0 and cooling(t.x) < 0.5 and not (t.side < 0 and U(t.x) > 524 and U(t.x) < 594) then
 			local r = rng:NextNumber()
 			local kind = r < 0.22 and "CharredTree" or (r < 0.4 and "ObsidianSpire" or (r < 0.5 and "MagmaCrystal" or nil))
 			local list = kind and pool[kind]
@@ -531,7 +543,7 @@ return function(b, K, T)
 
 	---------------------------------------------------------------- the volcano
 	local vol = sub("Volcano")
-	local C = Vector3.new(556, 0, -330)
+	local C = Vector3.new(X(556), 0, -330)
 	local HT, R0, RT, NB, M = 290, 172, 32, 15, 9
 	local VROCK = { hex("231B1D"), hex("2F2426"), hex("3B2D2B"), hex("4A3833") }
 	local function R(y)
