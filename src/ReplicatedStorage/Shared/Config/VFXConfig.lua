@@ -80,6 +80,23 @@ VFXConfig.Weather = {
 		Snow = { Rate = 110, Color = hex("FFFFFF") },
 		Lighting = { Tint = hex("DCEBFF"), Saturation = -0.06, Brightness = 0.02, Haze = 0.18 }, -- cool blue light and mist
 	},
+	-- the locked biomes (ready for when they open)
+	VenomJungle = {
+		Spores = { Rate = 26, Color = hex("B8FF6A") },
+		Lighting = { Tint = hex("E2FFD6"), Saturation = 0.12, Brightness = -0.02, Haze = 0.2 }, -- green, humid haze
+	},
+	SunkenAbyss = {
+		Bubbles = { Rate = 34, Color = hex("D8FBFF") },
+		Lighting = { Tint = hex("C8E8FF"), Saturation = 0.04, Brightness = -0.04, Haze = 0.24 }, -- deep-blue murk
+	},
+	StormSpires = {
+		Rain = { Rate = 150, Color = hex("C8D2E6") },
+		Lighting = { Tint = hex("D6DCEE"), Saturation = -0.14, Brightness = -0.07, Haze = 0.2 }, -- grey storm light
+	},
+	CosmicRift = {
+		Stardust = { Rate = 40, Color = hex("E8D8FF") },
+		Lighting = { Tint = hex("E6D6FF"), Saturation = 0.12, Brightness = -0.06, Haze = 0.12 }, -- violet dusk
+	},
 }
 
 return VFXConfig
