@@ -1,7 +1,10 @@
 -- Kit for the Kaiju Citadel's hero pieces (CitadelBuilder.Gate, CitadelBuilder.Keep), in the game's studded-voxel look
--- (SmoothPlastic + the stud texture) with: irregular masonry in four stone tones (darker at the foot, lighter at the top),
--- weathering (moss, vines, stains, cracks, missing blocks), kaiju motifs (claw gouges, the trophy skull), egg motifs
--- (finials and carvings), banners in several designs, carved plaques in the Antique font, torches and braziers.
+-- (SmoothPlastic + the stud texture):
+--   * stone: three greys in large irregular patches (K.stone samples a noise field in world space, so neighbouring
+--     stones share a tone over roughly 3-5 stones), on a height gradient - a dark blue-grey band along the foot fading to
+--     light grey near the top. Tan is used only as trim: arch voussoirs, keystones, jambs, window frames, merlon caps.
+--   * weathering (moss, vines, stains, cracks, missing blocks), kaiju motifs (claw gouges, the trophy skull), egg motifs
+--     (finials and carvings), banners in several designs, carved plaques in the Antique font, torches and braziers.
 -- Face helpers take a face CFrame: origin on the face, look vector = the face's outward normal, local X along the face.
 local CollectionService = game:GetService("CollectionService")
 
@@ -19,13 +22,12 @@ K.FRONT = { N.Front }
 K.WIND_TAG = "CitadelWind" -- banners and flags; a client script can sway them
 
 local P = {
-	-- stone: four tones plus two darker foot tones
+	-- stone: light grey, mid grey, dark blue-grey, and tan (trim only); Base is the darker footing course
 	Light = hex("CBC8C0"),
 	Mid = hex("A5A39D"),
 	Blue = hex("717989"),
 	Tan = hex("C3A983"),
 	Base = hex("5E636E"),
-	BaseWarm = hex("786C5F"),
 	Slate = hex("34333A"),
 	-- weathering
 	Moss = hex("5E8B3A"),
@@ -34,14 +36,13 @@ local P = {
 	Leaf = hex("5B9A38"),
 	Stain = hex("2A2826"),
 	Crack = hex("2B2724"),
-	Socket = hex("1D1917"),
+	Socket = hex("1A1614"),
 	-- citadel colours
 	Navy = hex("25244B"),
 	NavyLight = hex("37356C"),
 	Gold = hex("E7B53D"),
 	GoldPale = hex("F4D57E"),
 	Bronze = hex("A2652B"),
-	BronzeDark = hex("74461F"),
 	Red = hex("8E1E25"),
 	RedDark = hex("5F141A"),
 	Iron = hex("35373D"),
@@ -155,22 +156,37 @@ function K.wind(m)
 	CollectionService:AddTag(m, K.WIND_TAG)
 end
 
--- a stone colour for height fraction t (0 = foot of the building, 1 = its top)
-function K.tone(rng, t)
-	local r = rng:NextNumber()
-	if t < 0.14 then
-		return r < 0.5 and P.Base or (r < 0.8 and P.Blue or P.BaseWarm)
-	elseif t < 0.5 then
-		return r < 0.36 and P.Mid or (r < 0.62 and P.Blue or (r < 0.84 and P.Tan or P.Light))
+------------------------------------------------------------------------------- stone colour
+local PATCH = 30 -- noise scale in studs: patches come out about 3-5 stones across
+
+local function shade(c, k)
+	if k >= 0 then
+		return c:Lerp(Color3.new(1, 1, 1), k)
 	end
-	return r < 0.44 and P.Light or (r < 0.7 and P.Mid or (r < 0.88 and P.Tan or P.Blue))
+	return c:Lerp(Color3.new(0, 0, 0), -k)
+end
+K.shade = shade
+
+-- the stone colour at world position pos, t = height fraction of the building (0 = its foot, 1 = its top): the dark
+-- blue-grey foot band, then patches of blue-grey / mid grey / light grey that get lighter with height. rng adds a
+-- faint per-stone shade so the joints still read inside a patch.
+function K.stone(pos, t, rng)
+	local c
+	if t < 0.06 then
+		c = P.Blue
+	else
+		local n = math.clamp(math.noise(pos.X / PATCH + 0.37, pos.Y / (PATCH * 0.8) + 0.11, pos.Z / PATCH + 17.3) * 1.7, -0.5, 0.5)
+		local score = t * 0.75 + n * 0.6 -- blue-grey low down, mid grey through the middle, light grey patches up top
+		c = score < 0.2 and P.Blue or (score < 0.58 and P.Mid or P.Light)
+	end
+	return shade(c, rng and rng:NextNumber(-0.035, 0.035) or 0)
 end
 
 ------------------------------------------------------------------------------- masonry
 -- A solid block built from irregular courses of studded stones. cf = centre of the block's bottom face (yaw only),
 -- size = (width along local X, height, depth along local Z). Each course (courseMin..courseMax tall) is cut into
 -- stones (stoneMin..stoneMax long) that run the block's full depth, alternately along X and along Z (o.axis = "X" or
--- "Z" fixes it), so every face shows an irregular pattern. Tones follow the height band o.t0..o.t1.
+-- "Z" fixes it). Colours come from K.stone over the height band o.t0..o.t1.
 function K.masonry(parent, name, cf, size, rng, o)
 	o = o or {}
 	local t0, t1 = o.t0 or 0, o.t1 or 1
@@ -192,11 +208,12 @@ function K.masonry(parent, name, cf, size, rng, o)
 			if L - pos - sl < smin * 0.6 then
 				sl = L - pos
 			end
-			local c = K.tone(rng, t0 + (t1 - t0) * (y + ch / 2) / H)
 			local centre = alongX and Vector3.new(-W / 2 + pos + sl / 2, y + ch / 2, 0) or Vector3.new(0, y + ch / 2, -D / 2 + pos + sl / 2)
 			local sz = alongX and Vector3.new(sl, ch, D) or Vector3.new(W, ch, sl)
+			local at = cf * CFrame.new(centre)
+			local c = K.stone(at.Position, t0 + (t1 - t0) * (y + ch / 2) / H, rng)
 			local isTop = y + ch >= H - 0.01
-			K.part(parent, name, sz, cf * CFrame.new(centre), c, { studs = (isTop and o.topStuds) and K.ALL or faces, solid = o.solid })
+			K.part(parent, name, sz, at, c, { studs = (isTop and o.topStuds) and K.ALL or faces, solid = o.solid })
 			pos += sl
 		end
 		y += ch
@@ -204,9 +221,9 @@ function K.masonry(parent, name, cf, size, rng, o)
 	end
 end
 
--- Plus-shaped (notched octagon) tower of studded courses: two crossed bars per course in their own tones.
--- o: t0/t1, name, windows = { normals } (arrow slits / lit windows on those arms), glow, roofH, roofN, egg (finial size),
--- flag (colour), noFlag
+-- Plus-shaped (notched octagon) tower of studded courses: two crossed bars per course.
+-- o: t0/t1, name, windows = { normals } (slits, or lit windows with o.glow), roofH, roofN, trim (spire band colour),
+-- egg (finial size), flag (colour), noFlag
 function K.crossTower(parent, cx, cz, D, H, rng, o)
 	o = o or {}
 	local m = K.model(parent, o.name or "Tower")
@@ -221,19 +238,19 @@ function K.crossTower(parent, cx, cz, D, H, rng, o)
 			ch = H - y
 		end
 		local t = t0 + (t1 - t0) * (y + ch / 2) / H
-		K.part(m, "Stone", Vector3.new(D, ch, nb), CFrame.new(cx, y + ch / 2, cz), K.tone(rng, t), { studs = K.SIDES })
-		K.part(m, "Stone", Vector3.new(nb, ch, D), CFrame.new(cx, y + ch / 2, cz), K.tone(rng, t), { studs = K.SIDES })
+		K.part(m, "Stone", Vector3.new(D, ch, nb), CFrame.new(cx, y + ch / 2, cz), K.stone(Vector3.new(cx + D / 4, y, cz), t, rng), { studs = K.SIDES })
+		K.part(m, "Stone", Vector3.new(nb, ch, D), CFrame.new(cx, y + ch / 2, cz), K.stone(Vector3.new(cx, y, cz + D / 4), t, rng), { studs = K.SIDES })
 		y += ch
 	end
 	for _, by in { math.floor(H * 0.38), math.floor(H * 0.72) } do
-		K.part(m, "Band", Vector3.new(D + 1.2, 2, nb + 1.2), CFrame.new(cx, by, cz), P.Blue, { studs = K.SIDES, solid = false })
-		K.part(m, "Band", Vector3.new(nb + 1.2, 2, D + 1.2), CFrame.new(cx, by, cz), P.Blue, { studs = K.SIDES, solid = false })
+		K.part(m, "Band", Vector3.new(D + 1.2, 2, nb + 1.2), CFrame.new(cx, by, cz), P.Mid, { studs = K.SIDES, solid = false })
+		K.part(m, "Band", Vector3.new(nb + 1.2, 2, D + 1.2), CFrame.new(cx, by, cz), P.Mid, { studs = K.SIDES, solid = false })
 	end
 	for _, n in o.windows or {} do
 		local F = K.face(Vector3.new(cx + n.X * D / 2, 0, cz + n.Z * D / 2), n)
 		if o.glow then
-			K.window(m, F, 0, H * 0.48, 4, 11, true)
-			K.window(m, F, 0, H * 0.78, 4, 11, true)
+			K.window(m, F, 0, H * 0.48, 4, 12, true)
+			K.window(m, F, 0, H * 0.78, 4, 12, true)
 		else
 			K.slit(m, F, 0, H * 0.5, 1.8, 7, rng)
 			K.slit(m, F, 0, H * 0.8, 1.8, 7, rng)
@@ -243,7 +260,7 @@ function K.crossTower(parent, cx, cz, D, H, rng, o)
 	local pw = D + 3
 	K.masonry(m, "Parapet", CFrame.new(cx, H, cz), Vector3.new(pw, 5, pw), rng, { t0 = 0.95, t1 = 1, courseMin = 6, courseMax = 6, stoneMin = 10, stoneMax = 20, topStuds = true })
 	K.merlonRect(m, cx, cz, pw / 2, pw / 2, H + 5, 3, 4.5, 2.4, rng, 0.95)
-	local top = K.spire(m, cx, cz, H + 5, D - 3, D - 3, o.roofH or 60, o.roofN or 11, P.Bronze)
+	local top = K.spire(m, cx, cz, H + 5, D - 3, D - 3, o.roofH or 60, o.roofN or 11, o.trim or P.Bronze)
 	local _, eggTop = K.egg(m, Vector3.new(cx, top, cz), o.egg or 4.5, P.Gold, P.Red)
 	if not o.noFlag then
 		K.flagPole(m, Vector3.new(cx, eggTop, cz), 16, 10, 6, o.flag or P.Red, P.Gold)
@@ -267,7 +284,7 @@ function K.spire(parent, cx, cz, y0, w0, d0, h, n, trim)
 	return y0 + h
 end
 
--- battlement blocks from p0 to p1 (y ignored), mw long, mh tall, md deep, about gap apart, in stone tones
+-- battlements from p0 to p1 (y ignored): stone merlons mw long, mh tall, md deep, about gap apart, each with a tan cap
 function K.merlonLine(parent, p0, p1, y0, mw, mh, md, rng, gap, t)
 	local d = Vector3.new(p1.X - p0.X, 0, p1.Z - p0.Z)
 	local len = d.Magnitude
@@ -277,9 +294,12 @@ function K.merlonLine(parent, p0, p1, y0, mw, mh, md, rng, gap, t)
 	local dir = d.Unit
 	local n = math.max(1, math.floor((len + gap) / (mw + gap)))
 	local step = n > 1 and (len - mw) / (n - 1) or 0
+	local body = mh - 0.9
 	for i = 0, n - 1 do
-		local c = Vector3.new(p0.X, y0 + mh / 2, p0.Z) + dir * (mw / 2 + i * step)
-		K.part(parent, "Merlon", Vector3.new(mw, mh, md), CFrame.lookAt(c, c + dir) * CFrame.Angles(0, math.rad(90), 0), K.tone(rng, t or 0.9), { studs = K.ALL })
+		local base = Vector3.new(p0.X, y0, p0.Z) + dir * (mw / 2 + i * step)
+		local rot = CFrame.lookAt(base, base + dir) * CFrame.Angles(0, math.rad(90), 0)
+		K.part(parent, "Merlon", Vector3.new(mw, body, md), rot * CFrame.new(0, body / 2, 0), K.stone(base, t or 0.92, rng), { studs = K.SIDES })
+		K.part(parent, "MerlonCap", Vector3.new(mw + 0.5, 0.9, md + 0.5), rot * CFrame.new(0, body + 0.45, 0), P.Tan, { studs = K.ALL, solid = false })
 	end
 end
 
@@ -296,36 +316,37 @@ function K.merlonRect(parent, cx, cz, hx, hz, y, mw, mh, md, rng, t)
 end
 
 -- corbel teeth under an overhanging parapet: blocks every ~step along p0 -> p1, their tops at y, sticking out along out
-function K.corbels(parent, p0, p1, y, out, step, rng)
+function K.corbels(parent, p0, p1, y, out, step, rng, t)
 	local d = Vector3.new(p1.X - p0.X, 0, p1.Z - p0.Z)
 	local n = math.max(1, math.floor(d.Magnitude / step))
 	for i = 0, n do
 		local c = Vector3.new(p0.X, y - 1.6, p0.Z) + d * (i / n) + out * 1.2
-		K.part(parent, "Corbel", Vector3.new(2.2, 3.2, 2.2), CFrame.new(c), K.tone(rng, 0.7), { studs = K.ALL, solid = false })
+		K.part(parent, "Corbel", Vector3.new(2.2, 3.2, 2.2), CFrame.new(c), K.stone(c, t or 0.85, rng), { studs = K.ALL, solid = false })
 	end
 end
 
--- small corbelled turret (bartizan) standing on base: stepped corbel, body, corner merlons, pointed roof, egg
+-- small corbelled turret (bartizan) standing on base: stepped corbel, body, capped corner merlons, pointed roof, egg
 function K.bartizan(parent, base, rng, o)
 	o = o or {}
 	local m = K.model(parent, "Turret")
 	local x, y, z = base.X, base.Y, base.Z
 	local W = o.w or 8
 	for i, w in { W * 0.4, W * 0.7, W * 1.05 } do
-		K.box(m, "Corbel", x - w / 2, x + w / 2, y + (i - 1) * 2, y + i * 2, z - w / 2, z + w / 2, K.tone(rng, 0.6), { studs = K.SIDES, solid = false })
+		K.box(m, "Corbel", x - w / 2, x + w / 2, y + (i - 1) * 2, y + i * 2, z - w / 2, z + w / 2, K.stone(base, 0.7, rng), { studs = K.SIDES, solid = false })
 	end
 	local bodyH = o.h or 22
-	K.box(m, "Body", x - W / 2, x + W / 2, y + 6, y + 6 + bodyH, z - W / 2, z + W / 2, K.tone(rng, 0.85), { studs = K.SIDES })
+	K.box(m, "Body", x - W / 2, x + W / 2, y + 6, y + 6 + bodyH, z - W / 2, z + W / 2, K.stone(base + Vector3.new(0, 10, 0), 0.85, rng), { studs = K.SIDES })
 	local by = y + 6 + bodyH * 0.45
-	K.box(m, "Band", x - W / 2 - 0.5, x + W / 2 + 0.5, by, by + 1.6, z - W / 2 - 0.5, z + W / 2 + 0.5, P.Blue, { solid = false })
+	K.box(m, "Band", x - W / 2 - 0.5, x + W / 2 + 0.5, by, by + 1.6, z - W / 2 - 0.5, z + W / 2 + 0.5, P.Mid, { solid = false })
 	local top = y + 6 + bodyH
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
 			local mx, mz = x + sx * (W / 2 - 1), z + sz * (W / 2 - 1)
-			K.box(m, "Merlon", mx - 1, mx + 1, top, top + 2.6, mz - 1, mz + 1, K.tone(rng, 0.95), { studs = K.ALL })
+			K.box(m, "Merlon", mx - 1, mx + 1, top, top + 1.8, mz - 1, mz + 1, P.Light, { studs = K.SIDES })
+			K.box(m, "MerlonCap", mx - 1.25, mx + 1.25, top + 1.8, top + 2.6, mz - 1.25, mz + 1.25, P.Tan, { solid = false })
 		end
 	end
-	local roofTop = K.spire(m, x, z, top, W - 2, W - 2, o.roofH or 16, 6, P.Bronze)
+	local roofTop = K.spire(m, x, z, top, W - 2, W - 2, o.roofH or 16, 6, o.trim or P.Bronze)
 	K.egg(m, Vector3.new(x, roofTop, z), 2.2, P.Gold)
 	return m
 end
@@ -357,7 +378,7 @@ function K.eggRelief(parent, F, x, y, s, color, band)
 end
 
 ------------------------------------------------------------------------------- face details
--- proud stones of other tones scattered over a face (w x h, t0..t1 its height band)
+-- proud stones scattered over a face (w x h, t0..t1 its height band): the patch colour there, a shade darker
 function K.accents(parent, F, w, h, n, rng, t0, t1, o)
 	o = o or {}
 	local yMin = o.yMin or 0
@@ -367,29 +388,33 @@ function K.accents(parent, F, w, h, n, rng, t0, t1, o)
 		if w > sw + 2 and h - yMin > sh + 2 then
 			local x = math.floor(rng:NextNumber(-w / 2 + sw / 2, w / 2 - sw / 2) / 2 + 0.5) * 2
 			local y = math.floor(rng:NextNumber(yMin + sh / 2, h - sh / 2) / 2 + 0.5) * 2
-			K.part(parent, "Stone", Vector3.new(sw, sh, 0.8), F * CFrame.new(x, y, -0.3 - (i % 3) * 0.07), K.tone(rng, t0 + (t1 - t0) * y / h), { studs = K.FRONT, solid = false })
+			local at = F * CFrame.new(x, y, -0.3 - (i % 3) * 0.07)
+			K.part(parent, "Stone", Vector3.new(sw, sh, 0.8), at, shade(K.stone(at.Position, t0 + (t1 - t0) * y / h), -0.07), { studs = K.FRONT, solid = false })
 		end
 	end
 end
 
--- arrow slit (dark recess) with a rain stain under it
+-- arrow slit (dark recess) on a tan sill, with a rain stain under it
 function K.slit(parent, F, x, y, w, h, rng)
 	K.part(parent, "Slit", Vector3.new(w, h, 0.3), F * CFrame.new(x, y + h / 2, -0.1), P.Socket, { solid = false })
-	K.part(parent, "Sill", Vector3.new(w + 1, 0.6, 0.9), F * CFrame.new(x, y - 0.3, -0.4), P.Light, { solid = false })
+	K.part(parent, "Sill", Vector3.new(w + 1.2, 0.7, 1), F * CFrame.new(x, y - 0.35, -0.45), P.Tan, { solid = false })
 	local len = rng and rng:NextNumber(7, 14) or 10
-	K.part(parent, "Stain", Vector3.new(w + 0.4, len, 0.2), F * CFrame.new(x, y - 0.6 - len / 2, -0.12), P.Stain, { solid = false, transparency = 0.55, shadow = false })
+	K.part(parent, "Stain", Vector3.new(w + 0.4, len, 0.2), F * CFrame.new(x, y - 0.7 - len / 2, -0.12), P.Stain, { solid = false, transparency = 0.55, shadow = false })
 end
 
--- arched window (bottom centre at x, y); glow = lit from inside (warm neon)
+-- arched window (bottom centre at x, y) in a tan frame; glow = lit from inside (warm neon)
 function K.window(parent, F, x, y, w, h, glow)
 	local inner = glow and P.WindowGlow or P.Socket
 	local o = { neon = glow or nil, solid = false }
 	local arch = w * 0.35
 	K.part(parent, "Window", Vector3.new(w, h - arch, 0.3), F * CFrame.new(x, y + (h - arch) / 2, -0.1), inner, o)
 	K.part(parent, "Window", Vector3.new(w * 0.6, arch, 0.3), F * CFrame.new(x, y + h - arch / 2, -0.1), inner, o)
-	K.part(parent, "Sill", Vector3.new(w + 1.4, 0.8, 1.2), F * CFrame.new(x, y - 0.4, -0.5), P.Light, { studs = K.TOP, solid = false })
+	K.part(parent, "Sill", Vector3.new(w + 2, 0.9, 1.3), F * CFrame.new(x, y - 0.45, -0.55), P.Tan, { studs = K.TOP, solid = false })
+	for _, sx in { -1, 1 } do
+		K.part(parent, "WindowFrame", Vector3.new(0.9, h - arch, 0.9), F * CFrame.new(x + sx * (w / 2 + 0.45), y + (h - arch) / 2, -0.35), P.Tan, { solid = false })
+	end
 	K.part(parent, "WindowArch", Vector3.new(w * 0.6 + 1.8, 1.2, 1), F * CFrame.new(x, y + h + 0.6, -0.4), P.Tan, { solid = false })
-	K.part(parent, "Stain", Vector3.new(w * 0.7, 6, 0.2), F * CFrame.new(x, y - 3.8, -0.12), P.Stain, { solid = false, transparency = 0.6, shadow = false })
+	K.part(parent, "Stain", Vector3.new(w * 0.7, 6, 0.2), F * CFrame.new(x, y - 3.9, -0.12), P.Stain, { solid = false, transparency = 0.6, shadow = false })
 end
 
 -- weathering on a face of w x h: moss along the foot, vines hanging from vineTop, stains, cracks, missing blocks
@@ -494,8 +519,8 @@ function K.sign(parent, name, cf, w, h, text, o)
 	local l = Instance.new("TextLabel")
 	l.Name = "Label"
 	l.BackgroundTransparency = 1
-	l.Size = UDim2.fromScale(0.9, 0.78)
-	l.Position = UDim2.fromScale(0.05, 0.11)
+	l.Size = UDim2.fromScale(0.92, 0.8)
+	l.Position = UDim2.fromScale(0.04, 0.1)
 	l.Font = Enum.Font.Antique
 	l.TextScaled = true
 	l.TextColor3 = o.cream and P.SignCream or P.SignGold
@@ -668,11 +693,15 @@ function K.gateLeaf(parent, F, w, h)
 end
 
 ------------------------------------------------------------------------------- the kaiju skull trophy
--- cf = the mount point on the wall, look vector = the way the skull faces; s = scale (1: cranium 30 wide, about
--- 56 studs from the wall to the snout tip, horns rising 50 above the mount)
+-- A front-facing kaiju skull that reads from below and far away: deep dark eye sockets with embers inside under a
+-- heavy V brow, cheekbones, a short muzzle with a dark nasal cavity on its front, a row of upper teeth, the lower jaw
+-- dropped open with its own teeth over a dark mouth, horns sweeping up and back, on a red shield bolted to the wall.
+-- cf = the mount point on the wall, look vector = the way the skull faces. s = scale (1: cranium 34 wide, the face
+-- 20 out from the wall, the muzzle front 32 out, horn tips 53 above the mount).
 function K.skull(parent, cf, s)
 	s = s or 1
 	local m = K.model(parent, "KaijuSkull")
+	local FLAT = { solid = false, shadow = false }
 	local function sp(name, size, pos, color, rot, o)
 		local c = cf * CFrame.new(pos * s)
 		if rot then
@@ -680,65 +709,62 @@ function K.skull(parent, cf, s)
 		end
 		return K.part(m, name, size * s, c, color, o or { studs = K.ALL, solid = false })
 	end
-	-- the trophy board: a deep red stepped shield with a gold rim, bolted to the wall
-	sp("Shield", Vector3.new(52, 36, 1.6), Vector3.new(0, 4, -0.8), P.Red, nil, { studs = K.FRONT, solid = false })
-	sp("Shield", Vector3.new(38, 6, 1.6), Vector3.new(0, -17, -0.8), P.Red, nil, { studs = K.FRONT, solid = false })
-	sp("ShieldRim", Vector3.new(54, 1.6, 1.2), Vector3.new(0, 22.6, -1.4), P.Gold)
+	-- the trophy board
+	sp("Shield", Vector3.new(54, 40, 1.6), Vector3.new(0, 6, -0.8), P.Red, nil, { studs = K.FRONT, solid = false })
+	sp("Shield", Vector3.new(40, 6, 1.6), Vector3.new(0, -17, -0.8), P.Red, nil, { studs = K.FRONT, solid = false })
+	sp("ShieldRim", Vector3.new(57, 1.6, 1.2), Vector3.new(0, 26.8, -1.4), P.Gold)
 	for _, sx in { -1, 1 } do
-		sp("ShieldRim", Vector3.new(1.6, 36, 1.2), Vector3.new(sx * 26.6, 4, -1.4), P.Gold)
-		sp("Bolt", Vector3.new(3, 3, 1), Vector3.new(sx * 22, 18, -1.9), P.Iron)
-		sp("Bolt", Vector3.new(3, 3, 1), Vector3.new(sx * 22, -10, -1.9), P.Iron)
+		sp("ShieldRim", Vector3.new(1.6, 40, 1.2), Vector3.new(sx * 27.8, 6, -1.4), P.Gold)
+		sp("Bolt", Vector3.new(3, 3, 1), Vector3.new(sx * 23, 22, -1.9), P.Iron)
+		sp("Bolt", Vector3.new(3, 3, 1), Vector3.new(sx * 23, -9, -1.9), P.Iron)
 	end
-	-- cranium, crest and the wide cheekbones
-	sp("Cranium", Vector3.new(30, 22, 22), Vector3.new(0, 6, -12), P.Bone)
-	sp("Crest", Vector3.new(9, 6, 20), Vector3.new(0, 19, -11), P.BoneShade)
-	sp("Crest", Vector3.new(4.5, 4, 13), Vector3.new(0, 24, -8), P.BoneDark)
-	sp("Cheek", Vector3.new(40, 8, 13), Vector3.new(0, -4, -17), P.Bone)
-	sp("CheekShade", Vector3.new(36, 2, 12), Vector3.new(0, -8.6, -17), P.BoneShade)
+	-- cranium, dome, crest
+	sp("Cranium", Vector3.new(34, 26, 20), Vector3.new(0, 9, -10), P.Bone)
+	sp("Dome", Vector3.new(26, 6, 16), Vector3.new(0, 24, -9), P.Bone)
+	sp("Crest", Vector3.new(8, 6, 14), Vector3.new(0, 29, -8), P.BoneShade)
+	sp("Crest", Vector3.new(4, 4, 10), Vector3.new(0, 33, -6), P.BoneDark)
+	-- the face: deep sockets framed by temples, a heavy V brow and cheekbones, embers far inside
 	for _, sx in { -1, 1 } do
-		sp("Strap", Vector3.new(4, 1.2, 23), Vector3.new(sx * 10, 17.6, -11.5), P.Iron)
-		sp("Brow", Vector3.new(14, 5, 9), Vector3.new(sx * 8.5, 13.5, -26), P.BoneShade, CFrame.Angles(0, 0, math.rad(-sx * 14)))
-		sp("Socket", Vector3.new(9, 7.5, 0.6), Vector3.new(sx * 8.5, 6.5, -23.2), P.Socket, nil, { solid = false })
-		sp("Ember", Vector3.new(3.4, 2.2, 0.6), Vector3.new(sx * 8.5, 6.8, -23.6), P.Ember, nil, { neon = true, solid = false })
+		sp("EyeSocket", Vector3.new(10.5, 12, 0.3), Vector3.new(sx * 8.75, 11, -20.15), P.Socket, nil, FLAT)
+		sp("Ember", Vector3.new(3.6, 2.4, 0.4), Vector3.new(sx * 8.75, 10.5, -20.45), P.Ember, nil, { neon = true, solid = false })
+		sp("Temple", Vector3.new(4, 14, 6), Vector3.new(sx * 16, 10, -23), P.BoneShade)
+		sp("Brow", Vector3.new(18, 6, 9), Vector3.new(sx * 9, 19.5, -24.5), P.BoneShade, CFrame.Angles(0, 0, math.rad(sx * 10)))
+		sp("Cheekbone", Vector3.new(13, 5, 5), Vector3.new(sx * 11, 2.5, -22.5), P.Bone)
+		sp("CheekFlare", Vector3.new(5, 6, 8), Vector3.new(sx * 19, 2, -17), P.BoneShade)
+		sp("Strap", Vector3.new(3, 1.2, 18), Vector3.new(sx * 9, 27.6, -9), P.Iron)
 	end
-	sp("NoseBridge", Vector3.new(8, 12, 7), Vector3.new(0, 5, -26.5), P.BoneShade)
-	sp("Crack", Vector3.new(0.5, 0.4, 10), Vector3.new(-6, 17.2, -10), P.Crack, CFrame.Angles(0, math.rad(20), 0), { solid = false })
-	sp("Crack", Vector3.new(0.5, 6, 0.4), Vector3.new(11.5, -1, -23.6), P.Crack, CFrame.Angles(0, 0, math.rad(25)), { solid = false })
-	-- the long snout
-	sp("Snout", Vector3.new(22, 11, 22), Vector3.new(0, -2, -37), P.Bone)
-	sp("SnoutRidge", Vector3.new(13, 4, 18), Vector3.new(0, 5, -37), P.BoneShade)
-	sp("SnoutTip", Vector3.new(17, 9, 8), Vector3.new(0, -3, -51.5), P.Bone)
-	for _, sx in { -1, 1 } do
-		sp("Nostril", Vector3.new(3.4, 2.4, 0.6), Vector3.new(sx * 3.8, -0.5, -55.7), P.Socket, nil, { solid = false })
+	sp("BrowKnot", Vector3.new(7, 5, 8), Vector3.new(0, 17, -25), P.BoneShade)
+	sp("NoseBridge", Vector3.new(7, 10, 5), Vector3.new(0, 11, -22.5), P.Bone)
+	sp("FaceGap", Vector3.new(9, 5, 0.3), Vector3.new(0, 2.5, -20.15), P.Socket, nil, FLAT)
+	-- the muzzle with the nasal cavity (split by a thin septum) on its front and the upper teeth along its edge
+	sp("Muzzle", Vector3.new(26, 11, 12), Vector3.new(0, -6.5, -26), P.Bone)
+	sp("Nasal", Vector3.new(8, 3, 0.3), Vector3.new(0, -4.5, -32.15), P.Socket, nil, FLAT)
+	sp("Nasal", Vector3.new(4.5, 2.2, 0.3), Vector3.new(0, -2.2, -32.15), P.Socket, nil, FLAT)
+	sp("Septum", Vector3.new(1.2, 4.4, 0.5), Vector3.new(0, -3.6, -32.3), P.BoneShade, nil, FLAT)
+	sp("MouthShadow", Vector3.new(24, 14, 0.6), Vector3.new(0, -19, -22), P.Socket, nil, FLAT)
+	for i = -4, 4 do
+		local canine = math.abs(i) == 4
+		local len = canine and 8 or (math.abs(i) == 3 and 5 or 4)
+		local w = canine and 2.4 or 1.9
+		sp("Tooth", Vector3.new(w, len, w), Vector3.new(i * 2.75, -12 - len / 2, -30.8), P.Tooth)
 	end
-	-- upper fangs along the snout, longer ones with tips, incisors under the tip
-	for _, sx in { -1, 1 } do
-		for i = 0, 6 do
-			local z = -28 - i * 4
-			local long = (i == 1 or i == 4) and 8 or 5
-			local x = sx * (z < -46 and 6.5 or 9)
-			sp("Fang", Vector3.new(2, long, 2), Vector3.new(x, -7.5 - long / 2, z), P.Tooth)
-			if long > 5 then
-				sp("FangTip", Vector3.new(1, 2, 1), Vector3.new(x, -7.5 - long - 1, z), P.Tooth)
-			end
-		end
-	end
-	for _, x in { -3, 0, 3 } do
-		sp("Fang", Vector3.new(1.8, 4, 1.8), Vector3.new(x, -9.5, -53.5), P.Tooth)
-	end
-	-- the lower jaw, dropped open
-	local J = cf * CFrame.new(Vector3.new(0, -8, -16) * s) * CFrame.Angles(math.rad(-26), 0, 0)
+	sp("Crack", Vector3.new(0.5, 0.4, 10), Vector3.new(-7, 27.2, -9), P.Crack, CFrame.Angles(0, math.rad(20), 0), FLAT)
+	sp("Crack", Vector3.new(0.5, 5, 0.4), Vector3.new(9, -8, -32.3), P.Crack, CFrame.Angles(0, 0, math.rad(25)), FLAT)
+	-- the lower jaw, dropped open, teeth up
+	local J = cf * CFrame.new(Vector3.new(0, -12, -6) * s) * CFrame.Angles(math.rad(-24), 0, 0)
 	local function jp(name, size, pos, color)
 		return K.part(m, name, size * s, J * CFrame.new(pos * s), color, { studs = K.ALL, solid = false })
 	end
 	for _, sx in { -1, 1 } do
-		jp("Jaw", Vector3.new(5, 6, 36), Vector3.new(sx * 9, -3, -16), P.BoneShade)
-		for i = 0, 5 do
-			local tall = i % 3 == 1 and 6 or 4.5
-			jp("LowerFang", Vector3.new(1.8, tall, 1.8), Vector3.new(sx * 9, tall / 2, -10 - i * 4.4), P.Tooth)
-		end
+		jp("Jaw", Vector3.new(5, 5, 26), Vector3.new(sx * 10.5, -2.5, -13), P.BoneShade)
 	end
-	jp("Chin", Vector3.new(23, 6, 6), Vector3.new(0, -3, -33), P.BoneShade)
+	jp("Chin", Vector3.new(26, 5, 5), Vector3.new(0, -2.5, -26), P.BoneShade)
+	for i = -3, 3 do
+		local canine = math.abs(i) == 3
+		local len = canine and 6.5 or 4
+		local w = canine and 2.2 or 1.7
+		jp("LowerTooth", Vector3.new(w, len, w), Vector3.new(i * 3.2, len / 2, -26.6), P.Tooth)
+	end
 	-- horns: chains of tapering blocks sweeping up and back, bronze-ringed at the root; short cheek horns
 	local function chain(pts, widths, c0, c1, ring)
 		for i = 1, #pts - 1 do
@@ -754,8 +780,8 @@ function K.skull(parent, cf, s)
 		end
 	end
 	for _, sx in { -1, 1 } do
-		chain({ Vector3.new(sx * 12, 15, -10), Vector3.new(sx * 19, 23, -8), Vector3.new(sx * 24, 32, -6), Vector3.new(sx * 25, 42, -4), Vector3.new(sx * 22, 50, -3) }, { 7, 6, 4.8, 3.6 }, P.BoneShade, P.BoneDark, true)
-		chain({ Vector3.new(sx * 19, -3, -15), Vector3.new(sx * 26, 0, -13), Vector3.new(sx * 31, 5, -11) }, { 4.5, 3 }, P.BoneShade, P.BoneDark, false)
+		chain({ Vector3.new(sx * 13, 18, -8), Vector3.new(sx * 20, 26, -6), Vector3.new(sx * 25, 35, -5), Vector3.new(sx * 26, 45, -4), Vector3.new(sx * 23, 53, -3) }, { 7, 6, 4.8, 3.6 }, P.BoneShade, P.BoneDark, true)
+		chain({ Vector3.new(sx * 19, 2, -16), Vector3.new(sx * 26, 5, -14), Vector3.new(sx * 31, 10, -12) }, { 4.5, 3 }, P.BoneShade, P.BoneDark, false)
 	end
 	return m
 end

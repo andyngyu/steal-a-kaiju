@@ -64,8 +64,6 @@ local P = {
 }
 C.Palette = P
 
-local WALL_H = 45
-local WALL_T = 8
 local HALL = Vector3.new(-28, 0, 0) -- centre of the leaderboards' arc (the six floor boards stand 62 studs out)
 
 ------------------------------------------------------------------------------- helpers
@@ -145,120 +143,6 @@ local function model(parent, name)
 	return m
 end
 
--- navy board with a gold frame and gold text on its Front face (cf's look vector points at the reader);
--- WorldTextController adds the gradient and outline in game
-local function sign(parent, name, cf, w, h, text)
-	local m = model(parent, name)
-	local b = part(m, "Board", Vector3.new(w, h, 0.8), cf, P.Navy)
-	local t = 0.8
-	part(m, "Trim", Vector3.new(w + t * 2, t, 1.2), cf * CFrame.new(0, h / 2 + t / 2, 0), P.Gold, { solid = false })
-	part(m, "Trim", Vector3.new(w + t * 2, t, 1.2), cf * CFrame.new(0, -h / 2 - t / 2, 0), P.Gold, { solid = false })
-	part(m, "Trim", Vector3.new(t, h, 1.2), cf * CFrame.new(w / 2 + t / 2, 0, 0), P.Gold, { solid = false })
-	part(m, "Trim", Vector3.new(t, h, 1.2), cf * CFrame.new(-w / 2 - t / 2, 0, 0), P.Gold, { solid = false })
-	local g = Instance.new("SurfaceGui")
-	g.Face = N.Front
-	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	g.PixelsPerStud = math.clamp(math.floor(110 / h), 4, 30) -- scaled text tops out at 100 px, so ~110 px of board height
-	g.LightInfluence = 0
-	local l = Instance.new("TextLabel")
-	l.Name = "Label"
-	l.BackgroundTransparency = 1
-	l.Size = UDim2.fromScale(0.94, 0.84)
-	l.Position = UDim2.fromScale(0.03, 0.08)
-	l.Font = Enum.Font.LuckiestGuy
-	l.TextScaled = true
-	l.TextColor3 = P.Gold
-	l.Text = text
-	l.Parent = g
-	g.Parent = b
-	return m
-end
-
--- three stacked neon blocks and a warm light; pos = the bottom of the flame
-local function flame(parent, pos, s, light)
-	s = s or 1
-	local a = part(parent, "Flame", Vector3.new(3.4, 3, 3.4) * s, CFrame.new(pos + Vector3.new(0, 1.5 * s, 0)) * CFrame.Angles(0, math.rad(45), 0), P.FlameA, { neon = true, solid = false })
-	part(parent, "Flame", Vector3.new(2.3, 2.6, 2.3) * s, CFrame.new(pos + Vector3.new(0.2 * s, 3.6 * s, -0.1 * s)) * CFrame.Angles(0, math.rad(20), 0), P.FlameB, { neon = true, solid = false })
-	part(parent, "Flame", Vector3.new(1.2, 1.8, 1.2) * s, CFrame.new(pos + Vector3.new(-0.1 * s, 5.5 * s, 0.2 * s)) * CFrame.Angles(0, math.rad(60), 0), P.FlameC, { neon = true, solid = false })
-	if light ~= false then
-		local l = Instance.new("PointLight")
-		l.Color = hex("FF9A40")
-		l.Range = 18 * s
-		l.Brightness = 1.4
-		l.Shadows = false
-		l.Parent = a
-	end
-end
-
-local function brazier(parent, x, z, y0, s)
-	s = s or 1
-	local m = model(parent, "Brazier")
-	box(m, "Base", x - 2.8 * s, x + 2.8 * s, y0, y0 + 1.5 * s, z - 2.8 * s, z + 2.8 * s, P.StoneDark, { studs = ALL })
-	box(m, "Pillar", x - 1.7 * s, x + 1.7 * s, y0 + 1.5 * s, y0 + 8.5 * s, z - 1.7 * s, z + 1.7 * s, P.StoneB, { studs = SIDES })
-	box(m, "Bowl", x - 3 * s, x + 3 * s, y0 + 8.5 * s, y0 + 10.5 * s, z - 3 * s, z + 3 * s, P.StoneDark, { studs = SIDES })
-	box(m, "Rim", x - 3.3 * s, x + 3.3 * s, y0 + 10.5 * s, y0 + 11.1 * s, z - 3.3 * s, z + 3.3 * s, P.Gold, { solid = false })
-	flame(m, Vector3.new(x, y0 + 11.1 * s, z), s)
-	return m
-end
-
--- a fire bowl on a bracket sticking out of a wall face at x = xFace, pointing -X
-local function sconce(parent, xFace, z, y)
-	local m = model(parent, "Sconce")
-	box(m, "Bracket", xFace - 3, xFace, y - 2.2, y, z - 1.3, z + 1.3, P.StoneDark, { studs = ALL, solid = false })
-	box(m, "Bowl", xFace - 5.2, xFace - 0.6, y, y + 1.6, z - 2.3, z + 2.3, P.StoneDark, { studs = SIDES, solid = false })
-	box(m, "Rim", xFace - 5.4, xFace - 0.4, y + 1.6, y + 2, z - 2.5, z + 2.5, P.Gold, { solid = false })
-	flame(m, Vector3.new(xFace - 2.9, y + 2, z), 0.75)
-end
-
--- hanging banner: cf = the rod's centre, its look vector = the side the banner faces; w wide, h long, with an optional
--- colour band, a diamond emblem and a swallowtail
-local function banner(parent, cf, w, h, cloth, band, emblem)
-	local m = model(parent, "Banner")
-	part(m, "Rod", Vector3.new(w + 2, 0.8, 0.8), cf, P.Gold, { solid = false })
-	local tail = math.min(3.5, h * 0.18)
-	local body = h - tail
-	part(m, "Cloth", Vector3.new(w, body, 0.4), cf * CFrame.new(0, -body / 2 - 0.4, 0), cloth, { solid = false })
-	for _, sx in { -1, 1 } do
-		part(m, "Tail", Vector3.new(w * 0.4, tail, 0.4), cf * CFrame.new(sx * w * 0.3, -body - 0.4 - tail / 2, 0), cloth, { solid = false })
-	end
-	if band then
-		part(m, "Band", Vector3.new(w, math.max(1, h * 0.1), 0.5), cf * CFrame.new(0, -h * 0.16, -0.05), band, { solid = false })
-	end
-	if emblem then
-		local e = math.min(w * 0.42, h * 0.2)
-		part(m, "Emblem", Vector3.new(e, e, 0.5), cf * CFrame.new(0, -h * 0.46, -0.05) * CFrame.Angles(0, 0, math.rad(45)), emblem, { solid = false })
-	end
-	return m
-end
-
--- a row of battlement blocks from p0 to p1 (y ignored): mw long, mh tall, md deep, about gap apart
-local function merlonLine(parent, p0, p1, y0, mw, mh, md, color, gap)
-	local d = Vector3.new(p1.X - p0.X, 0, p1.Z - p0.Z)
-	local len = d.Magnitude
-	if len < mw then
-		return
-	end
-	local dir = d.Unit
-	local n = math.max(1, math.floor((len + gap) / (mw + gap)))
-	local step = n > 1 and (len - mw) / (n - 1) or 0
-	for i = 0, n - 1 do
-		local c = Vector3.new(p0.X, y0 + mh / 2, p0.Z) + dir * (mw / 2 + i * step)
-		part(parent, "Merlon", Vector3.new(mw, mh, md), CFrame.lookAt(c, c + dir) * CFrame.Angles(0, math.rad(90), 0), color, { studs = ALL })
-	end
-end
-
--- battlements round a rectangle (centre cx, cz; half sizes hx, hz); every corner is covered exactly once
-local function merlonRect(parent, cx, cz, hx, hz, y, mw, mh, md, color)
-	local c = { Vector3.new(cx - hx, 0, cz - hz), Vector3.new(cx + hx, 0, cz - hz), Vector3.new(cx + hx, 0, cz + hz), Vector3.new(cx - hx, 0, cz + hz) }
-	local centre = Vector3.new(cx, 0, cz)
-	for i = 1, 4 do
-		local a, b = c[i], c[i % 4 + 1]
-		local dir = (b - a).Unit
-		local inward = (centre - (a + b) / 2).Unit
-		merlonLine(parent, a + inward * md / 2, b + inward * md / 2 - dir * md, y, mw, mh, md, color, 2.5)
-	end
-end
-
 ------------------------------------------------------------------------------- ground
 -- 12-stud checker tiles (same grid and greens as before) over x -120..302, z -160..160; the avenue (x > 0, |z| < 20) and
 -- the hall floor (inside 74 studs of the leaderboards' centre, west of the market) are paved in two-tone stone.
@@ -294,109 +178,7 @@ local function buildGround(map)
 	end
 end
 
-------------------------------------------------------------------------------- walls
--- straight curtain wall along the line a -> b (ground level), outward = unit vector away from the courtyard
-local function curtain(parent, name, a, b, outward, accents, o)
-	o = o or {}
-	local m = model(parent, name)
-	local T = WALL_T
-	local L = (b - a).Magnitude
-	local mid = (a + b) / 2
-	local frame = CFrame.lookAt(mid, mid + outward) -- local +Z faces the courtyard, local X runs along the wall
-	local function lp(nm, size, pos, color, opt)
-		return part(m, nm, size, frame * CFrame.new(pos), color, opt)
-	end
-	lp("Wall", Vector3.new(L, WALL_H, T), Vector3.new(0, WALL_H / 2, 0), P.StoneA, { studs = { N.Back, N.Top } })
-	lp("Base", Vector3.new(L, 5, 1.2), Vector3.new(0, 2.5, T / 2 + 0.6), P.StoneDark, { studs = { N.Back, N.Top } })
-	lp("Course", Vector3.new(L, 2, 1.2), Vector3.new(0, 35, T / 2 + 0.6), P.StoneDark, { studs = { N.Back, N.Top }, solid = false })
-	lp("Coping", Vector3.new(L, 1.5, T + 1.2), Vector3.new(0, WALL_H + 0.75, 0), P.StoneB, { studs = { N.Back, N.Top } })
-	local edge = -T / 2 + 1.25
-	merlonLine(m, frame:PointToWorldSpace(Vector3.new(-L / 2, 0, edge)), frame:PointToWorldSpace(Vector3.new(L / 2, 0, edge)), WALL_H + 1.5, 4, 5, 2.5, P.StoneA, 3)
-	local bays = math.max(1, math.floor(L / 36 + 0.5))
-	local bay = L / bays
-	for i = 0, bays do
-		lp("Pilaster", Vector3.new(4, 34, 1.6), Vector3.new(-L / 2 + i * bay, 17, T / 2 + 0.8), P.StoneB, { studs = { N.Back, N.Left, N.Right } })
-	end
-	if accents then
-		local k = o.colorPhase or 0
-		for i = 0, bays - 1 do
-			local x = -L / 2 + (i + 0.5) * bay
-			local world = frame:PointToWorldSpace(Vector3.new(x, 0, 0))
-			local hidden = o.skip and o.skip(world)
-			if i % 2 == 0 and not hidden then
-				k += 1
-				banner(m, frame * CFrame.new(x, 33.2, T / 2 + 1.4) * CFrame.Angles(0, math.pi, 0), 8, 18, P.Navy, accents[(k - 1) % #accents + 1], P.Gold)
-			end
-		end
-	end
-	return m
-end
-
-local function buildWalls(root, map, ctx)
-	local f = folder(root, "Walls")
-	local A = ctx.accents
-	curtain(f, "WallNorth", Vector3.new(-124, 0, 162), Vector3.new(304, 0, 162), Vector3.new(0, 0, 1), A, { colorPhase = 0 })
-	curtain(f, "WallSouth", Vector3.new(-124, 0, -162), Vector3.new(304, 0, -162), Vector3.new(0, 0, -1), A, { colorPhase = 3 })
-	-- the west wall runs into the Keep's front corner towers (z +-71)
-	curtain(f, "WallWestN", Vector3.new(-120, 0, 70), Vector3.new(-120, 0, 166), Vector3.new(-1, 0, 0), A, { colorPhase = 5 })
-	curtain(f, "WallWestS", Vector3.new(-120, 0, -166), Vector3.new(-120, 0, -70), Vector3.new(-1, 0, 0), A, { colorPhase = 6 })
-	curtain(f, "WallEastN", Vector3.new(300, 0, 92), Vector3.new(300, 0, 166), Vector3.new(1, 0, 0), A, { colorPhase = 1 })
-	curtain(f, "WallEastS", Vector3.new(300, 0, -166), Vector3.new(300, 0, -92), Vector3.new(1, 0, 0), A, { colorPhase = 2 })
-end
-
-------------------------------------------------------------------------------- towers
--- square tower: plinth, body, band, arrow slits, corbelled top with battlements, stepped navy roof, gold finial and flag
-local function tower(parent, cx, cz, W, H, flagColor, o)
-	o = o or {}
-	local m = model(parent, o.name or "Tower")
-	local h2 = W / 2
-	box(m, "Plinth", cx - h2 - 1.5, cx + h2 + 1.5, 0, 6, cz - h2 - 1.5, cz + h2 + 1.5, P.StoneDark, { studs = ALL })
-	box(m, "Body", cx - h2, cx + h2, 6, H, cz - h2, cz + h2, P.StoneA, { studs = SIDES })
-	local bandY = math.floor(H * 0.5)
-	box(m, "Band", cx - h2 - 0.6, cx + h2 + 0.6, bandY, bandY + 2, cz - h2 - 0.6, cz + h2 + 0.6, P.StoneDark, { studs = ALL, solid = false })
-	for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-		local x, z = cx + d[1] * (h2 + 0.1), cz + d[2] * (h2 + 0.1)
-		for _, y in { H * 0.32, H * 0.74 } do
-			part(m, "Slit", Vector3.new(d[1] ~= 0 and 0.4 or 1.6, 6, d[2] ~= 0 and 0.4 or 1.6), CFrame.new(x, y, z), P.Navy, { solid = false })
-		end
-	end
-	local cw = h2 + 1.6
-	box(m, "Corbel", cx - cw, cx + cw, H, H + 3, cz - cw, cz + cw, P.StoneB, { studs = ALLB })
-	merlonRect(m, cx, cz, cw, cw, H + 3, 3, 4.5, 2.5, P.StoneA)
-	local steps, stepH = o.steps or 4, o.stepH or 4.5
-	for i = 0, steps - 1 do
-		local w = (W - 3) * (1 - i / (steps + 0.6))
-		box(m, "Roof", cx - w / 2, cx + w / 2, H + 3 + i * stepH, H + 3 + (i + 1) * stepH, cz - w / 2, cz + w / 2, i % 2 == 0 and P.Navy or P.NavyLight, { studs = ALL })
-	end
-	local top = H + 3 + steps * stepH
-	box(m, "Finial", cx - 1.2, cx + 1.2, top, top + 3, cz - 1.2, cz + 1.2, P.Gold, { studs = ALL })
-	box(m, "FlagPole", cx - 0.35, cx + 0.35, top + 3, top + 13, cz - 0.35, cz + 0.35, P.GoldDeep, { solid = false })
-	box(m, "Flag", cx + 0.35, cx + 7.35, top + 8.6, top + 12.6, cz - 0.15, cz + 0.15, flagColor, { solid = false })
-	return m
-end
-
-local function buildTowers(root, map, ctx)
-	local f = folder(root, "Towers")
-	local list = {
-		{ -120, 162, 24, 62 },
-		{ -120, -162, 24, 62 },
-		{ 300, 162, 24, 62 },
-		{ 300, -162, 24, 62 },
-		{ -15, 162, 22, 58 },
-		{ 90, 162, 22, 58 },
-		{ 195, 162, 22, 58 },
-		{ -15, -162, 22, 58 },
-		{ 90, -162, 22, 58 },
-		{ 195, -162, 22, 58 },
-		{ -120, 118, 22, 58 },
-		{ -120, -118, 22, 58 },
-	}
-	for i, t in list do
-		tower(f, t[1], t[2], t[3], t[4], ctx.accents[(i - 1) % #ctx.accents + 1])
-	end
-end
-
--- the Grand Gate and the Keep are in the child modules Gate and Keep (shared kit: Kit)
+-- the walls and towers are in the child module Walls; the Grand Gate and the Keep in Gate and Keep (shared kit: Kit)
 
 ------------------------------------------------------------------------------- Hall of Champions
 local function buildHall(root, map, ctx)
@@ -687,7 +469,7 @@ local function buildBackdrop(root, map, ctx)
 		end
 	end
 	for z = -340, 339, 30 do
-		if z + 30 <= -70 or z >= 70 then -- the Keep stands in the middle
+		if z + 30 <= -85 or z >= 85 then -- the Keep stands in the middle
 			hill(-250, -130, z, z + 30, hillHeight(-190, z, 50, 86, 3), 1)
 		end
 		hill(-340, -250, z, z + 30, hillHeight(-300, z, 96, 150, 4), 2)
