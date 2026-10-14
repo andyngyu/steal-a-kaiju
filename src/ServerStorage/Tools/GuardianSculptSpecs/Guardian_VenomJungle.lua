@@ -3,10 +3,10 @@ local GK = require(script.Parent.GuardianKit)
 local H = GK.H
 
 -- Venom Jungle guardian: Thornmaw, a tyrant grown out of the jungle floor. A towering rex in deep jungle green, banded
--- dark down the back, its jaws turned into a flytrap: a magenta maw rimmed with long pale cilia, lime nectar dripping
--- from the lips. A ruff of poison-purple petals with glowing tips fans behind the skull under two thorn horns. Bark
--- armour on the shoulders and thighs, moss on the back, big thorns down the spine over a glowing lime seam, vines wound
--- round the limbs and tail, and a thorned seed pod for a tail club.
+-- dark down the back, its head one great flytrap: two leaf-shaped jaws lined with long spines, glowing magenta inside,
+-- lime nectar dripping from them, hinged on a heavy bulb with small lime eyes under a bark brow and two thorn horns.
+-- Jagged thorn petals frame the head, angled forward. Bark armour on the shoulders and thighs, moss on the back, big
+-- thorns down the spine over a glowing lime seam, vines wound round the limbs and tail, a thorned seed-pod tail club.
 return {
 	Seed = 431,
 	Vary = 0.06,
@@ -25,7 +25,7 @@ return {
 		Bark = { "4A3420", Material = "Wood" },
 		BarkDark = { "2E2014", Material = "Wood" },
 		Moss = "5E8C2E",
-		Maw = "B0245E",
+		Maw = { "D0307A", Neon = true },
 		MawDeep = "5A1030",
 		Cilia = "D6DC8A",
 		Nectar = { "B6FF3A", Neon = true },
@@ -69,7 +69,6 @@ return {
 			tiles = { torso = H.plates(0.66), neck = H.plates(0.6), tail = H.plates(0.52, 5) },
 			thighArmour = "Bark",
 			brow = "BarkDark",
-			mouthGlow = "Maw",
 			tailTip = { "Pod", "Thorn" },
 			headScale = 1.12,
 			crest = function(K, torso, neck, tail)
@@ -89,48 +88,37 @@ return {
 					end
 				end
 			end,
-			head = function(K, hcf, hp, hv)
-				-- the flytrap: a magenta lining inside the upper jaw, long pale cilia down both lips, nectar drips
+			headBuild = function(K, HEAD, hcf, hp, hv)
+				-- the head is a flytrap: a heavy bulb under a bark brow (small lime eyes), two great leaf jaws hinged on it
+				K:block("Head", "Hide", hcf(0, 0.12, -0.1), Vector3.new(1.04, 0.96, 0.8))
+				K:block("Head", "HideDark", hcf(0, -0.1, 0.1), Vector3.new(0.9, 0.7, 0.6))
+				K:block("Head", "Back", hcf(0, 0.6, -0.12, -10, 0, 0), Vector3.new(0.86, 0.16, 0.66))
 				for _, x in { 1, -1 } do
-					K:block("Head", "Maw", hcf(0.3 * x, -0.13, -1.0), Vector3.new(0.06, 0.16, 1.4))
-					for z = -0.32, -1.74, -0.17 do
-						local len = 0.34 + 0.12 * math.sin((z + 0.3) * 2.2) ^ 2
-						K:chain("Head", { "Cilia", "Cilia" }, hp(0.44 * x, -0.12, z), hv(0.32 * x, -1, -0.06), hv(0, 0, 1), { n = 2, len = len, w0 = 0.07, w1 = 0.045 })
-					end
-					K:block("Head", "Nectar", hcf(0.24 * x, -0.34, -1.36), Vector3.new(0.05, 0.24, 0.05))
-					K:block("Head", "Nectar", hcf(0.3 * x, -0.3, -0.7), Vector3.new(0.04, 0.16, 0.04))
-					-- two thorn horns sweeping back over the skull
-					H.curve(K, "Head", { "Bark", "Thorn", "ThornTip" }, { hp(0.34 * x, 0.62, -0.5), hp(0.56 * x, 0.98, -0.4), hp(0.66 * x, 1.24, -0.1), hp(0.6 * x, 1.38, 0.26) }, 0.2, 0.06, 0.14)
+					K:block("Head", "BarkDark", hcf(0.34 * x, 0.6, -0.42, -8, -14 * x, 24 * x), Vector3.new(0.42, 0.2, 0.42))
+					H.eye(K, "Head", hcf(0.42 * x, 0.44, -0.46, 0, -34 * x, 12 * x), 0.16, 0.05)
+					H.curve(K, "Head", { "Bark", "Thorn", "ThornTip" }, { hp(0.34 * x, 0.64, -0.2), hp(0.56 * x, 1.0, -0.1), hp(0.66 * x, 1.26, 0.2), hp(0.6 * x, 1.4, 0.56) }, 0.22, 0.06, 0.14)
 				end
-				-- a ruff of poison-purple petals with glowing tips fanned behind the skull
-				local N = 9
+				local UF, LF = H.flytrap(K, { head = "Head", jaw = "Jaw", frame = HEAD * CFrame.new(0, -0.1, -0.36), size = 1.35, open = 28, keys = { shell = "Hide", shellDark = "HideDark", glow = "Maw", deep = "MawDeep", spine = "Cilia", spineTip = "ThornTip" } })
+				-- nectar dripping from both jaws
+				for _, d in { { 0.3, -0.9 }, { -0.36, -1.4 }, { 0.1, -1.8 } } do
+					K:block("Head", "Nectar", UF * CFrame.new(d[1], -0.2, d[2]), Vector3.new(0.06, 0.32, 0.06))
+					K:block("Jaw", "Nectar", LF * CFrame.new(-d[1], -0.14, d[2] + 0.2), Vector3.new(0.06, 0.24, 0.06))
+				end
+				-- jagged thorn petals framing the head, angled forward
+				local N = 10
 				for i = 0, N - 1 do
-					local a = rad(-104 + 208 * i / (N - 1))
-					local base = hp(math.sin(a) * 0.42, 0.42 + math.cos(a) * 0.22, 0.14)
-					local d = hv(math.sin(a) * 1.1, math.cos(a) * 0.95, 0.5)
-					local L = 1.0 + (math.cos(a) > 0.4 and 0.16 or 0)
-					local key = i % 2 == 0 and "Petal" or "PetalDark"
-					K:block("Head", key, CFrame.lookAt(base + d * L * 0.5, base + d * 2, hv(0, 0, 1)), Vector3.new(0.48, 0.06, L))
-					K:block("Head", key, CFrame.lookAt(base + d * L * 0.86, base + d * 2, hv(0, 0, 1)), Vector3.new(0.3, 0.06, L * 0.3))
-					K:block("Head", "Thorn", CFrame.lookAt(base + d * L * 0.45 + hv(0, 0, 1) * 0.04, base + d * 2, hv(0, 0, 1)), Vector3.new(0.07, 0.05, L * 0.8))
-					K:block("Head", "Nectar", CFrame.lookAt(base + d * (L + 0.02), base + d * 2, hv(0, 0, 1)), Vector3.new(0.1, 0.07, 0.1))
-				end
-				-- vines hanging from the cheeks
-				for _, x in { 1, -1 } do
-					H.curve(K, "Head", { "Vine", "Vine", "Leaf" }, { hp(0.52 * x, -0.02, -0.2), hp(0.6 * x, -0.4, -0.12), hp(0.56 * x, -0.78, -0.02) }, 0.1, 0.06, 0.12)
-				end
-			end,
-			jawExtra = function(K, jcf)
-				local J = jcf(0, 0, 0)
-				for _, x in { 1, -1 } do
-					K:block("Jaw", "Maw", jcf(0.36 * x, 0.04, -0.9), Vector3.new(0.06, 0.16, 1.3))
-					for z = -0.4, -1.6, -0.17 do
-						K:chain("Jaw", { "Cilia", "Cilia" }, J * Vector3.new(0.42 * x, 0.0, z), J:VectorToWorldSpace(Vector3.new(0.32 * x, 1, 0.04)), J:VectorToWorldSpace(Vector3.zAxis), { n = 2, len = 0.38, w0 = 0.07, w1 = 0.045 })
+					local a = rad(-120 + 240 * i / (N - 1))
+					local base = hp(math.sin(a) * 0.5, 0.16 + math.cos(a) * 0.46, 0.02)
+					local d = hv(math.sin(a) * 1.0, math.cos(a) * 0.9, -0.55)
+					local tangent = hv(math.cos(a), -math.sin(a), 0)
+					local L = 1.2 + (math.cos(a) > 0.3 and 0.2 or 0)
+					K:chain("Head", { "PetalDark", "Petal", "Petal", "ThornTip" }, base, d, tangent, { n = 4, len = L, w0 = 0.42, w1 = 0.12, bend = 12, depth = 0.25 })
+					for k, f in { 0.35, 0.65 } do
+						local p = base + d * L * f
+						local side = tangent * (k == 1 and 1 or -1)
+						K:spike("Head", "Thorn", p, (side + d * 0.5).Unit, d, 0.24, 0.07)
 					end
 				end
-				K:block("Jaw", "MawDeep", jcf(0, 0.02, -0.7), Vector3.new(0.5, 0.04, 0.9))
-				K:block("Jaw", "Nectar", jcf(0.12, -0.42, -1.48), Vector3.new(0.06, 0.28, 0.06))
-				K:block("Jaw", "Nectar", jcf(-0.18, -0.38, -1.1), Vector3.new(0.05, 0.2, 0.05))
 			end,
 			extras = function(K, parts)
 				for _, x in { 1, -1 } do
