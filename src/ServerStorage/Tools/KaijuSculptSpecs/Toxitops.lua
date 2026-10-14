@@ -4,8 +4,9 @@ local H = require(script.Parent.Helpers)
 -- Venom Jungle / Legendary / poison: a venom ceratopsian. A massive horned dinosaur on pillar legs, its head carried
 -- low behind a huge blooming frill: a fan of poison petals (purple and magenta, glowing lime veins and edges) over a
 -- ring of bony spikes, glowing venom sacs at the petals' roots. Three great horns (two over the brows, one on the nose)
--- stained purple at the tips. Moss-green scaled hide, bark-brown armour scutes down the back and tail, glowing lime
--- venom veins, a pale belly. Face: a hooked beak dripping venom, a heavy brow over small lime eyes.
+-- stained purple at the tips. Scaled hide shading from dark bark and jungle green on the back to light moss and a pale
+-- belly, bark-brown armour scutes down the back and tail, glowing lime venom seams sunk in the flanks. Face: a hooked
+-- beak dripping venom over a mouth glowing deep inside, a heavy brow over small lime eyes.
 local HEAD = CFrame.new(0, 1.8, -1.86) * CFrame.Angles(rad(-14), 0, 0)
 local HINGE = Vector3.new(0, -0.24, -0.4)
 
@@ -16,28 +17,31 @@ return {
 	Gait = "Amble",
 	Emotes = { "Look", "Wiggle" },
 	Palette = {
-		Hide = { "5E7E40", Material = "Slate" },
-		HideDark = { "40582E", Material = "Slate" },
-		HideLight = { "82A258", Material = "Slate" },
-		Back = { "5A4630", Material = "Wood" },
-		Belly = "C2BC88",
-		Belly2 = "A8A270",
+		Hide = { "52783A", Material = "Slate" },
+		HideDark = { "2E4A24", Material = "Slate" },
+		HideLight = { "8CAE5E", Material = "Slate" },
+		Back = { "3A2A1C", Material = "Wood" },
+		Belly = "D8D2A2",
+		Belly2 = "C0BA88",
+		SeamLip = { "1C2814", Material = "Slate" },
+		Groove = "2A0E40",
 		Scute = { "6A5A40", Material = "Slate" },
 		ScuteLight = { "8E7C58", Material = "Slate" },
 		Petal = "7A2CC0",
 		PetalDark = "52208A",
 		Petal2 = "B8308A",
-		VeinGlow = { "B4FF3A", Neon = true },
+		VeinGlow = { "58D22E", Neon = true },
 		Horn = "E2D8B4",
 		HornBase = "9A8C66",
 		HornTip = "8A3CC0",
 		Sac = { "9A3CE0", Neon = true },
-		SacCore = { "B4FF3A", Neon = true },
-		Drip = { "9DFF3A", Neon = true },
+		SacCore = { "58D22E", Neon = true },
+		Drip = { "58D22E", Neon = true },
 		Beak = "2E2620",
 		Tooth = "E2DAC0",
-		Mouth = { "7CF03A", Neon = true },
-		Eye = { "C6FF3A", Neon = true },
+		Mouth = "2A1A12",
+		MouthGlow = { "58D22E", Neon = true },
+		Eye = { "6FE83A", Neon = true },
 		Socket = "0C1008",
 		Claw = "262018",
 		ClawTip = "8A8068",
@@ -53,7 +57,7 @@ return {
 	},
 	Parents = { Jaw = "Head" },
 	Build = function(K)
-		local skin = H.skin({ stripe = 40, band = 84, flank = 110, every = 2 })
+		local skin = H.skin({ stripe = 36, band = 68, flank = 104, every = 2, upper = "HideDark" })
 		local crust = { w = 0.56, l = 0.38, t = 0.13, lift = 5, jitter = 2.5, sink = 0.5, overlap = 0.9 }
 		local belly = { key = "Belly", key2 = "Belly2", arc = 46, t = 0.12, wide = 1.1 }
 		-- a massive body, the hips higher than the shoulders
@@ -72,7 +76,7 @@ return {
 			end
 		end
 		for _, x in { 1, -1 } do
-			H.vein(K, "Body", "VeinGlow", body, rad(80) * x, 0.1, body.total - 0.1, { width = 0.07, height = 0.08, lift = 0.02, wander = 16, forks = 2 })
+			H.vein(K, "Body", "VeinGlow", body, rad(82) * x, 0.1, body.total - 0.1, { width = 0.07, height = 0.12, lift = 0.05, wander = 14, forks = 2, lip = "SeamLip", lipW = 0.07 })
 		end
 		-- a thick armoured tail
 		local tail = K:tube("Tail", {
@@ -122,6 +126,7 @@ return {
 		K:block("Head", "Beak", hcf(0, -0.08, -1.3), Vector3.new(0.44, 0.42, 0.38))
 		K:block("Head", "Beak", hcf(0, -0.26, -1.48, 30, 0, 0), Vector3.new(0.32, 0.24, 0.22))
 		K:block("Head", "Mouth", hcf(0, -0.28, -0.9), Vector3.new(0.46, 0.04, 0.64))
+		K:block("Head", "MouthGlow", hcf(0, -0.3, -0.62), Vector3.new(0.2, 0.03, 0.24))
 		-- venom dripping from the beak
 		for _, d in { { 0.12, 0.24 }, { -0.1, 0.32 }, { 0.02, 0.18 } } do
 			K:block("Head", "Drip", CFrame.new(hp(d[1], -0.4 - d[2] / 2, -1.5)), Vector3.new(0.05, d[2], 0.05))
@@ -154,8 +159,9 @@ return {
 				local c = base + dir * len * seg[1]
 				K:block("Head", key, CFrame.fromMatrix(c, across, nrm), Vector3.new(seg[2], 0.08, len * 0.3))
 			end
-			-- the glowing vein down the middle and the glowing tip
-			K:block("Head", "VeinGlow", CFrame.fromMatrix(base + dir * len * 0.5 + nrm * 0.045, across, nrm), Vector3.new(0.05, 0.03, len * 0.72))
+			-- the glowing vein down the middle, in a dark groove, and the glowing tip
+			K:block("Head", "Groove", CFrame.fromMatrix(base + dir * len * 0.5 + nrm * 0.04, across, nrm), Vector3.new(0.12, 0.03, len * 0.74))
+			K:block("Head", "VeinGlow", CFrame.fromMatrix(base + dir * len * 0.5 + nrm * 0.05, across, nrm), Vector3.new(0.045, 0.03, len * 0.7))
 			K:spike("Head", "VeinGlow", base + dir * len * 0.96, (dir + nrm * 0.3).Unit, across, 0.16, 0.06)
 			-- bony spike behind it
 			K:chain("Head", { "HornBase", "Horn" }, base - nrm * 0.06, (dir - nrm * 0.15).Unit, across, { n = 2, len = len * 0.62, w0 = 0.14, w1 = 0.08, bend = 0 })
@@ -172,6 +178,7 @@ return {
 		K:block("Jaw", "Beak", JAW * CFrame.new(0, -0.08, -0.98), Vector3.new(0.36, 0.2, 0.26))
 		K:block("Jaw", "Belly", JAW * CFrame.new(0, -0.21, -0.44), Vector3.new(0.44, 0.04, 0.7))
 		K:block("Jaw", "Mouth", JAW * CFrame.new(0, 0.01, -0.52), Vector3.new(0.42, 0.04, 0.74))
+		K:block("Jaw", "MouthGlow", JAW * CFrame.new(0, 0.03, -0.36), Vector3.new(0.18, 0.03, 0.26))
 		K:block("Jaw", "Drip", JAW * CFrame.new(0.08, -0.34, -1.02), Vector3.new(0.05, 0.22, 0.05))
 	end,
 }
