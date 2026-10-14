@@ -185,7 +185,8 @@ end
 --   crest(K, torso, neck, tail) for the spine, head(K, hcf, hp, hv) for horns / extras on the head,
 --   jawExtra(K, jcf), extras(K, parts) for everything else (parts = { torso, neck, tail, thighs = { L, R } }),
 --   thighArmour (key), brow (key), mouthGlow (key for the palate / tongue), legCore / footCore (keys), tailTip (keys),
---   headScale (the head and jaw scaled about the head's origin), neckScale (neck radii)
+--   headScale (the head and jaw scaled about the head's origin), neckScale (neck radii), headBuild(K, HEAD, hcf, hp, hv)
+--   (a head of the species' own instead of the rex skull and jaw: it builds groups Head and Jaw itself)
 H.REX_HEAD = CFrame.new(0, 3.66, -1.5) * CFrame.Angles(rad(-8), 0, 0)
 H.REX_HINGE = Vector3.new(0, -0.16, -0.2)
 H.REX_JOINTS = {
@@ -273,6 +274,10 @@ function H.rex(K, P)
 		return HEAD:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
 	end
 	K:scaled(HEAD.Position, P.headScale or 1, function()
+	if P.headBuild then
+		P.headBuild(K, HEAD, hcf, hp, hv)
+		return
+	end
 	K:block("Head", "Hide", hcf(0, 0.22, -0.38), Vector3.new(1.02, 0.72, 0.84))
 	K:block("Head", "Hide", hcf(0, 0.12, -1.08), Vector3.new(0.84, 0.52, 0.8))
 	K:block("Head", "Hide", hcf(0, 0.07, -1.62, -4, 0, 0), Vector3.new(0.7, 0.44, 0.42))
@@ -954,6 +959,39 @@ function H.bipedArms(K, P)
 		H.claws(K, g, hp + fwd * hs.Z * 0.45, fwd, Vector3.xAxis, { n = c.n or 3, spread = c.spread or hs.X * 0.7, fan = c.fan or 26, len = c.len or 0.34, w = c.w or 0.07, curl = c.curl or 30 })
 	end
 	return out
+end
+
+-- A flytrap maw: two big leaf-shaped lobes hinged at the back of P.frame (facing -Z), the upper one in group P.head and
+-- the lower in P.jaw, each opened P.open degrees: a domed shell outside, glowing inside, long spines down every rim
+-- leaning in so they interlock when it snaps shut. P = { head, jaw, frame, size, open, keys = { shell, shellDark, glow,
+-- deep, spine, spineTip } }. Returns the upper and lower lobe frames.
+function H.flytrap(K, P)
+	local s = P.size or 1
+	local k = P.keys
+	local SEGS = { { -0.16, 0.62 }, { -0.5, 0.96 }, { -0.86, 1.08 }, { -1.2, 0.88 }, { -1.46, 0.52 } }
+	local function lobe(group, F, up)
+		for i, seg in SEGS do
+			local z, w = seg[1] * s, seg[2] * s
+			K:block(group, i % 2 == 0 and k.shellDark or k.shell, F * CFrame.new(0, up * 0.09 * s, z), Vector3.new(w, 0.16 * s, 0.38 * s))
+			K:block(group, k.shell, F * CFrame.new(0, up * 0.2 * s, z), Vector3.new(w * 0.56, 0.1 * s, 0.36 * s))
+			K:block(group, k.glow, F * CFrame.new(0, 0, z), Vector3.new(w * 0.86, 0.04 * s, 0.38 * s))
+			for _, x in { 1, -1 } do
+				for _, dz in { -0.09, 0.09 } do
+					local base = F * Vector3.new(x * w * 0.47, 0, z + dz * s)
+					local dir = F:VectorToWorldSpace(Vector3.new(x * 0.45, -up * 0.85, -0.12)).Unit
+					K:chain(group, { k.spine, k.spineTip }, base, dir, F:VectorToWorldSpace(Vector3.zAxis), { n = 2, len = 0.46 * s, w0 = 0.07 * s, w1 = 0.045 * s, bend = 0 })
+				end
+			end
+		end
+		K:chain(group, { k.spine, k.spineTip }, F * Vector3.new(0, 0, -1.62 * s), F:VectorToWorldSpace(Vector3.new(0, -up * 0.5, -1)).Unit, F:VectorToWorldSpace(Vector3.xAxis), { n = 2, len = 0.4 * s, w0 = 0.08 * s, w1 = 0.05 * s, bend = 0 })
+		K:block(group, k.deep, F * CFrame.new(0, -up * 0.02, -0.06 * s), Vector3.new(0.5 * s, 0.05 * s, 0.24 * s))
+	end
+	local open = rad(P.open or 26)
+	local UF = P.frame * CFrame.Angles(open, 0, 0)
+	local LF = P.frame * CFrame.Angles(-open, 0, 0)
+	lobe(P.head, UF, 1)
+	lobe(P.jaw, LF, -1)
+	return UF, LF
 end
 
 -- a rounded stone dome laid on a surface (pebble armour): three stacked slabs stepping in like a river stone
