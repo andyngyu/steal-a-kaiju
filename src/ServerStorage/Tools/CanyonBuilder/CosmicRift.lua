@@ -1,4 +1,5 @@
--- Cosmic Rift (x 1577..1877), built by CanyonBuilder.NewBiome: the world's last canyon, where the sky has torn open.
+-- Cosmic Rift, built by CanyonBuilder.NewBiome: the world's last canyon, where the sky has torn open. The layout below
+-- was drawn for x 1577..1877 and is laid onto the lane with T.stretch; the Void Gate end is placed from the lane's end.
 --   Ground     violet-black crystal sand with nebula stains and glinting specks; Storm slate fading out at the border; a
 --              path of dark glowing tiles; pools of liquid starlight
 --   Crystals   neon crystal clusters (violet, pink, cyan) in the pockets, a grove of giant ones in the north, crystals on
@@ -14,6 +15,7 @@ local hex = Color3.fromHex
 return function(b, K, T)
 	local P = K.P
 	local XA, XB = b.x0, b.x1
+	local X, U, KX = T.stretch(1577, 1877, XA, XB)
 	local NX = XA + (b.NestAt or 0.55) * (XB - XA)
 	local C, rng
 
@@ -40,7 +42,7 @@ return function(b, K, T)
 	local DARK = hex("221A40")
 
 	---------------------------------------------------------------- layout
-	local POOLS = { { 1616, -70, 8 }, { 1690, 62, 7 }, { 1806, -48, 7 }, { 1642, 42, 6 } }
+	local POOLS = T.at({ { 1616, -70, 8 }, { 1690, 62, 7 }, { 1806, -48, 7 }, { 1642, 42, 6 }, { 1764, 58, 6 }, { 1704, -56, 7 } }, X)
 	local function liquidGap(x, z)
 		local g = math.huge
 		for _, p in POOLS do
@@ -49,8 +51,8 @@ return function(b, K, T)
 		end
 		return g
 	end
-	local RING = { x = 1859, y = 44, R = 50 } -- the Void Gate
-	local DAIS0 = 1834
+	local RING = { x = XB - 18, y = 44, R = 50 } -- the Void Gate
+	local DAIS0 = XB - 43
 
 	---------------------------------------------------------------- shapes
 	local function crystals(parent, at, s, n, look, o)
@@ -129,14 +131,15 @@ return function(b, K, T)
 		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.5,
-		edgeN = { { 1577, 65 }, { 1588, 66 }, { 1600, 76 }, { 1616, 88 }, { 1634, 90 }, { 1648, 76 }, { 1662, 66 }, { 1676, 70 }, { 1690, 82 }, { 1706, 92 }, { 1778, 92 }, { 1792, 80 }, { 1806, 70 }, { 1820, 76 }, { 1834, 84 }, { 1850, 80 }, { 1866, 74 }, { 1877, 72 } },
-		edgeS = { { 1577, 65 }, { 1590, 64 }, { 1604, 72 }, { 1620, 84 }, { 1636, 86 }, { 1650, 72 }, { 1664, 64 }, { 1678, 68 }, { 1694, 80 }, { 1710, 90 }, { 1774, 90 }, { 1790, 76 }, { 1804, 66 }, { 1818, 72 }, { 1834, 82 }, { 1850, 78 }, { 1866, 74 }, { 1877, 72 } },
+		edgeN = T.at({ { 1577, 65 }, { 1588, 66 }, { 1600, 76 }, { 1616, 88 }, { 1634, 90 }, { 1648, 76 }, { 1662, 66 }, { 1676, 70 }, { 1690, 82 }, { 1706, 92 }, { 1778, 92 }, { 1792, 80 }, { 1806, 70 }, { 1820, 76 }, { 1834, 84 }, { 1850, 80 }, { 1866, 74 }, { 1877, 72 } }, X),
+		edgeS = T.at({ { 1577, 65 }, { 1590, 64 }, { 1604, 72 }, { 1620, 84 }, { 1636, 86 }, { 1650, 72 }, { 1664, 64 }, { 1678, 68 }, { 1694, 80 }, { 1710, 90 }, { 1774, 90 }, { 1790, 76 }, { 1804, 66 }, { 1818, 72 }, { 1834, 82 }, { 1850, 78 }, { 1866, 74 }, { 1877, 72 } }, X),
 		paths = {
-			{ { 1577, 0, 14 }, { 1594, 6, 12 }, { 1612, 10, 12 }, { 1630, 2, 12 }, { 1648, -8, 12 }, { 1666, -10, 12 }, { 1684, -4, 12 }, { 1702, 2, 12 }, { 1725, 0, 12 } },
-			{ { 1725, 0, 8 }, { 1728, 14, 7 }, { 1735, 26, 7 }, { 1750, 26, 7 }, { 1757, 14, 7 }, { 1760, 0, 8 } },
-			{ { 1725, 0, 8 }, { 1728, -14, 7 }, { 1735, -26, 7 }, { 1750, -26, 7 }, { 1757, -14, 7 }, { 1760, 0, 8 } },
-			{ { 1760, 0, 12 }, { 1776, 8, 12 }, { 1792, 10, 12 }, { 1808, 2, 12 }, { 1822, -2, 13 }, { 1836, 0, 16 } },
-			{ { 1612, 10, 6 }, { 1616, 44, 6 }, { 1620, 68, 6 } }, -- to the giant crystals
+			T.at({ { 1577, 0, 14 }, { 1594, 6, 12 }, { 1612, 10, 12 }, { 1630, 2, 12 }, { 1648, -8, 12 }, { 1666, -10, 12 }, { 1684, -4, 12 }, { 1702, 2, 12 }, { 1725, 0, 12 } }, X),
+			T.at({ { 1725, 0, 8 }, { 1728, 14, 7 }, { 1735, 26, 7 }, { 1750, 26, 7 }, { 1757, 14, 7 }, { 1760, 0, 8 } }, X),
+			T.at({ { 1725, 0, 8 }, { 1728, -14, 7 }, { 1735, -26, 7 }, { 1750, -26, 7 }, { 1757, -14, 7 }, { 1760, 0, 8 } }, X),
+			T.at({ { 1760, 0, 12 }, { 1776, 8, 12 }, { 1792, 10, 12 }, { 1808, 2, 12 }, { 1824, -2, 13 } }, X), -- on to the dais
+			{ { X(1824), -2, 13 }, { XB - 55, -2, 13 }, { XB - 41, 0, 16 } },
+			T.at({ { 1612, 10, 6 }, { 1616, 44, 6 }, { 1620, 68, 6 } }, X), -- to the giant crystals
 		},
 		liquid = {
 			gap = liquidGap,
@@ -200,9 +203,9 @@ return function(b, K, T)
 
 	function th.height(_, _, x, n)
 		local h = 46 + n * 30
-		if x < 1595 then
+		if x < XA + 18 then
 			h = math.max(h, 66 + n * 10)
-		elseif x > 1838 then
+		elseif x > XB - 39 then
 			h = math.max(h, 76 + n * 16) -- tall either side of the Void Gate
 		end
 		return math.floor(h / 2 + 0.5) * 2
@@ -231,25 +234,26 @@ return function(b, K, T)
 		local sky, scatter, heights = ctx.sub("Sky"), ctx.sub("Scatter"), ctx.sub("Heights")
 		-- the planets
 		-- a magenta-violet gas giant with pale rings, a pale lavender ice world, a grey moon
-		planet(sky, Vector3.new(1760, 250, -470), 80, { hex("7A2A9A"), hex("B048B8"), hex("5A2088"), hex("D070C8") })
-		local tilt = CFrame.new(1760, 250, -470) * CFrame.Angles(math.rad(18), 0, math.rad(-14))
+		planet(sky, Vector3.new(X(1760), 250, -470), 80, { hex("7A2A9A"), hex("B048B8"), hex("5A2088"), hex("D070C8") })
+		local tilt = CFrame.new(X(1760), 250, -470) * CFrame.Angles(math.rad(18), 0, math.rad(-14))
 		for i = 0, 15 do
 			local a = i / 16 * math.pi * 2
 			K.part(sky, "PlanetRing", Vector3.new(50, 1.6, 26), tilt * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 128), i % 2 == 0 and hex("F0E0FF") or hex("C8B4E8"), { solid = false, shadow = false, transparency = 0.15 })
 		end
-		planet(sky, Vector3.new(1960, 210, 430), 50, { hex("D8D0F0"), hex("B8ACE0"), hex("ECE6FF") })
-		planet(sky, Vector3.new(1650, 330, 300), 24, { hex("A8A4B8"), hex("8E8AA0") })
+		planet(sky, Vector3.new(XB + 83, 210, 430), 50, { hex("D8D0F0"), hex("B8ACE0"), hex("ECE6FF") })
+		planet(sky, Vector3.new(X(1650), 330, 300), 24, { hex("A8A4B8"), hex("8E8AA0") })
 		-- stars: white specks scattered over a dome above the biome
-		for _ = 1, 140 do
+		for i = 1, math.floor(140 * KX) do
 			local a, e = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0.35, 1.3)
 			local d = rng:NextNumber(330, 420)
-			local p = Vector3.new(1720 + math.cos(a) * math.cos(e) * d, 40 + math.sin(e) * d, math.sin(a) * math.cos(e) * d)
+			local cx = i % 2 == 0 and X(1660) or X(1790) -- two domes over the longer canyon
+			local p = Vector3.new(cx + math.cos(a) * math.cos(e) * d, 40 + math.sin(e) * d, math.sin(a) * math.cos(e) * d)
 			local s = rng:NextNumber(1.2, 2.6)
 			K.part(sky, "Star", Vector3.new(s, s, s), CFrame.new(p) * CFrame.Angles(0, math.rad(45), math.rad(45)), rng:NextNumber() < 0.8 and WHITE or PINK, { neon = true, solid = false, shadow = false })
 		end
 		-- the Rift: a glowing tear in the sky beyond the end of the canyon, debris tumbling round it
 		local rift = ctx.sub("Rift")
-		local rx = 1975
+		local rx = XB + 98
 		local y, z = 30, 0
 		local n = 16
 		for k = 0, n - 1 do
@@ -270,16 +274,16 @@ return function(b, K, T)
 			asteroid(rift, Vector3.new(rx + rng:NextNumber(-30, 20), rng:NextNumber(50, 300), rng:NextNumber(-80, 80)), rng:NextNumber(3, 8))
 		end
 		-- asteroids drifting over the canyon's edges
-		for _ = 1, 10 do
+		for _ = 1, math.floor(10 * KX) do
 			local side = rng:NextNumber() < 0.5 and 1 or -1
 			local x = rng:NextNumber(XA + 20, XB - 30)
 			asteroid(sky, Vector3.new(x, rng:NextNumber(36, 90), side * rng:NextNumber(50, 110)), rng:NextNumber(2.5, 6))
 		end
 		-- the giant crystal grove in the north pocket, clusters in the others
 		for i, g in { { 1622, 82, 2.6, 1 }, { 1612, 80, 2, 2 }, { 1630, 86, 2.2, 3 } } do
-			local m = crystals(heights, Vector3.new(g[1], 0, g[2]), g[3] * 2.4, 4, LOOKS[g[4]])
+			local m = crystals(heights, Vector3.new(X(g[1]), 0, g[2]), g[3] * 2.4, 4, LOOKS[g[4]])
 			if i == 1 then
-				ctx.keyLight(ctx.anchor(m, Vector3.new(g[1], 14, g[2] - 12)), VIOLET, 50, 2.4)
+				ctx.keyLight(ctx.anchor(m, Vector3.new(X(g[1]), 14, g[2] - 12)), VIOLET, 50, 2.4)
 			end
 		end
 		local function spot(margin, nestR)
@@ -290,12 +294,12 @@ return function(b, K, T)
 				end
 			end
 		end
-		for i = 1, 18 do
+		for i = 1, math.floor(18 * KX) do
 			local x, z = spot(3)
 			if x then
 				crystals(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.7, 1.4), rng:NextInteger(2, 4), nil, { light = i % 2 == 0 and x < XA + 90 })
 			end
-			if i <= 10 then
+			if i <= 10 * KX then
 				x, z = spot(4)
 				if x then
 					local r = rng:NextNumber(1.4, 3)
@@ -304,7 +308,7 @@ return function(b, K, T)
 			end
 		end
 		-- glinting specks of stardust on the ground
-		for _ = 1, 60 do
+		for _ = 1, math.floor(60 * KX) do
 			local x, z = spot(1, 18)
 			if x then
 				local s = rng:NextNumber(0.2, 0.35)
@@ -312,16 +316,17 @@ return function(b, K, T)
 			end
 		end
 		-- plates of cracked void rock pushed up through the sand
-		for _ = 1, 22 do
+		for _ = 1, math.floor(22 * KX) do
 			local x, z = spot(3)
 			if x then
 				voidPlate(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.8, 1.3))
 			end
 		end
 		-- obelisks along the path
-		for i, o in { { 1600, -14 }, { 1640, 18 }, { 1676, -22 }, { 1700, 20 }, { 1784, -16 }, { 1814, 18 } } do
-			if ctx.pathGap(o[1], o[2]) > 2 then
-				obelisk(scatter, Vector3.new(o[1], 0, o[2]), rng:NextNumber(12, 18), LOOKS[(i - 1) % 3 + 1])
+		for i, o in { { 1600, -14 }, { 1640, 18 }, { 1676, -22 }, { 1700, 20 }, { 1784, -16 }, { 1814, 18 }, { 1620, -20 }, { 1658, 20 }, { 1798, 18 } } do
+			local ox = X(o[1])
+			if ctx.pathGap(ox, o[2]) > 2 then
+				obelisk(scatter, Vector3.new(ox, 0, o[2]), rng:NextNumber(12, 18), LOOKS[(i - 1) % 3 + 1])
 			end
 		end
 		-- starlight pools glow
