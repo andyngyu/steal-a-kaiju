@@ -1,5 +1,7 @@
--- Frostfang Peaks, refined (CanyonBuilder section "Refine"). Rebuilds the biome's ground and surroundings (x 627..827)
--- in place, keeping its contracts: Zone (now 188 wide), NestSite, Sign, Border, Decor's NestSignFrost, the Frozen Fangs.
+-- Frostfang Peaks, refined (CanyonBuilder section "Refine"). Rebuilds the biome's ground and surroundings in place,
+-- keeping its contracts: Zone (now 188 wide), NestSite, Sign, Border, Decor's NestSignFrost, the Frozen Fangs. The layout
+-- below was drawn for x 627..827 and is laid onto the lane with T.stretch (X() places, U() reads back); the glacier and
+-- its viewing ledge keep their own size, centred where they fall.
 --   Ground     snow in four whites with ice patches and exposed dark rock near the cliffs; a trodden path with blue-grey
 --              slabs; frost over dark rock where it meets Lava Lagoon
 --   Cliffs     dark grey-blue strata (snow on every ledge and cap, icy blue bands, deep-blue crevices, icicles), lower
@@ -15,15 +17,16 @@ return function(b, K, T)
 	local P = K.P
 	local model = b.model
 	local rng = Random.new(9091)
-	local XA, XB = 627, b.x1
+	local XA, XB = b.x0, b.x1
+	local X, U, KX = T.stretch(627, 827, XA, XB)
 	local HALF = 94
 	local report = {}
 
 	---------------------------------------------------------------- layout
-	local GX0, GX1 = 738, 806 -- the glacier clearing
+	local GX0, GX1 = X(772) - 34, X(772) + 34 -- the glacier clearing
 	local edge = {
-		[1] = T.edge({ { 627, 65 }, { 636, 65 }, { 644, 72 }, { 652, 84 }, { 668, 86 }, { 676, 70 }, { 684, 64 }, { 694, 66 }, { 704, 74 }, { 716, 72 }, { 726, 70 }, { 734, 80 }, { 740, 92 }, { 804, 92 }, { 810, 80 }, { 816, 68 }, { 827, 65 } }),
-		[-1] = T.edge({ { 627, 65 }, { 638, 64 }, { 646, 70 }, { 656, 82 }, { 676, 82 }, { 684, 68 }, { 692, 62 }, { 702, 66 }, { 714, 78 }, { 732, 80 }, { 740, 70 }, { 750, 64 }, { 762, 66 }, { 772, 76 }, { 790, 84 }, { 804, 84 }, { 812, 70 }, { 820, 65 }, { 827, 65 } }),
+		[1] = T.edge(T.at({ { 627, 65 }, { 636, 65 }, { 644, 72 }, { 652, 84 }, { 668, 86 }, { 676, 70 }, { 684, 64 }, { 694, 66 }, { 704, 74 }, { 716, 72 }, { 726, 70 }, { 734, 80 }, { 740, 92 }, { 804, 92 }, { 810, 80 }, { 816, 68 }, { 827, 65 } }, X)),
+		[-1] = T.edge(T.at({ { 627, 65 }, { 638, 64 }, { 646, 70 }, { 656, 82 }, { 676, 82 }, { 684, 68 }, { 692, 62 }, { 702, 66 }, { 714, 78 }, { 732, 80 }, { 740, 70 }, { 750, 64 }, { 762, 66 }, { 772, 76 }, { 790, 84 }, { 804, 84 }, { 812, 70 }, { 820, 65 }, { 827, 65 } }, X)),
 	}
 	local function inGlacier(x)
 		return x > GX0 + 1 and x < GX1 - 1
@@ -34,10 +37,10 @@ return function(b, K, T)
 			return 0 -- the glacier clearing
 		end
 		local h = 52 + n * 34
-		if side > 0 and ((x > 724 and x <= GX0 + 1) or (x >= GX1 - 1 and x < 818)) then
+		if side > 0 and ((x > X(724) and x <= GX0 + 1) or (x >= GX1 - 1 and x < X(818))) then
 			h = 30 + n * 12 -- low either side of the glacier
 		end
-		if x < 642 or x > 814 then
+		if x < XA + 15 or x > XB - 13 then
 			h = math.max(h, 66 + n * 12)
 		end
 		return math.floor(h / 2 + 0.5) * 2
@@ -50,6 +53,9 @@ return function(b, K, T)
 		{ { 770, 8, 7 }, { 771, 40, 7 }, { 771, 62, 7 } }, -- to the glacier's viewing ledge
 		{ { 660, 13, 6 }, { 662, 44, 6 }, { 660, 74, 6 } }, -- into the north pocket
 	}
+	for i, p in PATHS do
+		PATHS[i] = T.at(p, X)
+	end
 	local function pathGap(x, z)
 		local best = math.huge
 		for _, p in PATHS do
@@ -59,11 +65,12 @@ return function(b, K, T)
 		return best
 	end
 	local nest = model:FindFirstChild("NestSite")
-	local NEST = nest and nest:GetPivot().Position or Vector3.new(737, 0, 0)
+	local NEST = nest and nest:GetPivot().Position or Vector3.new(X(737), 0, 0)
 	local function nearNest(x, z, r)
 		return (Vector3.new(x, 0, z) - Vector3.new(NEST.X, 0, NEST.Z)).Magnitude < r
 	end
-	local LEDGE = { x0 = 752, x1 = 790, z0 = 70, z1 = 88, h = 4 }
+	local LC = X(771) -- the viewing ledge's middle
+	local LEDGE = { x0 = LC - 19, x1 = LC + 19, z0 = 70, z1 = 88, h = 4 }
 	local function onLedge(x, z, m)
 		m = m or 0
 		return x > LEDGE.x0 - m and x < LEDGE.x1 + m and z > LEDGE.z0 - 8 - m and z < LEDGE.z1 + m
@@ -167,7 +174,7 @@ return function(b, K, T)
 				return TROD[math.clamp(math.floor(n * 3) + 1, 1, 3)]
 			end
 			-- where it meets Lava Lagoon: frost over dark rock
-			local f = math.clamp((650 - x) / 23, 0, 1)
+			local f = math.clamp((650 - U(x)) / 23, 0, 1)
 			if f > 0 and n2 < f * 1.3 - 0.1 then
 				return FROSTY[n2 < f * 0.6 - 0.2 and 1 or (n < 0.5 and 2 or 3)]
 			end
@@ -341,8 +348,8 @@ return function(b, K, T)
 		return best
 	end
 	local nFalls = 0
-	for _, f in { { 1, 690 }, { -1, 664 }, { -1, 726 }, { -1, 798 } } do
-		local c = nearestCol(f[1], f[2])
+	for _, f in { { 1, 690 }, { -1, 664 }, { -1, 726 }, { -1, 798 }, { 1, 650 }, { -1, 760 } } do
+		local c = nearestCol(f[1], X(f[2]))
 		if c then
 			local foot = T.cascade(ice, c, f[1], { x = (c.x0 + c.x1) / 2, w = rng:NextNumber(3, 4.2), colors = { hex("D6F0FF"), hex("BFE6FF"), hex("E8F7FF") }, transparency = 0.12, rng = rng, name = "FrozenFall" })
 			if foot then
@@ -373,17 +380,18 @@ return function(b, K, T)
 		end
 		return m
 	end
-	for _, s in { { 664, 78, true }, { 668, -76, true }, { 706, 66 }, { 716, -72, true }, { 796, -78, true }, { 640, -58 }, { 812, 62 }, { 690, -40 } } do
-		if pathGap(s[1], s[2]) > 3 and not nearNest(s[1], s[2], 18) then
-			spikes(Vector3.new(s[1], 0, s[2]), s[3] and 5 or 3, s[3])
+	for _, s in { { 664, 78, true }, { 668, -76, true }, { 706, 66 }, { 716, -72, true }, { 796, -78, true }, { 640, -58 }, { 812, 62 }, { 690, -40 }, { 682, 40 }, { 760, -40 }, { 740, 30, true } } do
+		local sx = X(s[1])
+		if pathGap(sx, s[2]) > 3 and not nearNest(sx, s[2], 18) then
+			spikes(Vector3.new(sx, 0, s[2]), s[3] and 5 or 3, s[3])
 		end
 	end
 	local placed = 0
-	for _ = 1, 80 do
-		if placed >= 12 then
+	for _ = 1, math.floor(80 * KX) do
+		if placed >= math.floor(12 * KX) then
 			break
 		end
-		local x, z = rng:NextNumber(640, 820), rng:NextNumber(-82, 84)
+		local x, z = rng:NextNumber(X(640), X(820)), rng:NextNumber(-82, 84)
 		local side = z >= 0 and 1 or -1
 		if math.abs(z) < edge[side](x) - 6 and pathGap(x, z) > 4 and not nearNest(x, z, 18) and not onLedge(x, z, 4) then
 			T.boulder(scatter, Vector3.new(x, -0.4, z), rng:NextNumber(1.6, 3.2), snowAt, rng, { name = "Snowdrift" })
@@ -391,9 +399,10 @@ return function(b, K, T)
 		end
 	end
 	local greens = sub("Pines")
-	for _, p in { { 652, 80, 16 }, { 674, 80, 13 }, { 662, -78, 15 }, { 678, -77, 12 }, { 708, -74, 14 }, { 790, -80, 17 }, { 800, -80, 13 }, { 726, 68, 12 }, { 644, -66, 12 } } do
-		if pathGap(p[1], p[2]) > 3 then
-			pine(greens, Vector3.new(p[1], 0, p[2]), p[3], true)
+	for _, p in { { 652, 80, 16 }, { 674, 80, 13 }, { 662, -78, 15 }, { 678, -77, 12 }, { 708, -74, 14 }, { 790, -80, 17 }, { 800, -80, 13 }, { 726, 68, 12 }, { 644, -66, 12 }, { 694, 70, 14 }, { 772, -78, 15 } } do
+		local px = X(p[1])
+		if pathGap(px, p[2]) > 3 then
+			pine(greens, Vector3.new(px, 0, p[2]), p[3], true)
 		end
 	end
 	local nTop = 0
@@ -500,30 +509,30 @@ return function(b, K, T)
 
 	---------------------------------------------------------------- the viewing ledge
 	local L = LEDGE
-	K.box(gl, "ViewingLedge", L.x0, L.x1, -2, L.h, L.z0, L.z1, rockAt(Vector3.new(771, 2, 79), 0.2), { studs = K.SIDES })
+	K.box(gl, "ViewingLedge", L.x0, L.x1, -2, L.h, L.z0, L.z1, rockAt(Vector3.new(LC, 2, 79), 0.2), { studs = K.SIDES })
 	K.box(gl, "LedgeSnow", L.x0, L.x1, L.h, L.h + 0.5, L.z0, L.z1, SNOW[1], { studs = K.TOP })
 	local ramp = Instance.new("WedgePart")
 	ramp.Name = "LedgeRamp"
 	ramp.Anchored = true
 	ramp.Size = Vector3.new(14, L.h + 0.5, 9)
-	ramp.CFrame = CFrame.new(771, (L.h + 0.5) / 2, L.z0 - 4.5) -- rises towards +Z, onto the ledge
+	ramp.CFrame = CFrame.new(LC, (L.h + 0.5) / 2, L.z0 - 4.5) -- rises towards +Z, onto the ledge
 	ramp.Color = SNOW[2]
 	ramp.Material = Enum.Material.SmoothPlastic
 	ramp.TopSurface = Enum.SurfaceType.Smooth
 	K.studs(ramp, { K.N.Top })
 	ramp.Parent = gl
-	for _, rx in { { L.x0, 764 }, { 778, L.x1 } } do
+	for _, rx in { { L.x0, LC - 7 }, { LC + 7, L.x1 } } do
 		K.box(gl, "Rail", rx[1], rx[2], L.h + 0.5, L.h + 2.6, L.z0, L.z0 + 1.4, rockAt(Vector3.new(rx[1], 6, L.z0), 0.5), { studs = K.SIDES })
 		K.box(gl, "RailSnow", rx[1], rx[2], L.h + 2.6, L.h + 3.1, L.z0 - 0.2, L.z0 + 1.6, SNOW[1], { solid = false })
 	end
-	K.box(gl, "Rail", L.x0, L.x1, L.h + 0.5, L.h + 2.2, L.z1 - 1.2, L.z1, rockAt(Vector3.new(771, 6, L.z1), 0.5), { studs = K.SIDES })
+	K.box(gl, "Rail", L.x0, L.x1, L.h + 0.5, L.h + 2.2, L.z1 - 1.2, L.z1, rockAt(Vector3.new(LC, 6, L.z1), 0.5), { studs = K.SIDES })
 	K.box(gl, "RailSnow", L.x0, L.x1, L.h + 2.2, L.h + 2.7, L.z1 - 1.4, L.z1 + 0.2, SNOW[1], { solid = false })
 	for _, lx in { L.x0 + 1.5, L.x1 - 1.5 } do
 		K.box(gl, "LampPost", lx - 0.5, lx + 0.5, L.h + 0.5, L.h + 8, L.z1 - 1.5, L.z1 - 0.5, P.Iron, { solid = false })
 		local lamp = K.box(gl, "Lamp", lx - 0.9, lx + 0.9, L.h + 8, L.h + 10, L.z1 - 1.9, L.z1 - 0.1, GLOW, { neon = true, solid = false })
 		light(lamp, GLOW, 16, 1.2)
 	end
-	local plaque = K.sign(gl, "TitanPlaque", CFrame.lookAt(Vector3.new(771, L.h + 4.6, L.z1 - 1.8), Vector3.new(771, L.h + 4.6, 0)), 16, 3.2, "THE FROZEN TITAN", { cream = true })
+	local plaque = K.sign(gl, "TitanPlaque", CFrame.lookAt(Vector3.new(LC, L.h + 4.6, L.z1 - 1.8), Vector3.new(LC, L.h + 4.6, 0)), 16, 3.2, "THE FROZEN TITAN", { cream = true })
 
 	---------------------------------------------------------------- the end of the canyon (only while nothing follows)
 	if not b.next then
