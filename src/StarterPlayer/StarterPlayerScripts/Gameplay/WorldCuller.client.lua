@@ -6,7 +6,8 @@
 --     the canyon (through the Grand Gate, past the Maw) never shows a gap. The locked biomes past Frostfang (Venom Jungle,
 --     Sunken Abyss, Storm Spires, Cosmic Rift) also take their whole body away while the camera is far back down the
 --     canyon, where the haze hides them anyway (each one appears well before it could be seen clearly).
---   * lights, particles, fire and smoke in the Citadel and the canyon switch off beyond FX_RANGE from the camera
+--   * lights, particles, fire and smoke in the Citadel and the canyon switch off beyond FX_RANGE from the camera; key
+--     lights (attribute KeyLight: the lights on landmarks that must read from a gate) reach KEY_RANGE
 -- Never touched: Zone, NestSite, Sign, Border (scripts read them), the market, plots, leaderboards, statues, Horizon.
 -- Groups are ranges along X (the map runs along +X); "show" when the camera or the character is inside [x0, x1].
 local Players = game:GetService("Players")
@@ -16,6 +17,7 @@ local player = Players.LocalPlayer
 local map = workspace:WaitForChild("Map")
 
 local FX_RANGE = 200
+local KEY_RANGE = 650
 local CHECK_EVERY = 0.4
 local BATCH = 600 -- parts moved per frame while a group switches
 local MARGIN = 25 -- hysteresis: a group shown once stays until the camera is this much further out
@@ -115,7 +117,7 @@ task.spawn(function()
 		if d:IsA("Light") or d:IsA("ParticleEmitter") or d:IsA("Fire") or d:IsA("Smoke") then
 			local host = d.Parent
 			if host and host:IsA("BasePart") then
-				table.insert(fx, { d, host, d.Enabled })
+				table.insert(fx, { d, host, d.Enabled, d:GetAttribute("KeyLight") and KEY_RANGE or FX_RANGE })
 			end
 		end
 	end
@@ -158,9 +160,9 @@ task.spawn(function()
 			request(g, want)
 		end
 		for _, e in fx do
-			local d, host, base = e[1], e[2], e[3]
+			local d, host, base, range = e[1], e[2], e[3], e[4]
 			if base then
-				local on = (host.Position - camPos).Magnitude < FX_RANGE
+				local on = (host.Position - camPos).Magnitude < range
 				if d.Enabled ~= on then
 					d.Enabled = on
 				end
