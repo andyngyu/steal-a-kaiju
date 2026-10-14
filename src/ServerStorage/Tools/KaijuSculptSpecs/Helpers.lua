@@ -968,10 +968,12 @@ end
 -- interlock when it snaps shut. Inside, a recessed throat: dark (deep) down the middle and at the back, magenta
 -- (lining, then lip) toward the rims, a thin glowing line (glow) just inside each rim, rows of inner tooth-spines, a
 -- glow deep in the throat and a few tendrils curling up from the lower lobe. P = { head, jaw, frame, size, open,
--- keys = { shell, shellDark, glow, deep, lining, lip, tooth, spine, spineTip } }. Returns the upper and lower lobe frames.
+-- keys = { shell, shellDark, glow, deep, lining, lip, tooth, spine, spineTip, spineBase } }; spineBase shades each rim
+-- spine from that key at the root through spine to spineTip. Returns the upper and lower lobe frames.
 function H.flytrap(K, P)
 	local s = P.size or 1
 	local k = P.keys
+	local rimKeys = k.spineBase and { k.spineBase, k.spine, k.spineTip } or { k.spine, k.spineTip }
 	local SEGS = { { -0.16, 0.62 }, { -0.5, 0.96 }, { -0.86, 1.08 }, { -1.2, 0.88 }, { -1.46, 0.52 } }
 	local function lobe(group, F, up)
 		for i, seg in SEGS do
@@ -993,11 +995,11 @@ function H.flytrap(K, P)
 				for _, dz in { -0.09, 0.09 } do
 					local base = F * Vector3.new(x * w * 0.47, 0, z + dz * s)
 					local dir = F:VectorToWorldSpace(Vector3.new(x * 0.45, -up * 0.85, -0.12)).Unit
-					K:chain(group, { k.spine, k.spineTip }, base, dir, F:VectorToWorldSpace(Vector3.zAxis), { n = 2, len = 0.46 * s, w0 = 0.07 * s, w1 = 0.045 * s, bend = 0 })
+					K:chain(group, rimKeys, base, dir, F:VectorToWorldSpace(Vector3.zAxis), { n = #rimKeys, len = 0.46 * s, w0 = 0.07 * s, w1 = 0.045 * s, bend = 0 })
 				end
 			end
 		end
-		K:chain(group, { k.spine, k.spineTip }, F * Vector3.new(0, 0, -1.62 * s), F:VectorToWorldSpace(Vector3.new(0, -up * 0.5, -1)).Unit, F:VectorToWorldSpace(Vector3.xAxis), { n = 2, len = 0.4 * s, w0 = 0.08 * s, w1 = 0.05 * s, bend = 0 })
+		K:chain(group, rimKeys, F * Vector3.new(0, 0, -1.62 * s), F:VectorToWorldSpace(Vector3.new(0, -up * 0.5, -1)).Unit, F:VectorToWorldSpace(Vector3.xAxis), { n = #rimKeys, len = 0.4 * s, w0 = 0.08 * s, w1 = 0.05 * s, bend = 0 })
 		K:block(group, k.deep, F * CFrame.new(0, -up * 0.02, -0.06 * s), Vector3.new(0.5 * s, 0.05 * s, 0.24 * s))
 		-- a glow deep in the throat, and tendrils curling up out of it from the lower lobe
 		K:block(group, k.glow, F * CFrame.new(0, -up * 0.035 * s, -0.12 * s), Vector3.new(0.2 * s, 0.04 * s, 0.14 * s))
