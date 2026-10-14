@@ -9,7 +9,8 @@
 --   * lights, particles, fire and smoke in the Citadel and the canyon switch off beyond FX_RANGE from the camera; key
 --     lights (attribute KeyLight: the lights on landmarks that must read from a gate) reach KEY_RANGE
 -- Never touched: Zone, NestSite, Sign, Border (scripts read them), the market, plots, leaderboards, statues, Horizon.
--- Groups are ranges along X (the map runs along +X); "show" when the camera or the character is inside [x0, x1].
+-- Groups are ranges along X (the map runs along +X); "show" when the camera or the character is inside [x0, x1]. A
+-- biome's range comes from its lane's Zone: from `before` studs ahead of its start to `after` studs past its end.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
@@ -24,7 +25,16 @@ local MARGIN = 25 -- hysteresis: a group shown once stays until the camera is th
 
 local KEEP = { Zone = true, NestSite = true, Sign = true, Border = true }
 
--- { name, paths (relative to Map), show range on X, except = child names to leave alone }
+local function find(path)
+	local node = map
+	for part in path:gmatch("[^%.]+") do
+		node = node and node:WaitForChild(part, 10)
+	end
+	return node
+end
+
+-- { name, paths (relative to Map), show range on X (x0 / x1, or lane + before / after), except = child names to leave
+-- alone }
 local function detail(biome, extra)
 	local t = { "Lane." .. biome .. ".Decor" }
 	for _, n in extra do
@@ -43,25 +53,31 @@ end
 local GROUPS = {
 	{ name = "CitadelInside", paths = { "Citadel.Gardens", "Citadel.Avenue", "Citadel.Frames", "Citadel.Hall" }, x0 = -math.huge, x1 = 470 },
 	{ name = "CitadelWalls", paths = { "Citadel.Walls", "Citadel.Towers", "Citadel.Backdrop" }, x0 = -math.huge, x1 = 640 },
-	{ name = "PebbleDetail", paths = detail("PebblePlains", { "Scatter", "Greenery", "Fossils", "Path", "Transition" }), x0 = -400, x1 = 700 },
-	{ name = "LavaDetail", paths = detail("LavaLagoon", { "Scatter", "Heights", "Path", "Flows", "Transition", "Bridge" }), x0 = 300, x1 = 950 },
-	{ name = "FrostDetail", paths = detail("FrostfangPeaks", { "Scatter", "Pines", "Path", "Ice" }), x0 = 500, x1 = 1200 },
-	{ name = "VenomDetail", paths = detail("VenomJungle", { "Scatter", "Greenery", "Path", "Flows", "Vines", "Fungi", "Bridge", "Courtyard", "Bridges" }), x0 = 650, x1 = 1250 },
-	{ name = "VenomBody", paths = body("VenomJungle", { "Liquid", "Cliffs", "Walls", "Back", "Temple", "Mushrooms" }), x0 = 450, x1 = math.huge },
-	{ name = "AbyssDetail", paths = detail("SunkenAbyss", { "Scatter", "Life", "Path", "Reef", "Weed", "Jellyfish", "Ruins" }), x0 = 880, x1 = 1480 },
-	{ name = "AbyssBody", paths = body("SunkenAbyss", { "Liquid", "Cliffs", "Walls", "Back", "Whale", "Wreck" }), x0 = 680, x1 = math.huge },
-	{ name = "StormDetail", paths = detail("StormSpires", { "Scatter", "Path", "Scorch", "Coils", "Altar" }), x0 = 1130, x1 = 1750 },
-	{ name = "StormBody", paths = body("StormSpires", { "Liquid", "Cliffs", "Walls", "Back", "Spires", "Islands", "Sky" }), x0 = 900, x1 = math.huge },
-	{ name = "CosmicDetail", paths = detail("CosmicRift", { "Scatter", "Path", "Heights", "Plinths" }), x0 = 1400, x1 = math.huge },
-	{ name = "CosmicBody", paths = body("CosmicRift", { "Liquid", "Cliffs", "Walls", "Back", "Sky", "Rift", "VoidGate" }), x0 = 1150, x1 = math.huge },
+	{ name = "PebbleDetail", paths = detail("PebblePlains", { "Scatter", "Greenery", "Fossils", "Path", "Transition" }), lane = "PebblePlains", before = 700, after = 250 },
+	{ name = "LavaDetail", paths = detail("LavaLagoon", { "Scatter", "Heights", "Path", "Flows", "Transition", "Bridge" }), lane = "LavaLagoon", before = 150, after = 320 },
+	{ name = "FrostDetail", paths = detail("FrostfangPeaks", { "Scatter", "Pines", "Path", "Ice" }), lane = "FrostfangPeaks", before = 130, after = 370 },
+	{ name = "VenomDetail", paths = detail("VenomJungle", { "Scatter", "Greenery", "Path", "Flows", "Vines", "Fungi", "Bridge", "Courtyard", "Bridges", "Floor" }), lane = "VenomJungle", before = 180, after = 200 },
+	{ name = "VenomBody", paths = body("VenomJungle", { "Liquid", "Cliffs", "Walls", "Back", "Temple", "Mushrooms" }), lane = "VenomJungle", before = 380, after = math.huge },
+	{ name = "AbyssDetail", paths = detail("SunkenAbyss", { "Scatter", "Life", "Path", "Reef", "Weed", "Jellyfish", "Ruins" }), lane = "SunkenAbyss", before = 170, after = 180 },
+	{ name = "AbyssBody", paths = body("SunkenAbyss", { "Liquid", "Cliffs", "Walls", "Back", "Whale", "Wreck" }), lane = "SunkenAbyss", before = 370, after = math.huge },
+	{ name = "StormDetail", paths = detail("StormSpires", { "Scatter", "Path", "Scorch", "Coils", "Altar", "Slate" }), lane = "StormSpires", before = 170, after = 175 },
+	{ name = "StormBody", paths = body("StormSpires", { "Liquid", "Cliffs", "Walls", "Back", "Spires", "Islands", "Sky" }), lane = "StormSpires", before = 400, after = math.huge },
+	{ name = "CosmicDetail", paths = detail("CosmicRift", { "Scatter", "Path", "Heights", "Plinths" }), lane = "CosmicRift", before = 180, after = math.huge },
+	{ name = "CosmicBody", paths = body("CosmicRift", { "Liquid", "Cliffs", "Walls", "Back", "Sky", "Rift", "VoidGate" }), lane = "CosmicRift", before = 430, after = math.huge },
 }
 
-local function find(path)
-	local node = map
-	for part in path:gmatch("[^%.]+") do
-		node = node and node:WaitForChild(part, 10)
+-- a biome group's range from its lane's Zone
+local function placeGroup(g)
+	if not g.lane then
+		return
 	end
-	return node
+	local zone = find("Lane." .. g.lane .. ".Zone")
+	if zone then
+		g.x0 = zone.Position.X - zone.Size.X / 2 - g.before
+		g.x1 = zone.Position.X + zone.Size.X / 2 + g.after
+	else
+		g.x0, g.x1 = -math.huge, math.huge -- no zone: never cull it
+	end
 end
 
 -- collect a group's parts (and where they live) once; returns { {part, parent} }
@@ -107,6 +123,7 @@ task.spawn(function()
 	-- let the map finish arriving, then build the groups
 	task.wait(4)
 	for _, g in GROUPS do
+		placeGroup(g)
 		g.parts = collect(g)
 		g.shown = true
 		g.target = true
