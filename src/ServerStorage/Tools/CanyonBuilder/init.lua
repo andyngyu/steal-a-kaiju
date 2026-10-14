@@ -436,17 +436,28 @@ function GATES.LavaLagoon(f, b, pal, rng)
 			K.box(m, "LowerFang", gx - st[5] / 2, gx + st[5] / 2, st[1], st[2], s * st[3], s * st[4], i % 2 == 1 and OB or OB2, { studs = K.ALL })
 		end
 		K.box(m, "FangTip", gx - 2.5, gx + 2.5, 94, 99, s * 62, s * 67, OB3, { studs = K.ALL, solid = false })
-		-- magma veins zigzagging up the lane-facing side
-		local vy, vx = 4, gx - 4
-		for j = 1, 6 do
-			local len = rng:NextNumber(9, 14)
-			local zf = (vy < 36 and 64) or (vy < 62 and 63) or 62
-			K.box(m, "MagmaVein", vx - 0.7, vx + 0.7, vy, vy + len, s * (zf - 0.3), s * (zf + 0.2), j % 2 == 0 and MAG2 or MAG, { neon = true, solid = false })
-			vy += len - 1
-			vx = math.clamp(vx + rng:NextNumber(-5, 5), gx - 6, gx + 6)
+		-- magma veins: thin zigzag cracks wandering up the lane-facing side, with a branch now and then
+		local vy, vx = 3, gx + rng:NextNumber(-3, 3)
+		local glowAt
+		while vy < 90 do
+			local seg = rng:NextNumber(2.4, 4.2)
+			local a = rng:NextNumber(-0.6, 0.6)
+			local nx = math.clamp(vx + math.sin(a) * seg, gx - 8, gx + 8)
+			local zf = (vy < 36 and 65) or (vy < 62 and 64) or (vy < 82 and 62) or 61
+			local mid = Vector3.new((vx + nx) / 2, vy + seg / 2, s * (zf - 0.08))
+			local v = K.part(m, "MagmaVein", Vector3.new(0.6, seg + 0.3, 0.3), CFrame.new(mid) * CFrame.Angles(0, 0, -a), rng:NextNumber() < 0.7 and MAG or MAG2, { neon = true, solid = false, shadow = false })
+			if not glowAt and vy > 30 then
+				glowAt = v
+			end
+			if rng:NextNumber() < 0.18 then
+				local ba = a + (rng:NextNumber() < 0.5 and 0.9 or -0.9)
+				K.part(m, "MagmaVein", Vector3.new(0.45, 2.4, 0.3), CFrame.new(mid + Vector3.new(math.sin(ba) * 1.4, 1, 0)) * CFrame.Angles(0, 0, -ba), MAG, { neon = true, solid = false, shadow = false })
+			end
+			vx, vy = nx, vy + seg
 		end
-		local ember = K.box(m, "Embers", gx - 6, gx + 6, 36, 37, s * 63.6, s * 65, MAG, { neon = true, solid = false })
-		light(ember, MAG, 30, 1.4)
+		if glowAt then
+			light(glowAt, MAG, 30, 1.4)
+		end
 	end
 	-- the upper jaw across the lane, its teeth hanging down on both faces
 	K.box(m, "UpperJaw", gx - 13, gx + 13, 94, 110, -98, 98, OB, { studs = K.ALL })

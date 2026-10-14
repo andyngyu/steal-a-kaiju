@@ -152,7 +152,7 @@ function T.cliffRow(parent, o)
 		local xm = (x + x1) / 2
 		local e = o.edge(xm)
 		local H = o.height(xm)
-		local col = { x0 = x, x1 = x1, e = e, front = e, h = H }
+		local col = { x0 = x, x1 = x1, e = e, front = e, h = H, layers = {} }
 		if H > 0 then
 			local back = e + (o.depth and o.depth(xm) or 26)
 			local y, prevF, top = -2, nil, nil
@@ -187,6 +187,7 @@ function T.cliffRow(parent, o)
 					color = o.tint(xm, color)
 				end
 				K.box(parent, "Rock", x, x1, yb, yt, s * nf, s * back, color, { studs = K.SIDES, solid = yt <= (o.solidTo or 24) })
+				table.insert(col.layers, { yb = yb, yt = yt, f = nf })
 				if prevF and nf - prevF >= 2.5 then
 					K.box(parent, "Ledge", x, x1, yb, yb + 0.9, s * (prevF - 0.3), s * nf, o.capColor(xm, rng), { studs = K.TOP, solid = false })
 				end
@@ -209,6 +210,67 @@ function T.cliffRow(parent, o)
 		x = x1
 	end
 	return cols
+end
+
+-- a flow down a cliff column's face (lava, ice, water): a strip hugging each layer's face from the top down, running
+-- across the ledges, wandering a little sideways, a little wider at the foot. o: x (centre), w, colors, neon,
+-- transparency, rng, name. Returns the foot point (on the ground, in front of the column).
+function T.cascade(parent, col, side, o)
+	local rng = o.rng
+	local L = col.layers
+	if not L or #L == 0 then
+		return nil
+	end
+	local x = o.x
+	local lo, hi = col.x0 + 0.8, col.x1 - 0.8
+	local opts = { neon = o.neon, transparency = o.transparency, solid = false, shadow = false }
+	local top = col.top or L[#L].yt
+	for i = #L, 1, -1 do
+		local l = L[i]
+		local yt = i == #L and top + 1.2 or l.yt
+		-- short pieces that wander sideways and change width: a rivulet, not a stripe
+		local y = yt
+		while y > l.yb + 0.01 do
+			local seg = math.min(y - l.yb, rng:NextNumber(2.4, 4.6))
+			local w = math.min(o.w * rng:NextNumber(0.6, 1.15) * (1 + (#L - i) * 0.06), hi - lo)
+			x = math.clamp(x + rng:NextNumber(-0.9, 0.9), lo + w / 2, hi - w / 2)
+			local c = o.colors[rng:NextInteger(1, #o.colors)]
+			K.box(parent, o.name or "Flow", x - w / 2, x + w / 2, y - seg, y, side * (l.f - 0.5), side * (l.f + 0.1), c, opts)
+			y -= seg
+		end
+		local w = o.w
+		-- the step down to the next layer's face (a ledge sticks out under it: run across its top)
+		local nxt = L[i - 1]
+		if nxt and nxt.f < l.f - 0.3 then
+			K.box(parent, o.name or "Flow", x - w / 2, x + w / 2, l.yb - 0.1, l.yb + 0.45, side * (nxt.f - 0.5), side * (l.f + 0.1), o.colors[1], opts)
+		end
+	end
+	return Vector3.new(x, 0, side * (L[1].f - 0.5))
+end
+
+-- a thin zigzag crack (glowing or dark) down a cliff column's face, over a few layers from near the top
+function T.faceCrack(parent, col, side, rng, color, o)
+	o = o or {}
+	local L = col.layers
+	if not L or #L < 2 then
+		return
+	end
+	local x = rng:NextNumber(col.x0 + 1.2, col.x1 - 1.2)
+	local start = math.max(1, #L - rng:NextInteger(0, 1))
+	local stop = math.max(1, start - rng:NextInteger(1, 3))
+	for i = start, stop, -1 do
+		local l = L[i]
+		local y = l.yt - 0.6
+		while y > l.yb + 1 do
+			local seg = math.min(rng:NextNumber(2, 3.6), y - l.yb)
+			local a = rng:NextNumber(-0.55, 0.55)
+			local dx = math.sin(a) * seg
+			local nx = math.clamp(x + dx, col.x0 + 0.6, col.x1 - 0.6)
+			local mid = Vector3.new((x + nx) / 2, y - seg / 2, side * (l.f - 0.08))
+			K.part(parent, "Crack", Vector3.new(o.width or 0.55, seg + 0.3, 0.3), CFrame.new(mid) * CFrame.Angles(0, 0, -a), color, { neon = o.neon, solid = false, shadow = false })
+			x, y = nx, y - seg
+		end
+	end
 end
 
 -- invisible walls along the rock fronts (and across the steps between columns), y -2 .. height
