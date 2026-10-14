@@ -4,11 +4,13 @@ local H = require(script.Parent.Helpers)
 -- Venom Jungle / Epic / poison: a sabre-toothed jungle cat. A long, low, heavy-shouldered jaguar stalking with its
 -- head down: thick forelegs, a deep chest, a long lean waist, a long tail ending in a thorned club. Jungle-green hide
 -- shading from a near-black back to a pale belly, irregular dark rosettes down the flanks each with a faint lime glow
--- at its heart, a ridge of purple thorns along the spine, bold purple thorn armour on the shoulders. Face: a broad cat skull, a heavy scowling brow over small lime
--- eyes, flattened ears, and two huge sabre fangs reaching below the chin, dripping lime venom.
+-- at its heart, a ridge of purple thorns along the spine, bold purple thorn armour on the shoulders. Face: a big
+-- domed cat skull with flared cheekbones, a heavy scowling brow over small lime eyes, a broad muzzle with whisker pads
+-- and a dark nose, flattened ears, a heavy jaw on a visible hinge, and two huge sabre fangs rooted in the muzzle
+-- reaching below the chin, dripping lime venom.
 local HEAD = CFrame.new(0, 1.66, -1.72) * CFrame.Angles(rad(-10), 0, 0)
 local HINGE = Vector3.new(0, -0.14, -0.12)
-local HS = 1.15
+local HS = 1.3
 
 local function hj(v)
 	return HEAD.Position + (HEAD * v - HEAD.Position) * HS
@@ -43,6 +45,8 @@ return {
 		Socket = "060806",
 		Claw = "1A1418",
 		ClawTip = "D8D0C0",
+		Nose = "141010",
+		Muzzle = { "8AA868", Material = "Slate" },
 	},
 	Joints = {
 		Head = { 0, 1.76, -1.1 },
@@ -156,30 +160,44 @@ return {
 			return HEAD:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
 		end
 		K:scaled(HEAD.Position, HS, function()
-			K:block("Head", "Hide", hcf(0, 0.1, -0.24), Vector3.new(0.74, 0.5, 0.58))
-			K:block("Head", "Hide", hcf(0, 0.0, -0.62), Vector3.new(0.56, 0.36, 0.42))
-			K:block("Head", "HideDark", hcf(0, -0.02, -0.88), Vector3.new(0.4, 0.28, 0.2))
-			K:block("Head", "Back", hcf(0, 0.08, -0.98), Vector3.new(0.16, 0.1, 0.06))
-			K:block("Head", "HideDark", hcf(0, 0.32, -0.3, -6, 0, 0), Vector3.new(0.5, 0.1, 0.46))
-			K:block("Head", "Mouth", hcf(0, -0.18, -0.6), Vector3.new(0.42, 0.04, 0.42))
+			-- a domed cranium, rounded by a turned block, sloping down into a broad muzzle
+			K:block("Head", "Hide", hcf(0, 0.14, -0.22), Vector3.new(0.86, 0.56, 0.64))
+			K:block("Head", "Hide", hcf(0, 0.16, -0.24, 0, 0, 45), Vector3.new(0.6, 0.6, 0.58))
+			K:block("Head", "HideDark", hcf(0, 0.42, -0.34, -18, 0, 0), Vector3.new(0.6, 0.12, 0.5))
+			K:block("Head", "Hide", hcf(0, -0.04, -0.66), Vector3.new(0.66, 0.4, 0.46))
+			K:block("Head", "HideDark", hcf(0, 0.14, -0.66, -10, 0, 0), Vector3.new(0.3, 0.16, 0.5))
+			K:block("Head", "Nose", hcf(0, 0.08, -0.92, -10, 0, 0), Vector3.new(0.24, 0.12, 0.1))
+			K:block("Head", "Mouth", hcf(0, -0.22, -0.6), Vector3.new(0.5, 0.04, 0.5))
+			-- a heavy scowling brow bar across the face
+			K:block("Head", "HideDark", hcf(0, 0.33, -0.53, -6, 0, 0), Vector3.new(0.72, 0.12, 0.16))
 			for _, x in { 1, -1 } do
-				-- cheek ruffs and a scowling brow
-				K:block("Head", "HideLight", hcf(0.36 * x, -0.04, -0.24, 0, -14 * x, 10 * x), Vector3.new(0.16, 0.42, 0.46))
-				K:block("Head", "Back", hcf(0.21 * x, 0.27, -0.52, -4, -16 * x, 26 * x), Vector3.new(0.32, 0.14, 0.28))
-				H.eye(K, "Head", hcf(0.22 * x, 0.16, -0.58, 0, -24 * x, 20 * x), 0.13, 0.045)
-				K:block("Head", "Socket", hcf(0.1 * x, 0.04, -0.98), Vector3.new(0.06, 0.05, 0.03))
+				K:block("Head", "Back", hcf(0.2 * x, 0.35, -0.52, -6, -10 * x, 18 * x), Vector3.new(0.38, 0.16, 0.32))
+				H.eye(K, "Head", hcf(0.24 * x, 0.2, -0.58, 0, -24 * x, 18 * x), 0.14, 0.045)
+				-- whisker pads bulging either side of the muzzle, the sabres rooted under them
+				K:block("Head", "Muzzle", hcf(0.17 * x, -0.1, -0.78), Vector3.new(0.3, 0.3, 0.34))
+				K:block("Head", "Muzzle", hcf(0.17 * x, -0.1, -0.78, 0, 0, 45), Vector3.new(0.24, 0.24, 0.3))
+				K:block("Head", "HideDark", hcf(0.17 * x, -0.2, -0.74), Vector3.new(0.16, 0.12, 0.18))
+				-- flared cheekbones and the heavy jaw muscle down to a visible hinge knob
+				K:block("Head", "HideLight", hcf(0.44 * x, 0.02, -0.3, 0, -16 * x, 8 * x), Vector3.new(0.18, 0.36, 0.48))
+				K:block("Head", "Hide", hcf(0.4 * x, -0.16, -0.18, 0, -8 * x, 0), Vector3.new(0.2, 0.34, 0.36))
+				K:block("Head", "HideDark", hcf(0.42 * x, -0.16, -0.1, 45, 0, 0), Vector3.new(0.16, 0.18, 0.18))
 				-- the sabre fangs reaching down past the chin, venom at their tips
-				H.curve(K, "Head", { "Fang", "Fang", "Fang", "Fang" }, { hp(0.17 * x, -0.14, -0.74), hp(0.2 * x, -0.48, -0.82), hp(0.2 * x, -0.86, -0.78), hp(0.17 * x, -1.14, -0.64) }, 0.15, 0.05, 0.1)
-				K:block("Head", "Venom", CFrame.new(hp(0.17 * x, -1.24, -0.6)), Vector3.new(0.06, 0.14, 0.06))
-				K:block("Head", "Venom", CFrame.new(hp(0.2 * x, -0.7, -0.86)), Vector3.new(0.03, 0.2, 0.03))
+				H.curve(K, "Head", { "Fang", "Fang", "Fang", "Fang" }, { hp(0.17 * x, -0.18, -0.76), hp(0.2 * x, -0.5, -0.84), hp(0.2 * x, -0.88, -0.8), hp(0.17 * x, -1.16, -0.66) }, 0.16, 0.05, 0.1)
+				K:block("Head", "Venom", CFrame.new(hp(0.17 * x, -1.26, -0.62)), Vector3.new(0.06, 0.14, 0.06))
+				K:block("Head", "Venom", CFrame.new(hp(0.2 * x, -0.72, -0.88)), Vector3.new(0.03, 0.2, 0.03))
 				-- ears flattened back, thorn-tipped
 				local g = x == 1 and "EarL" or "EarR"
 				K:chain(g, { "HideDark", "Thorn" }, hp(0.3 * x, 0.34, 0.02), hv(0.7 * x, 0.4, 0.6), hv(0, 0, 1), { n = 2, len = 0.34, w0 = 0.2, w1 = 0.1, depth = 0.5, bend = 0 })
 			end
 			local JAW = HEAD * CFrame.new(HINGE) * CFrame.Angles(rad(-18), 0, 0)
-			K:block("Jaw", "Hide", JAW * CFrame.new(0, -0.08, -0.36), Vector3.new(0.42, 0.16, 0.62))
-			K:block("Jaw", "Belly", JAW * CFrame.new(0, -0.16, -0.32), Vector3.new(0.34, 0.04, 0.5))
-			K:block("Jaw", "Mouth", JAW * CFrame.new(0, 0.01, -0.38), Vector3.new(0.34, 0.04, 0.52))
+			-- a heavy lower jaw: a broad chin, sides running back to the hinge
+			K:block("Jaw", "Hide", JAW * CFrame.new(0, -0.08, -0.38), Vector3.new(0.52, 0.18, 0.66))
+			K:block("Jaw", "HideDark", JAW * CFrame.new(0, -0.12, -0.7), Vector3.new(0.42, 0.22, 0.18))
+			for _, x in { 1, -1 } do
+				K:block("Jaw", "Hide", JAW * CFrame.new(0.27 * x, -0.06, -0.24), Vector3.new(0.1, 0.22, 0.6))
+			end
+			K:block("Jaw", "Belly", JAW * CFrame.new(0, -0.18, -0.36), Vector3.new(0.42, 0.04, 0.56))
+			K:block("Jaw", "Mouth", JAW * CFrame.new(0, 0.01, -0.4), Vector3.new(0.42, 0.04, 0.56))
 			for _, x in { 1, -1 } do
 				H.teeth(K, "Jaw", "Tooth", JAW * Vector3.new(0.16 * x, 0, -0.18), JAW * Vector3.new(0.14 * x, 0, -0.56), 3, JAW:VectorToWorldSpace(Vector3.yAxis), JAW:VectorToWorldSpace(Vector3.xAxis), 0.06, 0.04)
 			end
