@@ -4,14 +4,25 @@ local H = require(script.Parent.Helpers)
 -- Venom Jungle / Mythic / poison: a three-headed vine hydra. A huge serpent body lying in a thick coil, scales shading
 -- from bark-brown and dark green on the back to a pale belly, wound with thorned vines, glowing lime seams sunk in the
 -- flanks, roots spreading from its belly into the ground. Three long thick necks rear high out of the front of the coil
--- and fan out wide, each with its own big head: in the middle a giant flytrap maw (two leaf jaws lined with spines,
+-- and fan out wide at staggered heights and depths (so all three read from the side too), each with its own big head: in the middle a giant flytrap maw (two leaf jaws lined with spines,
 -- a dark recessed throat glowing magenta at the rims), on the left a fanged viper dripping venom, on the right a head
 -- crowned with a great poison bloom. Heavy brows, small lime eyes, purple spines down every neck.
 local HF = CFrame.new(0, 3.72, -1.34) * CFrame.Angles(rad(-8), 0, 0) -- the flytrap's hinge
 local SIDE = 1.25 -- the side heads' size (about 80% of the flytrap head)
 
+-- the side heads, staggered: the viper (left) lower and further forward, the bloom (right) higher and further back;
+-- each neck runs from its head down into the front of the coil
+local SIDE_FRAMES = {
+	[1] = CFrame.lookAt(Vector3.new(1.72, 2.92, -1.66), Vector3.new(2.3, 2.7, -2.84)),
+	[-1] = CFrame.lookAt(Vector3.new(-1.94, 4.5, -0.36), Vector3.new(-2.6, 4.3, -1.5)),
+}
+local SIDE_NECKS = {
+	[1] = { { 1.7, 2.2, -1.2 }, { 1.3, 1.5, -0.66 }, { 0.7, 1.0, -0.1 }, { 0.2, 0.74, 0.42 } },
+	[-1] = { { -2.0, 3.5, -0.12 }, { -1.6, 2.4, 0.08 }, { -0.9, 1.3, 0.2 }, { -0.2, 0.74, 0.42 } },
+}
+
 local function sideFrame(x)
-	return CFrame.lookAt(Vector3.new(2.0 * x, 3.46, -0.86), Vector3.new(2.62 * x, 3.22, -2.04))
+	return SIDE_FRAMES[x]
 end
 
 return {
@@ -149,10 +160,10 @@ return {
 			local F = sideFrame(x)
 			local sn = tube("Neck", {
 				{ F.Position.X, F.Position.Y, F.Position.Z, rx = 0.42, ru = 0.4, rd = 0.44 },
-				{ 1.86 * x, 2.7, -0.66, rx = 0.5, ru = 0.48, rd = 0.52 },
-				{ 1.38 * x, 1.86, -0.36, rx = 0.56, ru = 0.54, rd = 0.56 },
-				{ 0.7 * x, 1.06, -0.02, rx = 0.62, ru = 0.6, rd = 0.6 },
-				{ 0.2 * x, 0.74, 0.42, rx = 0.64, ru = 0.62, rd = 0.6 },
+				{ SIDE_NECKS[x][1][1], SIDE_NECKS[x][1][2], SIDE_NECKS[x][1][3], rx = 0.5, ru = 0.48, rd = 0.52 },
+				{ SIDE_NECKS[x][2][1], SIDE_NECKS[x][2][2], SIDE_NECKS[x][2][3], rx = 0.56, ru = 0.54, rd = 0.56 },
+				{ SIDE_NECKS[x][3][1], SIDE_NECKS[x][3][2], SIDE_NECKS[x][3][3], rx = 0.62, ru = 0.6, rd = 0.6 },
+				{ SIDE_NECKS[x][4][1], SIDE_NECKS[x][4][2], SIDE_NECKS[x][4][3], rx = 0.64, ru = 0.62, rd = 0.6 },
 			})
 			dress("Neck", sn, 0.32)
 		end
