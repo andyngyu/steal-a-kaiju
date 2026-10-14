@@ -10,7 +10,10 @@
 --                     Signs; nothing is built, only fonts and board colours change)
 --     Hall            the Hall of Champions round the leaderboards (the boards themselves stay exactly where they are)
 --     Statues         two colossal golden kaiju in fountains, one each side of the spawn
---     Avenue          curbs, braziers and banner poles between the plots
+--     Avenue          inlaid paving, ribcage arches, planters, braziers, banner poles (child module Grounds)
+--     Gardens         hedged beds, trees, stone kaiju statues, benches, lamps, armouries (Grounds; removes Map.HubDecor)
+--     Frames          carved stone frames and torches round the leaderboards (Grounds; the boards aren't touched)
+--     Stalls          the market stalls and bunting recoloured medieval (Grounds; nothing is built or moved)
 --     Backdrop        green hills behind the walls (no collision, no shadows)
 --   Map.Plots.PlotN.Arch   the two pillars become little stone gatehouse towers; the Board and its labels are untouched
 -- Nothing scripts look up is renamed or moved (Leaderboards, Market, Spawn, SafeZoneLine, Lane, the plots' parts).
@@ -175,6 +178,9 @@ local function buildGround(map)
 			local odd = (math.floor(xc / 12) + math.floor(zc / 12)) % 2 == 1
 			local paved = (xc > 0 and math.abs(zc) < 20) or (xc < -36 and (Vector3.new(xc, 0, zc) - HALL).Magnitude < 74)
 			local color = paved and (odd and P.PaveB or P.PaveA) or (odd and P.GrassB or P.GrassA)
+			if xc > 0 and math.abs(zc) < 20 and math.abs(zc) > 12 then
+				color = odd and Kit.P.Blue or Kit.P.Mid -- the avenue's border bands
+			end
 			box(ground, "Tile", x0, x1, -2, 0, z0, z1, color, { studs = TOP })
 		end
 	end
@@ -241,31 +247,8 @@ local function buildHall(root, map, ctx)
 end
 
 ------------------------------------------------------------------------------- the two colossal statues
--- Gilds a kaiju for a statue: like Util.GoldVariant (each brick's brightness picks a shade of gold, so the pattern still
--- reads) but the darkest bricks become bronze instead of near-black, which looked like holes at statue scale; glowing
--- (Neon) bricks keep glowing in warm gold.
-local GILD_DEEP, GILD_MID, GILD_PALE = Color3.fromRGB(168, 104, 22), Color3.fromRGB(236, 166, 32), Color3.fromRGB(255, 226, 112)
-local function gild(model)
-	local root = model.PrimaryPart
-	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d ~= root and d.Transparency < 1 then
-			if d.Material == Enum.Material.Neon then
-				d.Color = hex("FFB52E")
-			else
-				local c = d.Color
-				local t = math.clamp((0.299 * c.R + 0.587 * c.G + 0.114 * c.B - 0.05) / 0.75, 0, 1)
-				d.Color = t < 0.5 and GILD_DEEP:Lerp(GILD_MID, t * 2) or GILD_MID:Lerp(GILD_PALE, (t - 0.5) * 2)
-				d.Material = Enum.Material.SmoothPlastic
-				d.Reflectance = 0
-			end
-		elseif d:IsA("Texture") or d:IsA("Decal") then
-			d.Color3 = Color3.fromRGB(255, 214, 110)
-		end
-	end
-end
-
-local function statue(parent, kaijuName, cx, cz, scale, title, lookAt)
-	local m = model(parent, "Statue_" .. kaijuName)
+local function statue(parent, name, cx, cz, title, lookAt, figure, fit, SM)
+	local m = model(parent, name)
 	local centre = Vector3.new(cx, 0, cz)
 	local dir = Vector3.new(lookAt.X - cx, 0, lookAt.Z - cz).Unit
 	local F = CFrame.lookAt(centre, centre + dir)
@@ -297,7 +280,7 @@ local function statue(parent, kaijuName, cx, cz, scale, title, lookAt)
 	lp("Plinth", Vector3.new(22, 8, 22), 10, P.StoneA, { studs = ALL })
 	lp("PlinthTrim", Vector3.new(23.2, 1, 23.2), 14.5, P.Gold, { studs = ALL })
 	lp("Plinth", Vector3.new(19, 3, 19), 16.5, P.StoneB, { studs = ALL })
-	Kit.sign(m, "Plaque", F * CFrame.new(0, 10, -11.5), 15, 3.6, title)
+	Kit.sign(m, "Plaque", F * CFrame.new(0, 10, -11.5), 19, 6.4, title)
 	-- lanterns round the basin, on the plinth's diagonals (clear of the plaque)
 	for k = 0, 3 do
 		local a = math.rad(45 + k * 90)
@@ -313,71 +296,37 @@ local function statue(parent, kaijuName, cx, cz, scale, title, lookAt)
 		l.Brightness = 1.2
 		l.Parent = core
 	end
-	-- the statue: the real sculpted kaiju, gilded and scaled up, with every gameplay attribute stripped
-	local src = ServerStorage:FindFirstChild("Assets") and ServerStorage.Assets.Kaiju:FindFirstChild(kaijuName)
-	if not src then
-		warn("[Citadel] no kaiju asset " .. kaijuName)
-		return m
+	-- the figure stands on the plinth top; Services.ChampionService swaps it at run time, using these attributes
+	local base = Vector3.new(cx, 18, cz)
+	m:SetAttribute("FigureBase", base)
+	m:SetAttribute("FigureFacing", lookAt)
+	m:SetAttribute("FigureMaxH", fit.h)
+	m:SetAttribute("FigureMaxW", fit.w)
+	if figure then
+		figure.Name = "Figure"
+		SM.Place(figure, base, lookAt, fit.h, fit.w)
+		figure.Parent = m
 	end
-	local s = src:Clone()
-	for k in s:GetAttributes() do
-		s:SetAttribute(k, nil)
-	end
-	for _, d in s:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.CanCollide = false
-			d.CanQuery = false
-			d.CanTouch = false
-		elseif d:IsA("JointInstance") or d:IsA("LuaSourceContainer") then
-			d:Destroy()
-		end
-	end
-	gild(s)
-	s.Name = "Golden" .. kaijuName
-	s:ScaleTo(scale)
-	s:PivotTo(F * CFrame.new(0, 18, 0))
-	local bb, size = s:GetBoundingBox()
-	s:PivotTo(s:GetPivot() + Vector3.new(0, 18 - (bb.Y - size.Y / 2), 0))
-	s.Parent = m
 	return m
 end
 
+-- The champion statues: the #1 player on the Money board as a golden statue of their own avatar (north), and the
+-- #1 player on the BestKaiju board's best kaiju (south). The builder makes the fountains, plinths and plaques with placeholder figures - a default avatar
+-- and Icebreaker Rex - and Services.ChampionService puts the real champion in when the server starts.
 local function buildStatues(root, map, ctx)
 	local f = folder(root, "Statues")
+	local SM = fresh(game:GetService("ServerScriptService").Lib.StatueMaker)
 	local target = Vector3.new(10, 0, 0) -- both face the spot where the market meets the avenue
-	statue(f, "Thunderback", -50, 108, 8, "THUNDERBACK", target)
-	statue(f, "IcebreakerRex", -50, -108, 9.5, "ICEBREAKER REX", target)
+	local hero = game:GetService("Players"):CreateHumanoidModelFromDescription(Instance.new("HumanoidDescription"), Enum.HumanoidRigType.R15)
+	SM.RaiseFist(hero)
+	SM.Gild(hero, true)
+	statue(f, "Statue_Champion", -50, 108, "RICHEST HUNTER", target, hero, { h = 46, w = 26 }, SM)
+	local kaiju = ServerStorage.Assets.Kaiju:FindFirstChild("IcebreakerRex")
+	kaiju = kaiju and SM.Gild(kaiju:Clone())
+	statue(f, "Statue_ChampionKaiju", -50, -108, "MIGHTIEST KAIJU", target, kaiju, { h = 50, w = 46 }, SM) -- long kaiju may overhang the plinth into the basin
 end
 
-------------------------------------------------------------------------------- the avenue
-local function bannerPole(parent, x, z, armDir, side)
-	local m = model(parent, "BannerPole")
-	box(m, "Base", x - 1.6, x + 1.6, 0, 1.2, z - 1.6, z + 1.6, P.StoneDark, { studs = ALL })
-	box(m, "Pole", x - 0.6, x + 0.6, 1.2, 30, z - 0.6, z + 0.6, P.Navy, { studs = SIDES })
-	box(m, "Cap", x - 1.1, x + 1.1, 30, 32.2, z - 1.1, z + 1.1, P.Gold, { studs = ALL })
-	box(m, "Arm", x, x + armDir * 8.5, 27.4, 28.4, z - 0.4, z + 0.4, P.Gold, { solid = false })
-	local bx = x + armDir * 4.8
-	Kit.banner(m, CFrame.lookAt(Vector3.new(bx, 27, z), Vector3.new(bx, 27, z - side * 10)), 6.5, 15, { cloth = Kit.P.Navy, trim = Kit.P.Gold, emblem = "diamond", mark = Kit.P.Gold })
-end
-
-local function buildAvenue(root, map, ctx)
-	local f = folder(root, "Avenue")
-	for _, s in { -1, 1 } do
-		box(f, "Curb", 0, 289, 0, 0.35, s * 20, s * 21.4, P.StoneDark, { studs = TOP, solid = false })
-	end
-	for _, x in { 14, 109, 205 } do
-		for _, s in { -1, 1 } do
-			Kit.brazier(f, Vector3.new(x, 0, s * 24), 1)
-		end
-	end
-	for _, gx in { 109, 205 } do
-		for _, s in { -1, 1 } do
-			bannerPole(f, gx - 9, s * 29, 1, s)
-			bannerPole(f, gx + 9, s * 29, -1, s)
-		end
-	end
-end
+-- the avenue, gardens, leaderboard frames and stall colours are in the child module Grounds
 
 ------------------------------------------------------------------------------- plot gatehouses (in each Plot's Arch)
 local function buildGatehouses(root, map, ctx)
@@ -514,7 +463,34 @@ local SECTIONS = {
 	},
 	{ "Hall", buildHall },
 	{ "Statues", buildStatues },
-	{ "Avenue", buildAvenue },
+	{
+		"Avenue",
+		function(root, map, ctx)
+			return require(script.Grounds).Avenue(root, map, ctx, Kit)
+		end,
+	},
+	{
+		"Gardens",
+		function(root, map, ctx)
+			local old = map:FindFirstChild("HubDecor") -- the old hub's bushes (no script uses them)
+			if old then
+				old:Destroy()
+			end
+			return require(script.Grounds).Gardens(root, map, ctx, Kit)
+		end,
+	},
+	{
+		"Frames",
+		function(root, map, ctx)
+			return require(script.Grounds).Frames(root, map, ctx, Kit)
+		end,
+	},
+	{
+		"Stalls",
+		function(root, map, ctx)
+			ctx.stalls = require(script.Grounds).Stalls(map, Kit)
+		end,
+	},
 	{ "Gatehouses", buildGatehouses },
 	{ "Backdrop", buildBackdrop },
 	{
@@ -568,6 +544,9 @@ function C.Build(only)
 		end
 	end
 	local report = string.format("Citadel: built %s (%d new parts this run, %d in Map.Citadel)", table.concat(done, ", "), made + Kit.count(), n)
+	if ctx.stalls then
+		report ..= "\nStalls restyled:\n  " .. table.concat(ctx.stalls, "\n  ")
+	end
 	if ctx.signs then
 		report ..= "\nSigns restyled:\n  " .. table.concat(ctx.signs, "\n  ")
 	end
