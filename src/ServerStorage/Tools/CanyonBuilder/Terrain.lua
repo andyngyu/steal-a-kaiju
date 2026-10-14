@@ -5,6 +5,7 @@
 --   T.cliffRow(parent, o) the first row of cliffs along one side: columns of stacked strata with ledges, overhangs, caps
 --   T.walls(parent, cols, side)  invisible walls along the exact rock fronts (the lane stays closed; no climbing out)
 --   T.ridgeRow(parent, o) coarse rock masses further back (hills, ridges, far ranges)
+--   T.massif(parent, o)   the same, rugged: sliced front to back, strata per slice, a crest profile, crags on top
 --   T.boulder / T.cairn   rounded boulders and stacks;  T.arcBone / T.chain  bones and other bent shapes
 --   T.wildflowers, T.footprint, T.crack, T.cloneProp
 -- Everything inside the walkable area is non-colliding unless stated (guardians chase in straight lines).
@@ -320,6 +321,72 @@ function T.ridgeRow(parent, o)
 			end
 			K.box(parent, "RidgeCap", x - 0.4, x1 + 0.4, H, H + 1.8, s * (fi - 0.6), s * b, o.capColor(xm, rng), { studs = K.ALL, solid = false, shadow = (not o.far) and nil or false })
 			table.insert(cols, { x0 = x, x1 = x1, top = H + 1.8, front = fi, back = b })
+		end
+		x = x1
+	end
+	return cols
+end
+
+-- rugged rock masses instead of flat-topped slabs: each column is cut into slices from front to back; every slice
+-- rises in strata (patch tones, the sides nibbled so they aren't one plane), its height following a crest profile
+-- (lower at the front and back, peaking somewhere in between), with crags now and then on the crest. Only the crest
+-- slices get the cap colour. o: as ridgeRow, plus slice = { min, max } depth. Columns carry crestZ0 / crestZ1.
+function T.massif(parent, o)
+	local s, rng = o.side, o.rng
+	local cols = {}
+	local x = o.xa
+	local shadow = (not o.far) and nil or false
+	while x < o.xb - 0.01 do
+		local x1 = math.min(x + rng:NextInteger(o.minW or 12, o.maxW or 22), o.xb)
+		if o.xb - x1 < 6 then
+			x1 = o.xb
+		end
+		local xm = (x + x1) / 2
+		local H = o.height(xm)
+		if H > 0 then
+			local f, b = o.front(xm) + rng:NextNumber(-2, 3), o.back(xm)
+			local D = math.max(b - f, 1)
+			local y0 = o.far and -40 or -2
+			local crestT = rng:NextNumber(0.25, 0.6)
+			local z = f
+			local best, c0, c1 = -math.huge, f, f
+			while z < b - 0.01 do
+				local dz = math.min(rng:NextNumber(o.slice and o.slice[1] or 10, o.slice and o.slice[2] or 18), b - z)
+				if b - (z + dz) < 5 then
+					dz = b - z
+				end
+				local t = (z + dz / 2 - f) / D
+				local prof = 1 - math.abs(t - crestT) / math.max(crestT, 1 - crestT)
+				local h = math.floor(H * (0.42 + 0.58 * prof) * rng:NextNumber(0.86, 1.08) / 2 + 0.5) * 2
+				local L = h > 70 and 3 or 2
+				local y = y0
+				for i = 1, L do
+					local yt = i == L and h or (y + (h - y) * rng:NextNumber(0.42, 0.62))
+					local n0, n1 = rng:NextNumber(0, 1.8) * (i - 1), rng:NextNumber(0, 1.8) * (i - 1)
+					local mid = (math.max(y, 0) + yt) / 2
+					local color = T.tone(o.pal, Vector3.new(xm, mid, s * z), mid / (o.href or 170), rng)
+					if o.tint then
+						color = o.tint(xm, color)
+					end
+					K.box(parent, "Massif", x + n0, x1 - n1, y, yt, s * z, s * (z + dz), color, { studs = K.SIDES, solid = false, shadow = shadow })
+					y = yt
+				end
+				if prof > 0.72 then
+					K.box(parent, "MassifCap", x + 0.6, x1 - 0.6, h, h + 1.4, s * z, s * (z + dz), o.capColor(xm, rng), { studs = K.TOP, solid = false, shadow = false })
+					if rng:NextNumber() < 0.35 then
+						local cw = math.min(rng:NextNumber(3, 6), (x1 - x) - 1.4)
+						local cx = rng:NextNumber(x + cw / 2 + 0.6, math.max(x + cw / 2 + 0.7, x1 - cw / 2 - 0.6))
+						local ch = rng:NextNumber(6, 16)
+						local crag = T.tone(o.pal, Vector3.new(cx, h + ch, s * z), 0.95, rng)
+						K.box(parent, "Crag", cx - cw / 2, cx + cw / 2, h, h + ch, s * (z + dz * 0.2), s * (z + dz * 0.8), o.tint and o.tint(xm, crag) or crag, { studs = K.SIDES, solid = false, shadow = shadow })
+					end
+				end
+				if h > best then
+					best, c0, c1 = h, z, z + dz
+				end
+				z += dz
+			end
+			table.insert(cols, { x0 = x, x1 = x1, top = best + 1.4, front = f, back = b, crestZ0 = c0, crestZ1 = c1 })
 		end
 		x = x1
 	end

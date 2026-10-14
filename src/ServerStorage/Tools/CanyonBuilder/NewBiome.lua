@@ -10,7 +10,10 @@
 --   Color3, tint(x, color)?, height(ctx, side, x, n) -> number (0 = open), ridge(ctx, side, x, n), farHeight(ctx, side,
 --   x, n), ridgeFront(ctx, side, x)?, liquid = { gap(x, z) (< 0 inside), color(ctx, x, z, n), neon, transparency, top,
 --   bed, overPath (the liquid runs across the path too: the theme bridges it) }, ridgeCap(ctx, x, rng)? (the ridges'
---   and far ranges' caps, when they differ from the cliffs'), init(ctx)?, column(ctx, col, side)?,
+--   and far ranges' caps, when they differ from the cliffs'), init(ctx)?, column(ctx, col, side)?, rugged (ridges and far
+--   ranges as T.massif crags instead of flat-topped slabs), farRock (a paler palette for the far ranges, so landmarks
+--   stand out against them), lock(ctx, comingSoonModel, gx)? (the theme's own field, lock, signs and kaiju
+--   silhouette; the invisible Barrier is always built here),
 --   features(ctx), nest(ctx, art, centre), gate(ctx, gateModel), accent, gateOpenH
 return function(b, K, T, th)
 	local P = K.P
@@ -176,6 +179,73 @@ return function(b, K, T, th)
 		end
 		return s
 	end
+	-- a light the client keeps on from far away (WorldCuller reads KeyLight): landmarks that must read from the gate
+	function ctx.keyLight(part, color, range, brightness)
+		local l = ctx.light(part, color, range, brightness)
+		l:SetAttribute("KeyLight", true)
+		return l
+	end
+	-- a kaiju asset as a dark, shadowy silhouette with glowing eyes, standing at `at` facing `facing`, `height` tall.
+	-- o: body (Color3), eye (Color3), transparency. Returns the model and its eye parts.
+	function ctx.silhouette(parent, assetName, at, facing, height, o)
+		o = o or {}
+		local src = game:GetService("ServerStorage").Assets.Kaiju:FindFirstChild(assetName)
+		if not src then
+			return nil, {}
+		end
+		local k = src:Clone()
+		for a in k:GetAttributes() do
+			k:SetAttribute(a, nil)
+		end
+		local root = k.PrimaryPart
+		local body = o.body or Color3.fromHex("0E0F12")
+		local lift = o.lift or Color3.fromHex("2A2D34")
+		local eyes = {}
+		for _, d in k:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+				d.CanCollide, d.CanQuery, d.CanTouch, d.CastShadow = false, false, false, false
+				if d == root or d.Name:find("Closed") then
+					d.Transparency = 1
+				elseif d.Name:find("Eye") then
+					d.Color = o.eye or Color3.new(1, 1, 1)
+					d.Material = Enum.Material.Neon
+					d.Transparency = 0
+					table.insert(eyes, d)
+				else
+					local c = d.Color
+					d.Color = body:Lerp(lift, math.clamp(0.299 * c.R + 0.587 * c.G + 0.114 * c.B, 0, 1))
+					d.Material = Enum.Material.SmoothPlastic
+					d.Transparency = o.transparency or 0
+					if d:IsA("MeshPart") then
+						d.TextureID = ""
+					end
+				end
+			elseif d:IsA("JointInstance") or d:IsA("Constraint") or d:IsA("LuaSourceContainer") or d:IsA("GuiBase3d") or d:IsA("BillboardGui") or d:IsA("SurfaceGui") or d:IsA("ParticleEmitter") or d:IsA("Light") or d:IsA("Decal") or d:IsA("Texture") or d:IsA("SurfaceAppearance") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Fire") or d:IsA("Smoke") or d:IsA("Sparkles") or d:IsA("Humanoid") or d:IsA("AnimationController") then
+				d:Destroy()
+			end
+		end
+		local _, s0 = k:GetBoundingBox()
+		k:ScaleTo(k:GetScale() * height / s0.Y)
+		k:PivotTo(CFrame.lookAt(at, at + Vector3.new(facing.X, 0, facing.Z)))
+		local cf, s = k:GetBoundingBox()
+		k:PivotTo(k:GetPivot() + Vector3.new(at.X - cf.X, at.Y - (cf.Y - s.Y / 2), at.Z - cf.Z))
+		k.Name = "Silhouette"
+		k.Parent = parent
+		-- the eyes burn: a soft halo round each, and a light on the face
+		for i, e in eyes do
+			local g = e:Clone()
+			g.Name = "EyeGlow"
+			g:ClearAllChildren()
+			g.Size = e.Size * 1.9
+			g.Transparency = 0.55
+			g.Parent = e.Parent
+			if i == 1 then
+				ctx.keyLight(e, o.eye or Color3.new(1, 1, 1), math.clamp(height * 0.35, 10, 24), 2.5)
+			end
+		end
+		return k, eyes
+	end
 	if th.init then
 		th.init(ctx)
 	end
@@ -321,12 +391,14 @@ return function(b, K, T, th)
 				end
 			end
 		end
-		local row2 = T.ridgeRow(back, {
+		local ridgeFn = th.rugged and T.massif or T.ridgeRow
+		local row2 = ridgeFn(back, {
 			side = side,
 			xa = XA,
 			xb = XB,
 			minW = 12,
 			maxW = 20,
+			slice = { 16, 26 },
 			front = function(x)
 				return th.ridgeFront and th.ridgeFront(ctx, side, x) or edge[side](x) + 22
 			end,
@@ -344,14 +416,19 @@ return function(b, K, T, th)
 			href = 150,
 		})
 		for _, c in row2 do
-			table.insert(tops, { side = side, x = (c.x0 + c.x1) / 2, y = c.top, z0 = c.front + 4, z1 = math.min(c.back - 4, c.front + 30), big = true })
+			if c.crestZ0 then
+				table.insert(tops, { side = side, x = (c.x0 + c.x1) / 2, y = c.top, z0 = c.crestZ0 + 2, z1 = c.crestZ1 - 2, big = true })
+			else
+				table.insert(tops, { side = side, x = (c.x0 + c.x1) / 2, y = c.top, z0 = c.front + 4, z1 = math.min(c.back - 4, c.front + 30), big = true })
+			end
 		end
-		T.ridgeRow(back, {
+		ridgeFn(back, {
 			side = side,
 			xa = XA,
 			xb = XB + (b.next and 0 or 60),
 			minW = 24,
 			maxW = 38,
+			slice = { 26, 40 },
 			front = function()
 				return 204
 			end,
@@ -363,7 +440,7 @@ return function(b, K, T, th)
 			end,
 			layers = 2,
 			far = true,
-			pal = th.rock,
+			pal = th.farRock or th.rock,
 			capColor = ridgeCap,
 			tint = th.tint,
 			rng = rng,
@@ -402,6 +479,9 @@ return function(b, K, T, th)
 			t:Destroy()
 		end
 		wall.CanQuery, wall.CastShadow = false, false
+		if th.lock then
+			th.lock(ctx, cs, gx)
+		else
 		local field = K.box(cs, "Field", gx - 0.25, gx + 0.25, 0, th.gateOpenH or 60, -56, 56, th.accent, { neon = true, transparency = 0.93, solid = false, shadow = false })
 		-- a brighter rim round the field
 		for _, e in { { 0, 0.6, -56, 56 }, { (th.gateOpenH or 60) - 0.6, th.gateOpenH or 60, -56, 56 }, { 0, th.gateOpenH or 60, -56, -55.4 }, { 0, th.gateOpenH or 60, 55.4, 56 } } do
@@ -412,6 +492,7 @@ return function(b, K, T, th)
 			local x = gx + f * 1.3
 			K.sign(cs, "ComingSoon", CFrame.lookAt(Vector3.new(x, 24, 0), Vector3.new(x + f * 20, 24, 0)), 42, 9, "COMING SOON")
 			K.sign(cs, "ComingSoonName", CFrame.lookAt(Vector3.new(x, 14.5, 0), Vector3.new(x + f * 20, 14.5, 0)), 30, 4.6, string.upper(b.DisplayName or b.Id), { cream = true })
+		end
 		end
 	end
 
