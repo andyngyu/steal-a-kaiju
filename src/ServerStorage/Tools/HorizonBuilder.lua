@@ -39,21 +39,39 @@ local function canyonEnd()
 	return x
 end
 
-local function area(x)
-	if x < 452 then
-		return { body = hex("B07A42"), cap = hex("5BBF35"), cap2 = hex("4FB52C"), shore = hex("E3D2A0") }
-	elseif x < 627 then
-		return { body = hex("3A2C2A"), cap = hex("2E2220"), cap2 = hex("4A3834"), shore = hex("5A4E4A") }
-	elseif x < 827 then
-		return { body = hex("829EB8"), cap = hex("FFFFFF"), cap2 = hex("E8F3FF"), shore = hex("DCE8F2") }
-	elseif x < 1052 then
-		return { body = hex("3B4434"), cap = hex("2F7A36"), cap2 = hex("276030"), shore = hex("6B5E44") }
-	elseif x < 1302 then
-		return { body = hex("23405A"), cap = hex("2F8C78"), cap2 = hex("2A6E70"), shore = hex("8FA8A4") }
-	elseif x < 1577 then
-		return { body = hex("3A4150"), cap = hex("2F3644"), cap2 = hex("4B5363"), shore = hex("5E6676") }
+-- the foothills' colours per area: the hub and each biome (spans read from the lane Zone parts when building)
+local AREAS = {
+	PebblePlains = { body = hex("B07A42"), cap = hex("5BBF35"), cap2 = hex("4FB52C"), shore = hex("E3D2A0") },
+	LavaLagoon = { body = hex("3A2C2A"), cap = hex("2E2220"), cap2 = hex("4A3834"), shore = hex("5A4E4A") },
+	FrostfangPeaks = { body = hex("829EB8"), cap = hex("FFFFFF"), cap2 = hex("E8F3FF"), shore = hex("DCE8F2") },
+	VenomJungle = { body = hex("3B4434"), cap = hex("2F7A36"), cap2 = hex("276030"), shore = hex("6B5E44") },
+	SunkenAbyss = { body = hex("23405A"), cap = hex("2F8C78"), cap2 = hex("2A6E70"), shore = hex("8FA8A4") },
+	StormSpires = { body = hex("3A4150"), cap = hex("2F3644"), cap2 = hex("4B5363"), shore = hex("5E6676") },
+	CosmicRift = { body = hex("221A3D"), cap = hex("3D2E63"), cap2 = hex("5A2F8A"), shore = hex("2E2450") },
+}
+local spans = {}
+
+local function readSpans()
+	spans = {}
+	local lane = workspace.Map:FindFirstChild("Lane")
+	for _, m in lane and lane:GetChildren() or {} do
+		local z = m:FindFirstChild("Zone")
+		if z and AREAS[m.Name] then
+			table.insert(spans, { x1 = z.Position.X + z.Size.X / 2, id = m.Name })
+		end
 	end
-	return { body = hex("221A3D"), cap = hex("3D2E63"), cap2 = hex("5A2F8A"), shore = hex("2E2450") }
+	table.sort(spans, function(a, b)
+		return a.x1 < b.x1
+	end)
+end
+
+local function area(x)
+	for _, s in spans do
+		if x < s.x1 then
+			return AREAS[s.id]
+		end
+	end
+	return spans[#spans] and AREAS[spans[#spans].id] or AREAS.PebblePlains
 end
 
 function H.Build()
@@ -63,6 +81,7 @@ function H.Build()
 		old:Destroy()
 	end
 	K.reset()
+	readSpans()
 	local root = K.model(map, "Horizon")
 	local rng = Random.new(1717)
 	local X0, X1 = -420, canyonEnd() + 150
@@ -73,7 +92,9 @@ function H.Build()
 			flat(K.box(sea, "Sea", x, x + 2000, SEA - 4, SEA, z, z + 2000, hex("2F7FBF"), FAR))
 		end
 	end
-	flat(K.box(sea, "Shallows", X0 - 80, math.min(X1 + 80, X0 + 2000), SEA - 3.9, SEA + 0.1, -480, 480, hex("46A6D6"), FAR))
+	for sx = X0 - 80, X1 + 79, 2000 do -- (a part is at most 2048 long)
+		flat(K.box(sea, "Shallows", sx, math.min(sx + 2000, X1 + 80), SEA - 3.9, SEA + 0.1, -480, 480, hex("46A6D6"), FAR))
+	end
 	-------------------------------------------------------------- foothills and shore, round the island
 	local hills = K.model(root, "Foothills")
 	local function hill(x0, x1, z0, z1, h, a, kind)
@@ -120,7 +141,8 @@ function H.Build()
 	for i = 0, 19 do
 		local a = i / 20 * math.pi * 2 + rng:NextNumber(-0.08, 0.08)
 		local r = rng:NextNumber(1700, 2300)
-		local mx, mz = cx + math.cos(a) * r * 1.25, math.sin(a) * r
+		-- an ellipse round the island: always 900-1650 studs clear of its ends, however long the canyon is
+		local mx, mz = cx + math.cos(a) * ((X1 - X0) / 2 + 900 + (r - 1700) * 1.25), math.sin(a) * r
 		local base = rng:NextNumber(520, 900)
 		local ht = rng:NextNumber(300, 680)
 		local steps = 7
