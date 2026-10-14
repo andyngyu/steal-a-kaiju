@@ -72,13 +72,13 @@ VFXConfig.Weather = {
 		Lighting = { Tint = hex("FFF4DE"), Saturation = 0.08, Brightness = 0.03, Haze = -0.06 }, -- warm and bright
 	},
 	LavaLagoon = {
-		Embers = { Rate = 55, Color = hex("FF7A1F") },
-		Ash = { Rate = 10, Color = hex("8A7F7A") },
-		Lighting = { Tint = hex("FFEDE0"), Saturation = 0.06, Brightness = 0.01 },
+		Embers = { Rate = 70, Color = hex("FF7A1F") },
+		Ash = { Rate = 14, Color = hex("8A7F7A") },
+		Lighting = { Tint = hex("FFD9BC"), Saturation = 0.1, Brightness = -0.01, Haze = 0.14 }, -- orange haze
 	},
 	FrostfangPeaks = {
-		Snow = { Rate = 70, Color = hex("FFFFFF") },
-		Lighting = { Tint = hex("E6F2FF"), Saturation = -0.05, Brightness = 0.03, Haze = 0.06 },
+		Snow = { Rate = 110, Color = hex("FFFFFF") },
+		Lighting = { Tint = hex("DCEBFF"), Saturation = -0.06, Brightness = 0.02, Haze = 0.18 }, -- cool blue light and mist
 	},
 }
 
