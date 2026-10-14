@@ -2,9 +2,9 @@ local rad = math.rad
 local H = require(script.Parent.Helpers)
 
 -- Venom Jungle / Uncommon / poison: a fungus boar. A heavy wild boar, the shoulders a high bristling hump, the head
--- slung low, short stout legs on cloven hooves, and a grove of poison mushrooms growing out of its back (purple and
--- magenta caps, glowing gills, pale spots) in a carpet of moss. Face: a long wedge head under a heavy brow, small lime
--- eyes, a broad snout, and two pairs of curved tusks (the uppers sweeping up past the eyes).
+-- slung low behind a helmet of bony armour plates, thick legs on cloven hooves, and a grove of big poison toadstools
+-- growing out of its back (purple and magenta caps glowing underneath, pale spots, lime spore dots) in a carpet of
+-- moss. Face: a heavy armoured brow over small lime eyes, a broad snout, two pairs of curved tusks.
 local HEAD = CFrame.new(0, 1.18, -1.42) * CFrame.Angles(rad(-18), 0, 0)
 local HINGE = Vector3.new(0, -0.16, -0.2)
 
@@ -14,9 +14,12 @@ return {
 	Gait = "Trot",
 	Emotes = { "Look", "Paw", "Wiggle" },
 	Palette = {
-		Hide = "5A4232",
-		HideDark = "3E2C20",
-		HideLight = "7A5E46",
+		Hide = "6E5138",
+		HideDark = "4A3424",
+		HideLight = "8E6E50",
+		Armour = { "5E4A36", Material = "Slate" },
+		ArmourLight = { "86704E", Material = "Slate" },
+		Spore = { "B4FF3A", Neon = true },
 		Back = "241812",
 		Belly = "8E785E",
 		Belly2 = "7A664E",
@@ -57,10 +60,10 @@ return {
 		local belly = { key = "Belly", key2 = "Belly2", arc = 46, t = 0.12, wide = 1.1 }
 		-- a barrel body rising to a high hump over the shoulders
 		local body = K:tube("Body", {
-			{ 0, 1.42, -0.86, rx = 0.66, ru = 0.82, rd = 0.62 },
-			{ 0, 1.5, -0.2, rx = 0.78, ru = 0.84, rd = 0.7 },
-			{ 0, 1.42, 0.52, rx = 0.74, ru = 0.66, rd = 0.68 },
-			{ 0, 1.36, 1.08, rx = 0.58, ru = 0.52, rd = 0.52 },
+			{ 0, 1.44, -0.86, rx = 0.72, ru = 0.9, rd = 0.66 },
+			{ 0, 1.52, -0.2, rx = 0.86, ru = 0.92, rd = 0.74 },
+			{ 0, 1.44, 0.52, rx = 0.82, ru = 0.72, rd = 0.72 },
+			{ 0, 1.38, 1.08, rx = 0.64, ru = 0.56, rd = 0.56 },
 		}, { step = 0.32, core = "Hide", coreScale = 0.8, tile = H.fur(0.42, nil, 0.44, 14), belly = belly, color = skin })
 		K:tube("Body", {
 			{ 0, 1.42, -0.62, rx = 0.62, ru = 0.72, rd = 0.6 },
@@ -81,7 +84,8 @@ return {
 			K:block("Body", "Stem", CFrame.fromMatrix(base + tilt * h / 2, X, tilt), Vector3.new(r * 0.36, h, r * 0.36))
 			local top = base + tilt * h
 			local F = CFrame.fromMatrix(top, X, tilt)
-			K:block("Body", gill, F * CFrame.new(0, -0.02, 0), Vector3.new(r * 1.8, 0.05, r * 1.8))
+			K:block("Body", gill, F * CFrame.new(0, -0.03, 0), Vector3.new(r * 1.86, 0.08, r * 1.86))
+			K:block("Body", gill, F * CFrame.new(0, -0.03, 0) * CFrame.Angles(0, rad(45), 0), Vector3.new(r * 1.6, 0.08, r * 1.6))
 			K:block("Body", capDark, F * CFrame.new(0, r * 0.12, 0), Vector3.new(r * 2, r * 0.26, r * 2))
 			K:block("Body", capDark, F * CFrame.new(0, r * 0.12, 0) * CFrame.Angles(0, rad(45), 0), Vector3.new(r * 1.8, r * 0.24, r * 1.8))
 			K:block("Body", cap, F * CFrame.new(0, r * 0.34, 0) * CFrame.Angles(0, rad(22), 0), Vector3.new(r * 1.5, r * 0.26, r * 1.5))
@@ -95,7 +99,13 @@ return {
 			local smp = K:at(body, m[1])
 			local pos, nrm = K:surface(smp, rad(m[2]), 0.05)
 			local pink = i % 3 == 0
-			shroom(pos, (nrm + Vector3.yAxis * 0.6).Unit, m[3], m[4], pink and "Cap2" or "Cap", pink and "Cap2Dark" or "CapDark", pink and "Gill2" or "Gill")
+			shroom(pos, (nrm + Vector3.yAxis * 0.6).Unit, m[3] * 1.3, m[4] * 1.5, pink and "Cap2" or "Cap", pink and "Cap2Dark" or "CapDark", pink and "Gill2" or "Gill")
+		end
+		-- glowing spores dotted through the moss
+		for s = 0.2, body.total - 0.2, 0.22 do
+			local smp = K:at(body, s)
+			local pos, nrm = K:surface(smp, rad(K:rand(-60, 60)), -0.02)
+			K:block("Body", "Spore", CFrame.fromMatrix(pos, nrm:Cross(smp.T).Unit, nrm), Vector3.new(0.08, 0.06, 0.08))
 		end
 		-- a short tail with a bristle tuft
 		K:tube("Tail", { { 0, 1.5, 1.14, rx = 0.08 }, { 0, 1.2, 1.36, rx = 0.06 } }, { step = 0.16, core = "HideDark", coreScale = 0.95 })
@@ -105,13 +115,13 @@ return {
 			return ring % 2 == 0 and "Hide" or "HideDark"
 		end
 		for _, x in { 1, -1 } do
-			for _, L in { { "LegF", -0.56, -0.62, 0.36 }, { "LegB", 0.78, 0.66, 0.42 } } do
+			for _, L in { { "LegF", -0.56, -0.62, 0.44 }, { "LegB", 0.78, 0.66, 0.5 } } do
 				local g = L[1] .. (x == 1 and "L" or "R")
 				H.quadLeg(K, g, {
 					{ 0.5 * x, 1.24, L[2], L[4] },
 					{ 0.56 * x, 0.7, L[3], L[4] * 0.74 },
 					{ 0.56 * x, 0.24, L[2] - 0.02, L[4] * 0.6 },
-				}, { step = 0.26, cores = { "Hide", "HideDark" }, tiles = { H.fur(0.3, 5, 0.34, 14), nil }, color = limb, foot = { size = Vector3.new(0.34, 0.22, 0.36), key = "Back" }, toes = 2, claw = { len = 0.14, w = 0.12, curl = 10 } })
+				}, { step = 0.26, cores = { "Hide", "HideDark" }, tiles = { H.fur(0.34, 5, 0.36, 14), nil }, color = limb, foot = { size = Vector3.new(0.42, 0.24, 0.44), key = "Back" }, toes = 2, claw = { len = 0.16, w = 0.14, curl = 10 } })
 			end
 		end
 
@@ -136,12 +146,20 @@ return {
 			K:block("Head", "Socket", hcf(0.07 * x, -0.06, -1.26, 24, 0, 30 * x), Vector3.new(0.03, 0.1, 0.04))
 		end
 		K:block("Head", "Mouth", hcf(0, -0.2, -0.72), Vector3.new(0.44, 0.04, 0.64))
-		-- a heavy brow and bristles over the skull
-		K:block("Head", "Back", hcf(0, 0.44, -0.36, -14, 0, 0), Vector3.new(0.66, 0.14, 0.36))
+		-- a helmet of bony armour plates: a heavy brow shield, plates stepping down the snout, cheek guards
+		K:block("Head", "Armour", hcf(0, 0.46, -0.34, -14, 0, 0), Vector3.new(0.84, 0.2, 0.46))
+		K:block("Head", "ArmourLight", hcf(0, 0.56, -0.26, -18, 0, 0), Vector3.new(0.6, 0.12, 0.34))
+		for i, z in { -0.66, -0.88, -1.06 } do
+			K:block("Head", i % 2 == 0 and "ArmourLight" or "Armour", hcf(0, 0.36 - i * 0.07, z, -22, 0, 0), Vector3.new(0.5 - i * 0.06, 0.12, 0.26))
+		end
+		for _, x in { 1, -1 } do
+			K:block("Head", "Armour", hcf(0.4 * x, 0.06, -0.42, 0, -12 * x, 10 * x), Vector3.new(0.12, 0.44, 0.5))
+			K:spike("Head", "ArmourLight", hp(0.38 * x, 0.52, -0.18), hv(0.6 * x, 0.7, 0.4), hv(0, 0, 1), 0.22, 0.08)
+		end
 		K:ridge("Head", K:path({ { 0, 0.62 + 1.18, -1.32 + 0.0, rx = 0.2 }, { 0, 0.5 + 1.18, -0.92, rx = 0.2 } }, 0.12), { every = 0.1, height = 0.24, thick = 0.08, key = "Bristle", lean = 60, jitter = 12, sink = 0 })
 		for _, x in { 1, -1 } do
-			K:block("Head", "Back", hcf(0.26 * x, 0.34, -0.5, -6, -16 * x, 22 * x), Vector3.new(0.3, 0.13, 0.32))
-			H.eye(K, "Head", hcf(0.31 * x, 0.22, -0.56, 0, -34 * x, 16 * x), 0.18, 0.05)
+			K:block("Head", "Armour", hcf(0.26 * x, 0.36, -0.5, -6, -16 * x, 24 * x), Vector3.new(0.34, 0.16, 0.36))
+			H.eye(K, "Head", hcf(0.31 * x, 0.22, -0.56, 0, -34 * x, 16 * x), 0.15, 0.045)
 			K:block("Head", "HideLight", hcf(0.32 * x, -0.04, -0.32, 0, -10 * x, 6 * x), Vector3.new(0.16, 0.4, 0.42))
 			-- upper tusks sweeping up and back past the eyes, lower tusks hooking up from the jaw
 			H.curve(K, "Head", { "TuskBase", "Tusk", "Tusk" }, { hp(0.24 * x, -0.12, -0.96), hp(0.44 * x, 0.0, -1.1), hp(0.56 * x, 0.32, -1.02), hp(0.52 * x, 0.58, -0.78) }, 0.13, 0.05, 0.12)
