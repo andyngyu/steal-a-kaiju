@@ -6,17 +6,19 @@ local H = {}
 local rad = math.rad
 
 -- skin by angle round a tube (0 = top) and ring: dark stripe down the spine, dark bands down the flanks every `every`
--- rings, plain flanks, lighter lower flanks
+-- rings, plain flanks, lighter lower flanks. opts.upper: a key for the upper flanks (between the stripe and `band`), so
+-- the skin steps from a dark back through the flanks to a light underside
 function H.skin(opts)
 	opts = opts or {}
 	local stripe, band, flank, every = opts.stripe or 44, opts.band or 84, opts.flank or 104, opts.every or 3
 	local back, hide, light, bandKey = opts.back or "Back", opts.hide or "Hide", opts.light or "HideLight", opts.bandKey or opts.back or "Back"
+	local upper = opts.upper or hide
 	return function(th, ring)
 		local a = math.deg(math.abs(th))
 		if a < stripe then
 			return back
 		elseif a < band then
-			return ring % every == 0 and bandKey or hide
+			return ring % every == 0 and bandKey or upper
 		elseif a < flank then
 			return hide
 		end
@@ -962,9 +964,11 @@ function H.bipedArms(K, P)
 end
 
 -- A flytrap maw: two big leaf-shaped lobes hinged at the back of P.frame (facing -Z), the upper one in group P.head and
--- the lower in P.jaw, each opened P.open degrees: a domed shell outside, glowing inside, long spines down every rim
--- leaning in so they interlock when it snaps shut. P = { head, jaw, frame, size, open, keys = { shell, shellDark, glow,
--- deep, spine, spineTip } }. Returns the upper and lower lobe frames.
+-- the lower in P.jaw, each opened P.open degrees: a domed shell outside, long spines down every rim leaning in so they
+-- interlock when it snaps shut. Inside, a recessed throat: dark (deep) down the middle and at the back, magenta
+-- (lining, then lip) toward the rims, a thin glowing line (glow) just inside each rim, rows of inner tooth-spines, a
+-- glow deep in the throat and a few tendrils curling up from the lower lobe. P = { head, jaw, frame, size, open,
+-- keys = { shell, shellDark, glow, deep, lining, lip, tooth, spine, spineTip } }. Returns the upper and lower lobe frames.
 function H.flytrap(K, P)
 	local s = P.size or 1
 	local k = P.keys
@@ -974,7 +978,17 @@ function H.flytrap(K, P)
 			local z, w = seg[1] * s, seg[2] * s
 			K:block(group, i % 2 == 0 and k.shellDark or k.shell, F * CFrame.new(0, up * 0.09 * s, z), Vector3.new(w, 0.16 * s, 0.38 * s))
 			K:block(group, k.shell, F * CFrame.new(0, up * 0.2 * s, z), Vector3.new(w * 0.56, 0.1 * s, 0.36 * s))
-			K:block(group, k.glow, F * CFrame.new(0, 0, z), Vector3.new(w * 0.86, 0.04 * s, 0.38 * s))
+			-- the lining: dark at the back and down the middle, magenta toward the rims, a thin glowing line by each rim
+			K:block(group, i <= 2 and k.deep or (k.lining or k.deep), F * CFrame.new(0, 0, z), Vector3.new(w * 0.86, 0.04 * s, 0.38 * s))
+			K:block(group, k.deep, F * CFrame.new(0, -up * 0.006 * s, z), Vector3.new(w * 0.3, 0.04 * s, 0.38 * s))
+			for _, x in { 1, -1 } do
+				K:block(group, k.lip or k.lining or k.deep, F * CFrame.new(x * w * 0.29, -up * 0.006 * s, z), Vector3.new(w * 0.18, 0.04 * s, 0.38 * s))
+				K:block(group, k.glow, F * CFrame.new(x * w * 0.39, -up * 0.01 * s, z), Vector3.new(w * 0.07, 0.04 * s, 0.38 * s))
+				-- inner tooth-spines in rows down the lobe
+				if i >= 2 and i <= 4 then
+					K:spike(group, k.tooth or k.spineTip, F * Vector3.new(x * w * 0.17, -up * 0.02 * s, z), F:VectorToWorldSpace(Vector3.new(x * 0.15, -up, 0)), F:VectorToWorldSpace(Vector3.zAxis), 0.17 * s, 0.05 * s)
+				end
+			end
 			for _, x in { 1, -1 } do
 				for _, dz in { -0.09, 0.09 } do
 					local base = F * Vector3.new(x * w * 0.47, 0, z + dz * s)
@@ -985,6 +999,13 @@ function H.flytrap(K, P)
 		end
 		K:chain(group, { k.spine, k.spineTip }, F * Vector3.new(0, 0, -1.62 * s), F:VectorToWorldSpace(Vector3.new(0, -up * 0.5, -1)).Unit, F:VectorToWorldSpace(Vector3.xAxis), { n = 2, len = 0.4 * s, w0 = 0.08 * s, w1 = 0.05 * s, bend = 0 })
 		K:block(group, k.deep, F * CFrame.new(0, -up * 0.02, -0.06 * s), Vector3.new(0.5 * s, 0.05 * s, 0.24 * s))
+		-- a glow deep in the throat, and tendrils curling up out of it from the lower lobe
+		K:block(group, k.glow, F * CFrame.new(0, -up * 0.035 * s, -0.12 * s), Vector3.new(0.2 * s, 0.04 * s, 0.14 * s))
+		if up < 0 then
+			for _, x in { -1, 0, 1 } do
+				K:chain(group, { k.deep, k.lining or k.deep, k.lip or k.glow }, F * Vector3.new(x * 0.16 * s, 0.03 * s, -0.34 * s), F:VectorToWorldSpace(Vector3.new(x * 0.35, 0.9, -0.5)).Unit, F:VectorToWorldSpace(Vector3.xAxis), { n = 3, len = 0.26 * s, w0 = 0.07 * s, w1 = 0.04 * s, bend = -28 })
+			end
+		end
 	end
 	local open = rad(P.open or 26)
 	local UF = P.frame * CFrame.Angles(open, 0, 0)
@@ -1150,11 +1171,13 @@ end
 
 -- a continuous glowing vein flowing along a tube: a smooth meandering ribbon laid over the surface (`lift` raises it
 -- over fur tiles) from `from` to `to`, forking now and then. opts: step, wander (degrees), width, height, lift, forks,
--- forkSteps, forkTurn (degrees), taper
+-- forkSteps, forkTurn (degrees), taper; lip (key) makes it a recessed seam: the glowing core sits a little low between
+-- two raised dark lips (lipW wide), so it glows from inside a crack instead of lying on top like paint
 function H.vein(K, group, key, samples, th0, from, to, opts)
 	opts = opts or {}
 	local step = opts.step or 0.2
 	local width, height, lift = opts.width or 0.08, opts.height or 0.12, opts.lift or 0.08
+	local lipKey, lipW = opts.lip, opts.lipW or (opts.width or 0.08) * 0.8
 	local wander = rad(opts.wander or 14)
 	local phase = K:rand(0, 6.28)
 	local pts = {}
@@ -1177,7 +1200,14 @@ function H.vein(K, group, key, samples, th0, from, to, opts)
 			return
 		end
 		n = n.Unit
-		K:block(group, key, CFrame.fromMatrix((a + b) / 2, n:Cross(u), n), Vector3.new(w, height, d.Magnitude + w * 0.9))
+		local X, mid = n:Cross(u), (a + b) / 2
+		K:block(group, key, CFrame.fromMatrix(mid - n * (lipKey and height * 0.3 or 0), X, n), Vector3.new(w, height, d.Magnitude + w * 0.9))
+		if lipKey then
+			local lw = lipW * w / width
+			for _, sd in { 1, -1 } do
+				K:block(group, lipKey, CFrame.fromMatrix(mid + X * sd * (w + lw) * 0.5, X, n), Vector3.new(lw, height * 1.3, d.Magnitude + lw * 0.6))
+			end
+		end
 	end
 	for i = 1, #pts - 1 do
 		local f = (i - 1) / math.max(#pts - 1, 1)
