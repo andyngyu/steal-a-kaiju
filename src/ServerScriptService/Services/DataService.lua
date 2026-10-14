@@ -138,6 +138,23 @@ function DataService:IsLoaded(player)
 	return profiles[player] ~= nil
 end
 
+-- Read-only look at any player's saved data, online or not (no session lock; yields). The live table for a player in
+-- this server, otherwise a snapshot of their last save - don't write to it. nil if they have no save or it fails.
+-- Used by ChampionService to show the richest player's best kaiju while they're offline.
+function DataService:ViewAsync(userId)
+	local online = Players:GetPlayerByUserId(userId)
+	if online and profiles[online] then
+		return profiles[online].Data
+	end
+	if not store then
+		return nil
+	end
+	local ok, profile = pcall(function()
+		return store:GetAsync("Player_" .. userId)
+	end)
+	return ok and profile and profile.Data or nil
+end
+
 -- fn(player, data) runs for every player whose profile loads, including ones already loaded.
 function DataService:OnLoaded(fn)
 	table.insert(loadedCallbacks, fn)
