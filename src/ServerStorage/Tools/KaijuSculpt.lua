@@ -1,7 +1,7 @@
 -- Edit-time tool: builds the sculpted kaiju (2026-10-13 art direction: powerful, a bit intimidating monsters, "voxel but
 -- sculpted"). Specs live in ServerStorage.Tools.KaijuSculptSpecs: per species a table with Palette, Joints, Parents,
--- Gait, Emotes, Seed, Vary (random value variation per block, e.g. 0.06) and Build(K), a function that places the blocks
--- through the API below.
+-- Gait, Emotes, Seed, Vary (random value variation per block, e.g. 0.06), Scale (the whole build and its joints scaled
+-- about the origin) and Build(K), a function that places the blocks through the API below.
 --   require(game.ServerStorage.Tools.KaijuSculpt:Clone()).Build("Pebblesaur")   -> ServerStorage.Assets.Kaiju.Pebblesaur
 -- Output contract (same as KaijuBuilder, so KaijuModel / KaijuFX / KaijuMotion / MutationVisuals / GoldVariant keep
 -- working): Model facing -Z, PrimaryPart "Root" at the centre of the feet, body groups as sub-Models with a Joint
@@ -26,6 +26,7 @@
 --   K:chain(group, colours, base, dir, axis, opts)       a tapered chain of blocks bending about axis (horns, claws)
 --   K:plate(group, colours, base, up, along, opts)       a stepped plate: layers narrowing and stepping back to a point
 --   K:rand(a, b)                                         seeded random (the same build every time)
+--   K:scaled(origin, s, fn)                              everything fn builds is scaled by s about origin
 local ServerStorage = game:GetService("ServerStorage")
 
 local KaijuSculpt = {}
@@ -44,6 +45,13 @@ local function v3(t)
 	return typeof(t) == "Vector3" and t or Vector3.new(t[1], t[2], t[3])
 end
 
+-- builds everything fn places scaled by s about `origin` (a bigger head on the same neck, a heavier variant)
+function K:scaled(origin, s, fn)
+	table.insert(self.scales, { origin, s })
+	fn()
+	table.remove(self.scales)
+end
+
 function K:rand(a, b)
 	return a + (b - a) * self.rng:NextNumber()
 end
@@ -55,7 +63,7 @@ function K:group(name)
 		g.Name = name
 		local joint = self.spec.Joints and self.spec.Joints[name]
 		if joint then
-			g:SetAttribute("Joint", v3(joint))
+			g:SetAttribute("Joint", v3(joint) * (self.spec.Scale or 1))
 		end
 		self.groups[name] = g
 		local parentName = self.spec.Parents and self.spec.Parents[name]
@@ -67,6 +75,12 @@ end
 function K:block(group, key, cf, size, name)
 	local pal = self.palette[key]
 	assert(pal, "no palette colour " .. tostring(key))
+	local stack = self.scales
+	for i = #stack, 1, -1 do
+		local o, s = stack[i][1], stack[i][2]
+		cf = CFrame.new(o + (cf.Position - o) * s) * cf.Rotation
+		size *= s
+	end
 	local p = Instance.new("Part")
 	p.Name = name or key
 	p.Size = Vector3.new(math.max(size.X, 0.05), math.max(size.Y, 0.05), math.max(size.Z, 0.05))
@@ -79,6 +93,7 @@ function K:block(group, key, cf, size, name)
 	end
 	p.Color = color
 	p.Material = pal.material
+	p.Transparency = pal.transparency or 0
 	p.Anchored = true
 	p.CanCollide = false
 	p.CanTouch = false
@@ -402,6 +417,7 @@ function KaijuSculpt.BuildModel(name, spec)
 	self.rng = Random.new(spec.Seed or 1)
 	self.groups = {}
 	self.count = 0
+	self.scales = { { Vector3.zero, spec.Scale or 1 } }
 	self.palette = {}
 	for key, value in spec.Palette do
 		local hexv = type(value) == "table" and value[1] or value
@@ -413,7 +429,7 @@ function KaijuSculpt.BuildModel(name, spec)
 				mat = Enum.Material[value.Material]
 			end
 		end
-		self.palette[key] = { color = Color3.fromHex(hexv), material = mat }
+		self.palette[key] = { color = Color3.fromHex(hexv), material = mat, transparency = type(value) == "table" and value.Transparency or 0 }
 	end
 	local model = Instance.new("Model")
 	model.Name = name

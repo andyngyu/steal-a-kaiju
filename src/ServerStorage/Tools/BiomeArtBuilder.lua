@@ -3,7 +3,8 @@
 --   local A = require(game.ServerStorage.Tools.BiomeArtBuilder:Clone())
 --   A.BuildEgg("PebblePlains")       -> ServerStorage.Assets.Eggs.PebblePlains (Lib.EggModel uses it, tints "Band" parts)
 --   A.BuildEgg("PebblePlains", "Epic") -> ServerStorage.Assets.Eggs.PebblePlains_Epic (spec Egg_PebblePlains_Epic)
---   A.BuildGuardian("PebblePlains")  -> ServerStorage.Assets.Kaiju.Guardian_PebblePlains (GuardianService uses it)
+--   A.BuildGuardian("PebblePlains")  -> ServerStorage.Assets.Kaiju.Guardian_PebblePlains (GuardianService uses it; sculpted
+--                                       from Tools.GuardianSculptSpecs when it has the spec)
 --   A.BuildProps()                    -> ServerStorage.Assets.Props (bushes, boulders, trees, flowers, grass, vines...)
 --   A.DressLane()                     nest art + props on Workspace.Map.Lane (run after MapBuilder rebuilds the map)
 --   A.Build()                         all of the above (MapBuilder.Build calls it at the end)
@@ -188,8 +189,11 @@ end
 function BiomeArtBuilder.BuildGuardian(biomeId)
 	local B, specs = tools()
 	local name = "Guardian_" .. biomeId
-	local spec = assert(specs[name], "no guardian spec for " .. biomeId)
-	local model = B.BuildModel(name, spec)
+	-- sculpted guardians (Tools.GuardianSculptSpecs) are built by Tools.KaijuSculpt, the rest by KaijuBuilder
+	local sculptSpecs = ServerStorage.Tools:FindFirstChild("GuardianSculptSpecs")
+	local sculpted = sculptSpecs and fresh(sculptSpecs)[name]
+	local spec = sculpted or assert(specs[name], "no guardian spec for " .. biomeId)
+	local model = sculpted and fresh(ServerStorage.Tools.KaijuSculpt).BuildModel(name, spec) or B.BuildModel(name, spec)
 	local oldRoot = model:FindFirstChild("Root")
 
 	-- root: body-sized, bottom at the hip height, centred under the body
