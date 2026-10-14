@@ -1,4 +1,5 @@
--- Venom Jungle (x 827..1052), built by CanyonBuilder.NewBiome: a steaming jungle canyon in mossy dark stone.
+-- Venom Jungle, built by CanyonBuilder.NewBiome: a steaming jungle canyon in mossy dark stone. The layout below was
+-- drawn for x 827..1052 and is laid onto the lane with T.stretch (X() places, U() reads back).
 -- Palette: jungle greens, with toxic lime (the falls, pools, glyphs) and poison purple (strata veins, mushrooms,
 -- thorns, flowers) as the accents; a green humid haze for a sky (VFXConfig.Weather.VenomJungle).
 --   Ground     jungle floor (grass, moss, mud, fallen leaves) broken up by gnarled roots, raised moss carpets, murky
@@ -24,6 +25,7 @@ local TEX = require(game:GetService("ReplicatedStorage").Shared.Config.VFXConfig
 return function(b, K, T)
 	local P = K.P
 	local XA, XB = b.x0, b.x1
+	local X, U, KX = T.stretch(827, 1052, XA, XB)
 	local NX = XA + (b.NestAt or 0.55) * (XB - XA)
 	local C, rng
 
@@ -65,9 +67,9 @@ return function(b, K, T)
 
 	---------------------------------------------------------------- layout
 	local TX, TZ = math.floor(NX + 0.5), 90 -- the temple: centre x, front z
-	local POOLS = { { 888, 66, 8 }, { 874, -70, 8 }, { 1016, -70, 9 }, { 1005, 64, 7 } }
-	local CREEK = { { 1005, 64, 6 }, { 999, 46, 5 }, { 993, 26, 4.5 }, { 995, 6, 4.5 }, { 1003, -20, 5 }, { 1010, -46, 6 }, { 1016, -70, 7 } }
-	local BRIDGE = { x = 1000.5, z = -12 } -- where the path crosses the creek
+	local POOLS = T.at({ { 888, 66, 8 }, { 874, -70, 8 }, { 1016, -70, 9 }, { 1005, 64, 7 } }, X)
+	local CREEK = T.at({ { 1005, 64, 6 }, { 999, 46, 5 }, { 993, 26, 4.5 }, { 995, 6, 4.5 }, { 1003, -20, 5 }, { 1010, -46, 6 }, { 1016, -70, 7 } }, X)
+	local BRIDGE = { x = X(1000.5), z = -12 } -- where the path crosses the creek
 	local function liquidGap(x, z)
 		local g = math.huge
 		for _, p in POOLS do
@@ -81,7 +83,8 @@ return function(b, K, T)
 		return x > TX - 40 and x < TX + 40
 	end
 	local function inGrove(x)
-		return x > 928 and x < 976
+		local xo = U(x)
+		return xo > 928 and xo < 976
 	end
 
 	---------------------------------------------------------------- shapes
@@ -182,7 +185,7 @@ return function(b, K, T)
 			local off = i == 1 and Vector3.zero or Vector3.new(rng:NextNumber(-2.4, 2.4), 0, rng:NextNumber(-2.4, 2.4))
 			mushroom(m, at + off, rng:NextNumber(1.2, 3.6), rng:NextNumber(0.7, 1.6), look)
 		end
-		if at.X < 900 then -- lit only where the gate sees them
+		if at.X < XA + 73 then -- lit only where the gate sees them
 			C.light(C.anchor(m, at + Vector3.new(0, 2, 0)), look.glow, 12, 1)
 		end
 		return m
@@ -370,15 +373,15 @@ return function(b, K, T)
 		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.55,
-		edgeN = { { 827, 65 }, { 836, 66 }, { 846, 74 }, { 858, 86 }, { 876, 88 }, { 886, 74 }, { 896, 66 }, { 903, 74 }, { 910, 90 }, { 992, 90 }, { 999, 80 }, { 1006, 72 }, { 1016, 84 }, { 1030, 84 }, { 1040, 70 }, { 1047, 66 }, { 1052, 65 } },
-		edgeS = { { 827, 65 }, { 838, 64 }, { 848, 70 }, { 860, 80 }, { 874, 82 }, { 884, 70 }, { 894, 62 }, { 906, 64 }, { 918, 72 }, { 930, 84 }, { 944, 88 }, { 960, 88 }, { 972, 76 }, { 984, 64 }, { 996, 66 }, { 1010, 78 }, { 1024, 80 }, { 1036, 70 }, { 1046, 66 }, { 1052, 65 } },
+		edgeN = T.at({ { 827, 65 }, { 836, 66 }, { 846, 74 }, { 858, 86 }, { 876, 88 }, { 886, 74 }, { 896, 66 }, { 903, 74 }, { 910, 90 }, { 992, 90 }, { 999, 80 }, { 1006, 72 }, { 1016, 84 }, { 1030, 84 }, { 1040, 70 }, { 1047, 66 }, { 1052, 65 } }, X),
+		edgeS = T.at({ { 827, 65 }, { 838, 64 }, { 848, 70 }, { 860, 80 }, { 874, 82 }, { 884, 70 }, { 894, 62 }, { 906, 64 }, { 918, 72 }, { 930, 84 }, { 944, 88 }, { 960, 88 }, { 972, 76 }, { 984, 64 }, { 996, 66 }, { 1010, 78 }, { 1024, 80 }, { 1036, 70 }, { 1046, 66 }, { 1052, 65 } }, X),
 		paths = {
-			{ { 827, 0, 14 }, { 842, -6, 12 }, { 858, -10, 12 }, { 874, -4, 12 }, { 890, 8, 12 }, { 906, 12, 12 }, { 922, 6, 12 }, { 934, 0, 12 } },
-			{ { 934, 0, 8 }, { 937, 14, 7 }, { 944, 26, 7 }, { 958, 26, 7 }, { 965, 14, 7 }, { 968, 0, 8 } },
-			{ { 934, 0, 8 }, { 937, -14, 7 }, { 944, -26, 7 }, { 958, -26, 7 }, { 965, -14, 7 }, { 968, 0, 8 } },
-			{ { 968, 0, 12 }, { 984, -8, 12 }, { 1000, -12, 12 }, { 1016, -4, 12 }, { 1032, 6, 12 }, { 1044, 2, 12 }, { 1052, 0, 13 } },
-			{ { 951, 26, 6 }, { 951, 56, 6 }, { 951, 84, 6 } }, -- to the temple stair
-			{ { 874, -4, 6 }, { 870, -34, 6 }, { 868, -56, 6 } }, -- into the south pocket, by the pool
+			T.at({ { 827, 0, 14 }, { 842, -6, 12 }, { 858, -10, 12 }, { 874, -4, 12 }, { 890, 8, 12 }, { 906, 12, 12 }, { 922, 6, 12 }, { 934, 0, 12 } }, X),
+			T.at({ { 934, 0, 8 }, { 937, 14, 7 }, { 944, 26, 7 }, { 958, 26, 7 }, { 965, 14, 7 }, { 968, 0, 8 } }, X),
+			T.at({ { 934, 0, 8 }, { 937, -14, 7 }, { 944, -26, 7 }, { 958, -26, 7 }, { 965, -14, 7 }, { 968, 0, 8 } }, X),
+			T.at({ { 968, 0, 12 }, { 984, -8, 12 }, { 1000, -12, 12 }, { 1016, -4, 12 }, { 1032, 6, 12 }, { 1044, 2, 12 }, { 1052, 0, 13 } }, X),
+			T.at({ { 951, 26, 6 }, { 951, 56, 6 }, { 951, 84, 6 } }, X), -- to the temple stair
+			T.at({ { 874, -4, 6 }, { 870, -34, 6 }, { 868, -56, 6 } }, X), -- into the south pocket, by the pool
 		},
 		liquid = {
 			gap = liquidGap,
@@ -447,12 +450,12 @@ return function(b, K, T)
 		if side < 0 and inGrove(x) then
 			h = 24 + n * 10 -- low in front of the giant mushrooms
 		end
-		if math.abs(x - 880) < 9 or math.abs(x - 1026) < 9 then
+		if math.abs(x - X(880)) < 9 or math.abs(x - X(1026)) < 9 then
 			h = math.max(h, 54 + n * 4) -- the vine bridges' anchors
 		end
-		if x < 846 then
+		if x < XA + 19 then
 			h = math.max(h, 70 + n * 10) -- as tall as Frostfang's last cliffs beside the gate
-		elseif x > 1036 then
+		elseif x > XB - 16 then
 			h = math.max(h, 64 + n * 10)
 		end
 		return math.floor(h / 2 + 0.5) * 2
@@ -462,7 +465,7 @@ return function(b, K, T)
 		if side > 0 and x > TX - 36 and x < TX + 36 then
 			return 0 -- the temple fills it
 		end
-		if side < 0 and x > 922 and x < 982 then
+		if side < 0 and U(x) > 922 and U(x) < 982 then
 			return math.floor(34 + n * 12) -- the mushrooms show against the sky
 		end
 		return math.floor(62 + n * 40)
@@ -498,14 +501,14 @@ return function(b, K, T)
 		-- toxic falls into the pools (the two seen from the gate stream, splash and steam); those pools glow and bubble
 		local nFalls = 0
 		for _, f in { { 1, 888 }, { -1, 874 }, { 1, 1005 }, { -1, 1016 } } do
-			local col = ctx.nearestCol(f[1], f[2], 34)
+			local col = ctx.nearestCol(f[1], X(f[2]), 34)
 			if col then
 				toxicFall(flows, col, f[1], (col.x0 + col.x1) / 2, rng:NextNumber(4, 5.2), f[2] < 900)
 				nFalls += 1
 			end
 		end
 		for _, p in POOLS do
-			if p[1] < 900 then
+			if U(p[1]) < 900 then
 				local a = ctx.anchor(flows, Vector3.new(p[1], 0, p[2]), Vector3.new(p[3] * 1.3, 0.4, p[3] * 1.3))
 				ctx.light(a, GLOW, 18, 1.1)
 				ctx.emit(a, { name = "ToxicBubbles", texture = TEX.Soft, colors = { hex("D8FFB8"), LIME }, size = { 0.45, 0.15 }, rate = 5, speed = { 1, 2.5 }, life = { 1.2, 2.2 }, spread = 35, light = 0.7 })
@@ -635,18 +638,19 @@ return function(b, K, T)
 
 		-- the giant mushroom grove (south, behind lowered cliffs) and more in the pockets
 		local grove = ctx.sub("Mushrooms")
-		for _, g in { { 942, -104, 52, 17, 1, true }, { 963, -99, 42, 13, 2 }, { 929, -97, 38, 10, 3 }, { 976, -110, 60, 15, 1, true }, { 953, -93, 36, 8, 2 } } do
-			mushroom(grove, Vector3.new(g[1], 0, g[2]), g[3], g[4], LOOKS[g[5]], { key = g[6] })
+		for _, g in { { 942, -104, 52, 17, 1, true }, { 963, -99, 42, 13, 2 }, { 929, -97, 38, 10, 3 }, { 976, -110, 60, 15, 1, true }, { 953, -93, 36, 8, 2 }, { 935, -114, 30, 7, 3 }, { 969, -106, 34, 9, 2 } } do
+			mushroom(grove, Vector3.new(X(g[1]), 0, g[2]), g[3], g[4], LOOKS[g[5]], { key = g[6] })
 		end
-		for _, g in { { 864, 80, 14, 5, 2 }, { 1021, 76, 12, 4.5, 1 }, { 1030, -67, 16, 6, 3 }, { 852, -64, 10, 4, 1 }, { 905, -58, 8, 3.4, 3 }, { 990, 70, 9, 3.6, 2 } } do
-			if ctx.pathGap(g[1], g[2]) > 3 and ctx.liquidGap(g[1], g[2]) > 3 then
-				mushroom(grove, Vector3.new(g[1], 0, g[2]), g[3], g[4], LOOKS[g[5]], { light = g[1] < 900 })
+		for _, g in { { 864, 80, 14, 5, 2 }, { 1021, 76, 12, 4.5, 1 }, { 1030, -67, 16, 6, 3 }, { 852, -64, 10, 4, 1 }, { 905, -58, 8, 3.4, 3 }, { 990, 70, 9, 3.6, 2 }, { 920, 76, 11, 4, 1 }, { 1040, 74, 10, 3.8, 3 } } do
+			local gx = X(g[1])
+			if ctx.pathGap(gx, g[2]) > 3 and ctx.liquidGap(gx, g[2]) > 3 then
+				mushroom(grove, Vector3.new(gx, 0, g[2]), g[3], g[4], LOOKS[g[5]], { light = g[1] < 900 })
 			end
 		end
 
 		-- vine bridges between the cliff tops
 		local hi = ctx.sub("Bridges")
-		for _, bx in { 880, 1026 } do
+		for _, bx in { X(880), X(1026) } do
 			vineBridge(hi, bx, -(ctx.edge[-1](bx) + 14), ctx.edge[1](bx) + 14, 54, 9)
 		end
 
@@ -691,36 +695,36 @@ return function(b, K, T)
 				end
 			end
 		end
-		for i = 1, 34 do
+		for i = 1, math.floor(34 * KX) do
 			local x, z = spot(2)
 			if x then
 				fern(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.8, 1.4))
 			end
-			if i <= 16 then
+			if i <= 16 * KX then
 				x, z = spot(3)
 				if x then
 					bush(scatter, Vector3.new(x, 0, z), rng:NextNumber(0.8, 1.3))
 				end
 			end
-			if i <= 10 then
+			if i <= 10 * KX then
 				x, z = spot(3)
 				if x then
 					shroomCluster(scatter, Vector3.new(x, 0, z), rng:NextInteger(3, 5))
 				end
 			end
-			if i <= 12 then
+			if i <= 12 * KX then
 				x, z = spot(2)
 				if x then
 					T.wildflowers(scatter, Vector3.new(x, 0, z), 3, 6, { POISON, hex("8A3CE0"), LIME, hex("D070FF") }, hex("2F6E2A"), rng)
 				end
 			end
-			if i <= 5 then
+			if i <= 5 * KX then
 				x, z = spot(6)
 				if x then
 					log(scatter, Vector3.new(x, 0, z), rng:NextNumber(9, 15), rng:NextNumber(0, math.pi))
 				end
 			end
-			if i <= 10 then
+			if i <= 10 * KX then
 				x, z = spot(4)
 				if x then
 					local r = rng:NextNumber(1.4, 3)
@@ -730,7 +734,7 @@ return function(b, K, T)
 		end
 		-- the floor broken up: gnarled roots out from the margins, raised moss carpets, murky puddles
 		local floor = ctx.sub("Floor")
-		for _ = 1, 18 do
+		for _ = 1, math.floor(18 * KX) do
 			local side = rng:NextNumber() < 0.5 and 1 or -1
 			local x = rng:NextNumber(XA + 24, XB - 10)
 			local z = side * (ctx.edge[side](x) - rng:NextNumber(1, 4))
@@ -738,7 +742,7 @@ return function(b, K, T)
 				root(floor, Vector3.new(x, 0, z), side > 0 and -math.pi / 2 + rng:NextNumber(-0.7, 0.7) or math.pi / 2 + rng:NextNumber(-0.7, 0.7), rng:NextNumber(8, 16))
 			end
 		end
-		for _ = 1, 20 do
+		for _ = 1, math.floor(20 * KX) do
 			local x, z = spot(2)
 			if x then
 				for k = 1, rng:NextInteger(2, 3) do
@@ -748,7 +752,7 @@ return function(b, K, T)
 				end
 			end
 		end
-		for _ = 1, 14 do
+		for _ = 1, math.floor(14 * KX) do
 			local x, z = spot(3)
 			if x then
 				local pd = K.part(floor, "Puddle", Vector3.new(rng:NextNumber(3, 6), 0.12, rng:NextNumber(2.4, 4.5)), CFrame.new(x, 0.03, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), PUDDLE, { transparency = 0.12, solid = false, shadow = false })
