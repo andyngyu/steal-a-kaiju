@@ -2,9 +2,9 @@ local rad = math.rad
 local H = require(script.Parent.Helpers)
 
 -- Venom Jungle / Epic / poison: a sabre-toothed jungle cat. A long, low, heavy-shouldered jaguar stalking with its
--- head down: thick forelegs, a deep chest, a lean waist, a long tail ending in a thorned club. Dark jungle-green hide
--- with big glowing toxic rosettes (lime rings round purple centres) down the flanks, a ridge of purple thorns along the
--- spine, bold purple thorn armour on the shoulders. Face: a broad cat skull, a heavy scowling brow over small lime
+-- head down: thick forelegs, a deep chest, a long lean waist, a long tail ending in a thorned club. Jungle-green hide
+-- shading from a near-black back to a pale belly, irregular dark rosettes down the flanks each with a faint lime glow
+-- at its heart, a ridge of purple thorns along the spine, bold purple thorn armour on the shoulders. Face: a broad cat skull, a heavy scowling brow over small lime
 -- eyes, flattened ears, and two huge sabre fangs reaching below the chin, dripping lime venom.
 local HEAD = CFrame.new(0, 1.66, -1.72) * CFrame.Angles(rad(-10), 0, 0)
 local HINGE = Vector3.new(0, -0.14, -0.12)
@@ -17,26 +17,29 @@ end
 return {
 	Seed = 421,
 	Vary = 0.05,
+	Scale = 1.22,
 	Gait = "Trot",
 	Emotes = { "Look", "PlayBow", "Paw" },
 	Palette = {
-		Hide = { "2F5A2E", Material = "Slate" },
-		HideDark = { "234624", Material = "Slate" },
-		HideLight = { "4A7A3E", Material = "Slate" },
-		Back = { "1C3A1E", Material = "Slate" },
-		Belly = "9AA474",
-		Belly2 = "848E60",
-		Ring = { "9DFF3A", Neon = true },
-		RingCore = { "9A3CE0", Neon = true },
+		Hide = { "3E6A34", Material = "Slate" },
+		HideDark = { "2A4A26", Material = "Slate" },
+		HideLight = { "6E9652", Material = "Slate" },
+		Back = { "18281A", Material = "Slate" },
+		Belly = "CCC89A",
+		Belly2 = "B4B082",
+		Spot = { "142014", Material = "Slate" },
+		SpotCore = { "2C4A26", Material = "Slate" },
+		SpotGlow = { "48B828", Neon = true },
+		SeamLip = { "142014", Material = "Slate" },
 		Thorn = "6A2AA8",
 		ThornTip = { "B04CFF", Neon = true },
 		Armour = "5A2A8A",
 		ArmourLight = "7A3AB8",
 		Fang = "F0E8D0",
-		Venom = { "9DFF3A", Neon = true },
+		Venom = { "58D22E", Neon = true },
 		Tooth = "E8E0C8",
 		Mouth = "3A1424",
-		Eye = { "C6FF3A", Neon = true },
+		Eye = { "6FE83A", Neon = true },
 		Socket = "060806",
 		Claw = "1A1418",
 		ClawTip = "D8D0C0",
@@ -48,48 +51,59 @@ return {
 		EarR = hj(Vector3.new(-0.3, 0.34, 0.02)),
 		LegFL = { 0.5, 1.62, -0.86 },
 		LegFR = { -0.5, 1.62, -0.86 },
-		LegBL = { 0.46, 1.56, 0.86 },
-		LegBR = { -0.46, 1.56, 0.86 },
-		Tail = { 0, 1.62, 1.1 },
+		LegBL = { 0.46, 1.56, 1.36 },
+		LegBR = { -0.46, 1.56, 1.36 },
+		Tail = { 0, 1.62, 1.6 },
 	},
 	Parents = { Jaw = "Head", EarL = "Head", EarR = "Head" },
 	Build = function(K)
-		local skin = H.skin({ stripe = 32, band = 86, flank = 112, every = 3, bandKey = "HideDark" })
+		local skin = H.skin({ stripe = 30, band = 64, flank = 104, every = 3, bandKey = "Back", upper = "HideDark" })
 		local belly = { key = "Belly", key2 = "Belly2", arc = 40, t = 0.1, wide = 1.1 }
-		-- heavy shoulders, deep chest, lean waist
+		-- heavy shoulders, deep chest, a long lean waist stretched out low like a stalking big cat
 		local body = K:tube("Body", {
-			{ 0, 1.76, -1.02, rx = 0.66, ru = 0.7, rd = 0.76 },
-			{ 0, 1.72, -0.36, rx = 0.7, ru = 0.64, rd = 0.7 },
-			{ 0, 1.62, 0.36, rx = 0.56, ru = 0.5, rd = 0.46 },
-			{ 0, 1.62, 0.98, rx = 0.58, ru = 0.54, rd = 0.5 },
+			{ 0, 1.76, -1.02, rx = 0.7, ru = 0.7, rd = 0.76 },
+			{ 0, 1.72, -0.36, rx = 0.74, ru = 0.64, rd = 0.7 },
+			{ 0, 1.64, 0.5, rx = 0.6, ru = 0.52, rd = 0.48 },
+			{ 0, 1.62, 1.48, rx = 0.62, ru = 0.56, rd = 0.52 },
 		}, { step = 0.3, core = "HideDark", coreScale = 0.85, tile = { w = 0.44, l = 0.32, t = 0.11, lift = 5, jitter = 2.5, sink = 0.5, overlap = 0.9 }, belly = belly, color = skin })
 		local neck = K:tube("Head", {
 			{ 0, 1.72, -1.6, rx = 0.42, ru = 0.42, rd = 0.46 },
 			{ 0, 1.78, -1.32, rx = 0.54, ru = 0.54, rd = 0.58 },
 			{ 0, 1.76, -1.0, rx = 0.64, ru = 0.66, rd = 0.7 },
 		}, { step = 0.22, core = "Hide", coreScale = 0.9, tile = H.plates(0.32, nil, 0.1), color = skin })
-		-- toxic rosettes down the flanks: a lime ring round a purple core
+		-- jaguar rosettes: a broken ring of irregular dark spots round a darker heart with a faint lime glow, scattered
+		-- unevenly down the flanks
 		local function rosette(g, smp, th, s)
-			local pos, nrm = K:surface(smp, th, -0.035)
+			local pos, nrm = K:surface(smp, th, -0.045)
 			local F = CFrame.fromMatrix(pos, nrm:Cross(smp.T).Unit, nrm)
-			for k = 0, 3 do
-				local a = k * math.pi / 2
-				K:block(g, "Ring", F * CFrame.new(math.cos(a) * s * 0.42, 0, math.sin(a) * s * 0.42) * CFrame.Angles(0, -a, 0), Vector3.new(s * 0.18, 0.035, s * 0.62))
+			local n = K:rand(0, 1) < 0.5 and 3 or 4
+			local a0 = K:rand(0, 6.28)
+			for k = 0, n - 1 do
+				local a = a0 + k * math.pi * 2 / n + K:rand(-0.3, 0.3)
+				local r = s * K:rand(0.34, 0.46)
+				K:block(g, "Spot", F * CFrame.new(math.cos(a) * r, 0, math.sin(a) * r) * CFrame.Angles(0, -a + K:rand(-0.4, 0.4), 0), Vector3.new(s * K:rand(0.16, 0.24), 0.04, s * K:rand(0.32, 0.5)))
 			end
-			K:block(g, "RingCore", F * CFrame.new(0, 0.005, 0) * CFrame.Angles(0, rad(45), 0), Vector3.new(s * 0.36, 0.035, s * 0.36))
+			K:block(g, "SpotCore", F * CFrame.Angles(0, K:rand(0, 1.5), 0), Vector3.new(s * 0.36, 0.03, s * 0.3))
+			K:block(g, "SpotGlow", F * CFrame.new(0, 0.012, 0) * CFrame.Angles(0, K:rand(0, 1.5), 0), Vector3.new(s * 0.12, 0.03, s * 0.1))
 		end
 		local k = 0
-		for s = 0.2, body.total - 0.15, 0.34 do
-			local smp = K:at(body, s)
+		for s = 0.24, body.total - 0.2, 0.42 do
 			for _, x in { 1, -1 } do
-				rosette("Body", smp, rad(58 + (k % 2) * 30) * x, 0.5)
+				rosette("Body", K:at(body, s + K:rand(-0.08, 0.08)), rad((k % 2 == 0 and 62 or 92) + K:rand(-10, 10)) * x, 0.62 * K:rand(0.85, 1.15))
 			end
 			k += 1
+		end
+		-- a few lone spots between them
+		for s = 0.5, body.total - 0.3, 0.62 do
+			for _, x in { 1, -1 } do
+				local pos, nrm = K:surface(K:at(body, s), rad(K:rand(40, 110)) * x, -0.045)
+				K:block("Body", "Spot", CFrame.fromMatrix(pos, nrm:Cross(Vector3.zAxis).Unit, nrm) * CFrame.Angles(0, K:rand(0, 3), 0), Vector3.new(0.1, 0.04, 0.14))
+			end
 		end
 		-- thorns down the spine, thorned armour plates over the shoulders
 		K:ridge("Body", body, { from = 0.1, to = body.total - 0.1, every = 0.24, height = function(u) return 0.42 - u * 0.16 end, thick = 0.11, key = "Thorn", tip = "ThornTip", lean = 40, sink = 0.9 })
 		for _, x in { 1, -1 } do
-			H.vein(K, "Head", "Venom", neck, rad(70) * x, 0.06, neck.total - 0.06, { width = 0.06, height = 0.07, lift = 0.02, wander = 14 })
+			H.vein(K, "Head", "Venom", neck, rad(72) * x, 0.06, neck.total - 0.06, { width = 0.05, height = 0.09, lift = 0.04, wander = 12, lip = "SeamLip", lipW = 0.05 })
 		end
 		for _, x in { 1, -1 } do
 			for i, o in { { 0.14, 54, 0.52 }, { 0.4, 66, 0.48 }, { 0.26, 80, 0.44 } } do
@@ -101,10 +115,10 @@ return {
 		end
 		-- the long tail, a thorned club at its end
 		local tail = K:tube("Tail", {
-			{ 0, 1.62, 1.06, rx = 0.2, ru = 0.2 },
-			{ 0, 1.5, 1.7, rx = 0.17, ru = 0.17 },
-			{ 0.1, 1.16, 2.24, rx = 0.15, ru = 0.15 },
-			{ 0.3, 0.86, 2.58, rx = 0.16, ru = 0.16 },
+			{ 0, 1.62, 1.56, rx = 0.22, ru = 0.22 },
+			{ 0, 1.5, 2.2, rx = 0.18, ru = 0.18 },
+			{ 0.1, 1.16, 2.74, rx = 0.16, ru = 0.16 },
+			{ 0.3, 0.86, 3.08, rx = 0.17, ru = 0.17 },
 		}, { step = 0.22, core = "Hide", coreScale = 0.92, tile = H.plates(0.24, 5, 0.08), color = skin })
 		local tip = K:at(tail, tail.total)
 		K:block("Tail", "Armour", CFrame.fromMatrix(tip.p, tip.R, tip.U), Vector3.new(0.36, 0.34, 0.42))
@@ -124,10 +138,10 @@ return {
 				{ 0.58 * x, 0.32, -0.96, 0.24 },
 			}, { step = 0.24, cores = { "Hide", "HideDark" }, tiles = { H.plates(0.32, 5, 0.1), nil }, color = limb, foot = { size = Vector3.new(0.5, 0.24, 0.54), key = "HideDark" }, toes = 4, claw = { len = 0.26, w = 0.07, curl = 40 } })
 			H.quadLeg(K, x == 1 and "LegBL" or "LegBR", {
-				{ 0.5 * x, 1.62, 0.86, 0.46 },
-				{ 0.56 * x, 1.06, 0.56, 0.34 },
-				{ 0.56 * x, 0.56, 1.04, 0.22 },
-				{ 0.56 * x, 0.2, 0.94, 0.18 },
+				{ 0.5 * x, 1.62, 1.36, 0.48 },
+				{ 0.56 * x, 1.06, 1.06, 0.36 },
+				{ 0.56 * x, 0.56, 1.54, 0.23 },
+				{ 0.56 * x, 0.2, 1.44, 0.19 },
 			}, { step = 0.24, cores = { "Hide", "HideDark", "HideDark" }, tiles = { H.plates(0.34, 5, 0.1), nil, nil }, color = limb, foot = { size = Vector3.new(0.46, 0.22, 0.52), key = "HideDark" }, toes = 4, claw = { len = 0.24, w = 0.065, curl = 40 } })
 		end
 
