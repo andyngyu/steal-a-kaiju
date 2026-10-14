@@ -338,29 +338,66 @@ for zone, a in SoundConfig.Ambience do
 end
 
 ---------------------------------------------------------------- zones (map runs along +X: hub -> safe line -> biomes)
-local safeX = 300
+local safeX = 302
+-- Zones come from the lane's Zone parts (each carries its BiomeId and spans its biome's X range), so they always match
+-- the built map. (They used to be summed from BiomeConfig lengths plus a 3-stud border the map doesn't have, which
+-- drifted 3 studs further out per biome.)
+local laneZones = {}
+local function readZones()
+	local map = workspace:FindFirstChild("Map")
+	local lane = map and map:FindFirstChild("Lane")
+	local list = {}
+	if lane then
+		for _, m in lane:GetChildren() do
+			local z = m:FindFirstChild("Zone")
+			if z and z:IsA("BasePart") then
+				table.insert(list, { x0 = z.Position.X - z.Size.X / 2, x1 = z.Position.X + z.Size.X / 2, id = z:GetAttribute("BiomeId") or m.Name })
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.x0 < b.x0
+	end)
+	laneZones = list
+end
 task.spawn(function()
 	local map = workspace:WaitForChild("Map", 30)
-	local line = map and map:WaitForChild("SafeZoneLine", 30)
-	if line then
-		safeX = line.Position.X
+	if not map then
+		return
+	end
+	safeX = map:GetAttribute("SafeZoneX") or (map:FindFirstChild("SafeZoneLine") and map.SafeZoneLine.Position.X) or safeX
+	local lane = map:WaitForChild("Lane", 30)
+	if lane then
+		readZones()
+		lane.ChildAdded:Connect(function()
+			task.wait(1)
+			readZones()
+		end)
+		lane.ChildRemoved:Connect(readZones)
 	end
 end)
-
-local BORDER = 3
 local function zoneAt(x)
 	if x < safeX then
 		return "Hub"
 	end
-	local x0 = safeX
 	local last
+	for _, z in laneZones do
+		last = z.id
+		if x < z.x1 then
+			return z.id
+		end
+	end
+	if last then
+		return last
+	end
+	-- map not read yet: sum the open biomes' lengths
+	local x0 = safeX
 	for _, biome in BiomeConfig.List do
 		last = biome.Id
-		local x1 = x0 + biome.Length + BORDER
-		if x < x1 then
+		x0 += biome.Length
+		if x < x0 then
 			return biome.Id
 		end
-		x0 = x1
 	end
 	return last
 end
