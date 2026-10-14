@@ -4,7 +4,7 @@ local H = GK.H
 
 -- Venom Jungle guardian: Thornmaw, a tyrant grown out of the jungle floor. A towering rex shading from near-black down
 -- the back through jungle green to a pale belly, its head one great flytrap: two leaf-shaped jaws lined with long
--- spines around a recessed throat (dark maroon deep inside, magenta toward the lips, rows of inner spines, tendrils),
+-- spines (green at the root, cream at the tips) around a recessed throat (dark maroon deep inside, magenta toward the lips, rows of inner spines, tendrils),
 -- lime nectar dripping from them, hinged on a heavy bulb with small lime eyes under a bark brow and two thorn horns.
 -- Jagged thorn petals frame the head, angled forward. Bark armour on the shoulders and thighs, moss on the back, big
 -- thorns down the spine over a glowing lime seam sunk between dark lips, vines wound round the limbs and tail, a thorned seed-pod tail club.
@@ -32,6 +32,8 @@ return {
 		MawMid = "7A1A44",
 		MawLip = "B0306A",
 		Cilia = "D6DC8A",
+		CiliaMid = "8EA65E",
+		CiliaBase = "3E6A2C",
 		Nectar = { "58D22E", Neon = true },
 		Petal = "6B2E8A",
 		PetalDark = "4A1F62",
@@ -102,7 +104,7 @@ return {
 					H.eye(K, "Head", hcf(0.42 * x, 0.44, -0.46, 0, -34 * x, 12 * x), 0.16, 0.05)
 					H.curve(K, "Head", { "Bark", "Thorn", "ThornTip" }, { hp(0.34 * x, 0.64, -0.2), hp(0.56 * x, 1.0, -0.1), hp(0.66 * x, 1.26, 0.2), hp(0.6 * x, 1.4, 0.56) }, 0.22, 0.06, 0.14)
 				end
-				local UF, LF = H.flytrap(K, { head = "Head", jaw = "Jaw", frame = HEAD * CFrame.new(0, -0.1, -0.36), size = 1.35, open = 28, keys = { shell = "Hide", shellDark = "HideDark", glow = "Maw", deep = "MawDeep", lining = "MawMid", lip = "MawLip", tooth = "Cilia", spine = "Cilia", spineTip = "ThornTip" } })
+				local UF, LF = H.flytrap(K, { head = "Head", jaw = "Jaw", frame = HEAD * CFrame.new(0, -0.1, -0.36), size = 1.35, open = 28, keys = { shell = "Hide", shellDark = "HideDark", glow = "Maw", deep = "MawDeep", lining = "MawMid", lip = "MawLip", tooth = "Cilia", spineBase = "CiliaBase", spine = "CiliaMid", spineTip = "Cilia" } })
 				-- nectar dripping from both jaws
 				for _, d in { { 0.3, -0.9 }, { -0.36, -1.4 }, { 0.1, -1.8 } } do
 					K:block("Head", "Nectar", UF * CFrame.new(d[1], -0.2, d[2]), Vector3.new(0.06, 0.32, 0.06))
