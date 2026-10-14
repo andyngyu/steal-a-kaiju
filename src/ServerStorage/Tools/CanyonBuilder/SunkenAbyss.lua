@@ -1,4 +1,5 @@
--- Sunken Abyss (x 1052..1302), built by CanyonBuilder.NewBiome: a drained lagoon floor between teal cliffs crusted
+-- Sunken Abyss (layout drawn for x 1052..1302, laid onto the lane with T.stretch; the whale's ribs and the wreck keep
+-- their own size), built by CanyonBuilder.NewBiome: a drained lagoon floor between teal cliffs crusted
 -- with coral. Palette: teal and aqua (rock, water, an aqua-hazed sky), coral pinks, oranges and salmon (caps, reefs).
 --   Ground     pale aqua sand with raised ripples, teal silt and seaweed beds; Venom's mud and grass giving way to wet
 --              sand at the border; a shell-sand road; clear aqua tide pools; shells, starfish, urchins, barnacled rocks
@@ -20,6 +21,7 @@ local hex = Color3.fromHex
 return function(b, K, T)
 	local P = K.P
 	local XA, XB = b.x0, b.x1
+	local X, U, KX = T.stretch(1052, 1302, XA, XB)
 	local NX = XA + (b.NestAt or 0.55) * (XB - XA)
 	local C, rng
 
@@ -62,7 +64,7 @@ return function(b, K, T)
 	}
 
 	---------------------------------------------------------------- layout
-	local POOLS = { { 1082, 72, 7 }, { 1150, -58, 8 }, { 1226, 58, 7 }, { 1272, -70, 8 } }
+	local POOLS = T.at({ { 1082, 72, 7 }, { 1150, -58, 8 }, { 1226, 58, 7 }, { 1272, -70, 8 } }, X)
 	local function liquidGap(x, z)
 		local g = math.huge
 		for _, p in POOLS do
@@ -71,10 +73,11 @@ return function(b, K, T)
 		end
 		return g
 	end
-	local RIB0, RIB1 = 1106, 1160 -- the whale's ribcage over the path
-	local WRECK = Vector3.new(1267, 0, 80)
+	local RIB0, RIB1 = X(1133) - 27, X(1133) + 27 -- the whale's ribcage over the path
+	local WX = X(1267)
+	local WRECK = Vector3.new(WX, 0, 80)
 	local function nearWreck(x, z, m)
-		return x > 1232 - (m or 0) and x < 1292 + (m or 0) and z > 52 - (m or 0)
+		return x > WX - 35 - (m or 0) and x < WX + 25 + (m or 0) and z > 52 - (m or 0)
 	end
 
 	---------------------------------------------------------------- shapes
@@ -373,15 +376,15 @@ return function(b, K, T)
 		rugged = true,
 		slabs = SLABS,
 		slabChance = 0.4,
-		edgeN = { { 1052, 65 }, { 1062, 66 }, { 1072, 76 }, { 1086, 88 }, { 1104, 90 }, { 1116, 78 }, { 1128, 68 }, { 1142, 70 }, { 1156, 80 }, { 1172, 92 }, { 1208, 92 }, { 1220, 80 }, { 1232, 72 }, { 1244, 80 }, { 1256, 90 }, { 1278, 90 }, { 1290, 72 }, { 1297, 66 }, { 1302, 65 } },
-		edgeS = { { 1052, 65 }, { 1064, 64 }, { 1076, 70 }, { 1090, 82 }, { 1106, 84 }, { 1118, 72 }, { 1130, 64 }, { 1146, 66 }, { 1160, 76 }, { 1176, 84 }, { 1204, 84 }, { 1216, 74 }, { 1230, 66 }, { 1244, 72 }, { 1258, 88 }, { 1274, 90 }, { 1288, 74 }, { 1296, 66 }, { 1302, 65 } },
+		edgeN = T.at({ { 1052, 65 }, { 1062, 66 }, { 1072, 76 }, { 1086, 88 }, { 1104, 90 }, { 1116, 78 }, { 1128, 68 }, { 1142, 70 }, { 1156, 80 }, { 1172, 92 }, { 1208, 92 }, { 1220, 80 }, { 1232, 72 }, { 1244, 80 }, { 1256, 90 }, { 1278, 90 }, { 1290, 72 }, { 1297, 66 }, { 1302, 65 } }, X),
+		edgeS = T.at({ { 1052, 65 }, { 1064, 64 }, { 1076, 70 }, { 1090, 82 }, { 1106, 84 }, { 1118, 72 }, { 1130, 64 }, { 1146, 66 }, { 1160, 76 }, { 1176, 84 }, { 1204, 84 }, { 1216, 74 }, { 1230, 66 }, { 1244, 72 }, { 1258, 88 }, { 1274, 90 }, { 1288, 74 }, { 1296, 66 }, { 1302, 65 } }, X),
 		paths = {
-			{ { 1052, 0, 14 }, { 1068, 6, 12 }, { 1084, 10, 12 }, { 1100, 4, 12 }, { 1116, -6, 12 }, { 1132, -10, 12 }, { 1148, -6, 12 }, { 1162, 0, 12 }, { 1172, 0, 12 } },
-			{ { 1172, 0, 8 }, { 1175, 14, 7 }, { 1182, 26, 7 }, { 1197, 26, 7 }, { 1204, 14, 7 }, { 1207, 0, 8 } },
-			{ { 1172, 0, 8 }, { 1175, -14, 7 }, { 1182, -26, 7 }, { 1197, -26, 7 }, { 1204, -14, 7 }, { 1207, 0, 8 } },
-			{ { 1207, 0, 12 }, { 1222, 8, 12 }, { 1238, 10, 12 }, { 1254, 2, 12 }, { 1270, -8, 12 }, { 1286, -4, 12 }, { 1302, 0, 13 } },
-			{ { 1250, 4, 6 }, { 1252, 36, 6 }, { 1250, 54, 6 } }, -- up to the wreck
-			{ { 1100, 4, 6 }, { 1098, -36, 6 }, { 1097, -52, 6 } }, -- down to the whale's skull
+			T.at({ { 1052, 0, 14 }, { 1068, 6, 12 }, { 1084, 10, 12 }, { 1100, 4, 12 }, { 1116, -6, 12 }, { 1132, -10, 12 }, { 1148, -6, 12 }, { 1162, 0, 12 }, { 1172, 0, 12 } }, X),
+			T.at({ { 1172, 0, 8 }, { 1175, 14, 7 }, { 1182, 26, 7 }, { 1197, 26, 7 }, { 1204, 14, 7 }, { 1207, 0, 8 } }, X),
+			T.at({ { 1172, 0, 8 }, { 1175, -14, 7 }, { 1182, -26, 7 }, { 1197, -26, 7 }, { 1204, -14, 7 }, { 1207, 0, 8 } }, X),
+			T.at({ { 1207, 0, 12 }, { 1222, 8, 12 }, { 1238, 10, 12 }, { 1254, 2, 12 }, { 1270, -8, 12 }, { 1286, -4, 12 }, { 1302, 0, 13 } }, X),
+			{ { WX - 17, 4, 6 }, { WX - 15, 36, 6 }, { WX - 17, 54, 6 } }, -- up to the wreck
+			T.at({ { 1100, 4, 6 }, { 1098, -36, 6 }, { 1097, -52, 6 } }, X), -- down to the whale's skull
 		},
 		liquid = {
 			gap = liquidGap,
@@ -448,19 +451,19 @@ return function(b, K, T)
 
 	function th.height(_, side, x, n)
 		local h = 46 + n * 30
-		if side > 0 and x > 1236 and x < 1288 then
+		if side > 0 and x > WX - 31 and x < WX + 21 then
 			h = 28 + n * 10 -- low behind the wreck, so its masts show against the sky
 		end
-		if x < 1070 then
+		if x < XA + 18 then
 			h = math.max(h, 66 + n * 10)
-		elseif x > 1286 then
+		elseif x > XB - 16 then
 			h = math.max(h, 64 + n * 10)
 		end
 		return math.floor(h / 2 + 0.5) * 2
 	end
 
 	function th.ridge(_, side, x, n)
-		if side > 0 and x > 1230 and x < 1294 then
+		if side > 0 and x > WX - 37 and x < WX + 27 then
 			return math.floor(36 + n * 12)
 		end
 		return math.floor(62 + n * 40)
@@ -496,10 +499,10 @@ return function(b, K, T)
 	function th.features(ctx)
 		local scatter, life = ctx.sub("Scatter"), ctx.sub("Life")
 		whale(ctx.sub("Whale"))
-		whaleSkull(ctx.sub("Whale"), CFrame.lookAt(Vector3.new(1097, -0.6, -92), Vector3.new(1092, -0.6, 0)))
+		whaleSkull(ctx.sub("Whale"), CFrame.lookAt(Vector3.new(X(1097), -0.6, -92), Vector3.new(X(1097) - 5, -0.6, 0)))
 		local wm = shipwreck(ctx.sub("Wreck"), WRECK, math.rad(-8))
 		-- the treasure spilled beside it
-		local tc = Vector3.new(1241, 0, 58)
+		local tc = Vector3.new(WX - 26, 0, 58)
 		local chest = K.model(wm, "Treasure")
 		K.box(chest, "Chest", tc.X - 2, tc.X + 2, 0, 2.4, tc.Z - 1.4, tc.Z + 1.4, TIMBERS[3], { studs = K.SIDES, solid = false })
 		K.box(chest, "ChestBand", tc.X - 2.1, tc.X + 2.1, 1.6, 2, tc.Z - 1.5, tc.Z + 1.5, GOLD, { solid = false })
@@ -519,7 +522,7 @@ return function(b, K, T)
 			local x = XA + 14
 			while x < XB - 10 do
 				local e = ctx.edge[side](x)
-				if not (side > 0 and nearWreck(x, 80)) and not (x > 1084 and x < 1112 and side < 0) then
+				if not (side > 0 and nearWreck(x, 80)) and not (U(x) > 1084 and U(x) < 1112 and side < 0) then
 					for _ = 1, rng:NextInteger(1, 3) do
 						local kx, kz = x + rng:NextNumber(-4, 4), side * (e - rng:NextNumber(2, 8))
 						if ctx.pathGap(kx, kz) > 3 and ctx.liquidGap(kx, kz) > 1 then
@@ -554,7 +557,7 @@ return function(b, K, T)
 				end
 			end
 		end
-		for i = 1, 26 do
+		for i = 1, math.floor(26 * KX) do
 			local x, z = spot(2)
 			if x then
 				local reef = K.model(scatter, "Reef")
@@ -562,25 +565,25 @@ return function(b, K, T)
 					coral(reef, Vector3.new(x + rng:NextNumber(-3, 3), 0, z + rng:NextNumber(-3, 3)), rng:NextNumber(0.8, 1.5))
 				end
 			end
-			if i <= 9 then
+			if i <= 9 * KX then
 				x, z = spot(4)
 				if x then
 					vent(scatter, Vector3.new(x, 0, z), x < XA + 120)
 				end
 			end
-			if i <= 22 then
+			if i <= 22 * KX then
 				x, z = spot(3)
 				if x then
 					ripples(scatter, Vector3.new(x, 0, z), 0.35 + rng:NextNumber(-0.25, 0.25), rng:NextInteger(3, 5))
 				end
 			end
-			if i <= 16 then
+			if i <= 16 * KX then
 				x, z = spot(1, 18)
 				if x then
 					shell(scatter, Vector3.new(x, 0, z))
 				end
 			end
-			if i <= 10 then
+			if i <= 10 * KX then
 				x, z = spot(4)
 				if x then
 					local r = rng:NextNumber(1.4, 3)
@@ -588,7 +591,7 @@ return function(b, K, T)
 					barnacles(bm, Vector3.new(x, r * 1.2, z), 3, r * 0.6)
 				end
 			end
-			if i <= 7 then
+			if i <= 7 * KX then
 				x, z = spot(3)
 				if x then
 					local sh = K.model(scatter, "Shell")
@@ -598,7 +601,7 @@ return function(b, K, T)
 			end
 		end
 		-- starfish and urchins
-		for _ = 1, 12 do
+		for _ = 1, math.floor(12 * KX) do
 			local x, z = spot(1, 18)
 			if x then
 				local yaw = rng:NextNumber(0, math.pi)
@@ -621,8 +624,8 @@ return function(b, K, T)
 		-- jellyfish lanterns drifting over the lane
 		local sky = ctx.sub("Jellyfish")
 		local nJ = 0
-		for _ = 1, 40 do
-			if nJ >= 13 then
+		for _ = 1, math.floor(40 * KX) do
+			if nJ >= math.floor(13 * KX) then
 				break
 			end
 			-- (none by the Tesla Gate: from Storm's side a pink jelly read as a cloud)
@@ -634,7 +637,7 @@ return function(b, K, T)
 			end
 		end
 		-- light falling in slanting shafts from far above
-		for _ = 1, 7 do
+		for _ = 1, math.floor(7 * KX) do
 			local x, z = rng:NextNumber(XA + 20, XB - 20), rng:NextNumber(-50, 50)
 			local len = 150
 			local dir = Vector3.new(0.35, 1, 0.18).Unit
