@@ -2,7 +2,8 @@
 -- into nothing: the map becomes a mountainous island in a sea.
 --   Sea        deep water to the horizon (top at y -36, under every cliff and wall), lighter shallows round the island
 --   Foothills  hills and a sandy shore hugging the island's outer edges, coloured per area (green by the Citadel and
---              Pebble Plains, dark basalt by Lava Lagoon, snow by Frostfang Peaks); the east end follows the canyon's end
+--              Pebble Plains, dark basalt by Lava Lagoon, snow by Frostfang Peaks, jungle by Venom Jungle, blue rock and
+--              coral by Sunken Abyss, slate by Storm Spires, violet by Cosmic Rift); the east end follows the canyon's end
 --   Mountains  a ring of huge, hazy stepped mountains far out, snow-capped where they're tallest
 -- Nothing here collides, casts shadows or can be clicked.
 --   require(game.ServerStorage.Tools.HorizonBuilder:Clone()).Build()
@@ -43,8 +44,16 @@ local function area(x)
 		return { body = hex("B07A42"), cap = hex("5BBF35"), cap2 = hex("4FB52C"), shore = hex("E3D2A0") }
 	elseif x < 627 then
 		return { body = hex("3A2C2A"), cap = hex("2E2220"), cap2 = hex("4A3834"), shore = hex("5A4E4A") }
+	elseif x < 827 then
+		return { body = hex("829EB8"), cap = hex("FFFFFF"), cap2 = hex("E8F3FF"), shore = hex("DCE8F2") }
+	elseif x < 1052 then
+		return { body = hex("3B4434"), cap = hex("2F7A36"), cap2 = hex("276030"), shore = hex("6B5E44") }
+	elseif x < 1302 then
+		return { body = hex("23405A"), cap = hex("2F8C78"), cap2 = hex("2A6E70"), shore = hex("8FA8A4") }
+	elseif x < 1577 then
+		return { body = hex("3A4150"), cap = hex("2F3644"), cap2 = hex("4B5363"), shore = hex("5E6676") }
 	end
-	return { body = hex("829EB8"), cap = hex("FFFFFF"), cap2 = hex("E8F3FF"), shore = hex("DCE8F2") }
+	return { body = hex("221A3D"), cap = hex("3D2E63"), cap2 = hex("5A2F8A"), shore = hex("2E2450") }
 end
 
 function H.Build()

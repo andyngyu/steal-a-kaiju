@@ -13,10 +13,13 @@
 --   Landmark Pebble Plains: Titan's Skull with a waterfall from its eye; Lava Lagoon: an erupting volcano through a
 --            vista window; Frostfang Peaks: a kaiju frozen in a glacier
 --   Dress    more of the biome's own props: clones of its decor along the widened margins and up on the cliff tops
---   EndCap   closes the canyon after the last open biome (step 4 replaces it with the next biome's gate)
+--   EndCap   closes the canyon after the last biome when that biome has no refine module of its own
 --   local B = require(game.ServerStorage.Tools.CanyonBuilder:Clone())
+--   B.Ensure()                                          make the lane models of BiomeConfig biomes that have none yet
 --   B.Build({ "PebblePlains" })                         every section for that biome
 --   B.Build({ "LavaLagoon" }, { "Cliffs", "Gate" })      just those sections
+-- The new biomes (Venom Jungle, Sunken Abyss, Storm Spires, Cosmic Rift) are built by CanyonBuilder.NewBiome from their
+-- theme modules (CanyonBuilder.<BiomeId>); while BiomeConfig marks one Locked its gate carries a COMING SOON field.
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -71,6 +74,80 @@ local DRESS = {
 		top = { { "SnowPine", 2.4 }, { "SnowPine", 2.8 }, { "IceSpire", 2.4 }, { "IceCrystal", 3 } },
 	},
 }
+
+------------------------------------------------------------------------------- lane skeletons
+-- A biome in BiomeConfig.All with no lane model yet gets one after the last lane, with the same contracts as the others
+-- (copied from the last lane, then moved): Zone (BiomeId), Border, Sign (RecommendedSpeed, Title), NestSite (Center +
+-- EggSpawn1..6 + GuardianSpawn; its NestArt is left empty for the refine module), Decor (a NEST sign), Floor.
+function B.Ensure()
+	local BiomeConfig = fresh(ReplicatedStorage.Shared.Config.BiomeConfig)
+	local lane = workspace.Map.Lane
+	local list = table.clone(BiomeConfig.All)
+	table.sort(list, function(a, b)
+		return a.Order < b.Order
+	end)
+	local made = {}
+	local prev
+	for _, cfg in list do
+		local model = lane:FindFirstChild(cfg.Id)
+		if not model and prev then
+			local pz = prev:FindFirstChild("Zone")
+			local x0 = pz.Position.X + pz.Size.X / 2
+			local L = cfg.Length
+			local dx = x0 - (pz.Position.X - pz.Size.X / 2)
+			model = Instance.new("Model")
+			model.Name = cfg.Id
+			model:SetAttribute("BiomeId", cfg.Id)
+			model:SetAttribute("Order", cfg.Order)
+			model:SetAttribute("RecommendedSpeed", cfg.RecommendedSpeed)
+			model:SetAttribute("Palette_dirt", cfg.Wall)
+			model:SetAttribute("Palette_band", cfg.Wall:Lerp(Color3.new(0, 0, 0), 0.2))
+			model:SetAttribute("Palette_cap", cfg.WallCap)
+			local zone = pz:Clone()
+			zone.Size = Vector3.new(L, pz.Size.Y, 180)
+			zone.CFrame = CFrame.new(x0 + L / 2, pz.Position.Y, 0)
+			zone:SetAttribute("BiomeId", cfg.Id)
+			zone.Parent = model
+			local pb = prev:FindFirstChild("Border") or lane:FindFirstChild("LavaLagoon"):FindFirstChild("Border")
+			local border = pb:Clone()
+			border.CFrame = CFrame.new(x0, pb.Position.Y, 0)
+			border.Color = cfg.Border or cfg.Accent
+			border.Parent = model
+			local sign = prev:FindFirstChild("Sign"):Clone()
+			sign:PivotTo(sign:GetPivot() + Vector3.new(dx, 0, 0))
+			sign:SetAttribute("RecommendedSpeed", cfg.RecommendedSpeed)
+			local gui = sign.Board:FindFirstChildOfClass("SurfaceGui")
+			if gui and gui:FindFirstChild("Title") then
+				gui.Title.Text = cfg.DisplayName
+			end
+			sign.Parent = model
+			local nest = prev:FindFirstChild("NestSite"):Clone()
+			local art = nest:FindFirstChild("NestArt")
+			if art then
+				art:ClearAllChildren()
+			end
+			nest:PivotTo(CFrame.new(x0 + cfg.NestAt * L, nest:GetPivot().Y, 0))
+			nest.Parent = model
+			local decor = Instance.new("Folder")
+			decor.Name = "Decor"
+			local src = lane.PebblePlains.Decor:FindFirstChild("NestSign")
+			if src then
+				local ns = src:Clone()
+				ns.Name = "NestSign" .. cfg.Id
+				ns:PivotTo(ns:GetPivot() + Vector3.new(x0 - 302, 0, 0))
+				ns.Parent = decor
+			end
+			decor.Parent = model
+			local floor = Instance.new("Folder")
+			floor.Name = "Floor"
+			floor.Parent = model
+			model.Parent = lane
+			table.insert(made, string.format("%s x %d..%d, nest at %.2f", cfg.Id, x0, x0 + L, x0 + cfg.NestAt * L))
+		end
+		prev = model or prev
+	end
+	return #made > 0 and table.concat(made, "\n") or "all lanes exist"
+end
 
 ------------------------------------------------------------------------------- the biomes
 local function biomes()
@@ -911,10 +988,8 @@ function B.Build(ids, sections)
 					task.wait()
 				end
 			end
-			-- the canyon closes after the last open biome
-			local BiomeConfig = fresh(ReplicatedStorage.Shared.Config.BiomeConfig)
-			local open = BiomeConfig.List
-			if open[#open] and open[#open].Id == b.Id and (not sections or table.find(sections, "EndCap")) then
+			-- the canyon closes after the last biome (a refined biome closes it itself)
+			if not b.next and not refined and (not sections or table.find(sections, "EndCap")) then
 				local ok, res = pcall(B.EndCap, b)
 				table.insert(report, b.Id .. ".EndCap: " .. (ok and "built" or ("ERROR " .. tostring(res))))
 			end

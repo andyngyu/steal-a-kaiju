@@ -7,7 +7,7 @@
 --   Glacier    the Frozen Titan: a giant kaiju in clear ice, dark against a glowing cyan back wall and lit from behind,
 --              with a raised viewing ledge (ramp, rail, plaque) in front of it
 --   Scatter    dark green pines with snow on their tiers, snowdrifts, ice-spike clusters, boulders
---   End        a rock wall closing the canyon (replaces the old EndCap until the next biome opens)
+--   End        a rock wall closing the canyon, only while Frostfang is the last lane (Venom Jungle follows it now)
 local ServerStorage = game:GetService("ServerStorage")
 local hex = Color3.fromHex
 
@@ -308,7 +308,7 @@ return function(b, K, T)
 		T.ridgeRow(back, {
 			side = side,
 			xa = XA,
-			xb = XB + 60,
+			xb = XB + (b.next and 0 or 60),
 			minW = 22,
 			maxW = 36,
 			front = function()
@@ -525,7 +525,8 @@ return function(b, K, T)
 	end
 	local plaque = K.sign(gl, "TitanPlaque", CFrame.lookAt(Vector3.new(771, L.h + 4.6, L.z1 - 1.8), Vector3.new(771, L.h + 4.6, 0)), 16, 3.2, "THE FROZEN TITAN", { cream = true })
 
-	---------------------------------------------------------------- the end of the canyon
+	---------------------------------------------------------------- the end of the canyon (only while nothing follows)
+	if not b.next then
 	local endW = sub("EndWall")
 	local z = -100
 	while z < 100 do
@@ -549,6 +550,7 @@ return function(b, K, T)
 	ew.CanQuery, ew.CastShadow = false, false
 	for _, p in { { XB - 6, 30, 15 }, { XB - 6, -40, 13 }, { XB - 5, 70, 12 }, { XB - 5, -72, 14 } } do
 		pine(greens, Vector3.new(p[1], 0, p[2]), p[3], true)
+	end
 	end
 
 	local n = 0
