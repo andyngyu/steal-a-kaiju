@@ -85,7 +85,8 @@ VFXConfig.Weather = {
 	-- the locked biomes (ready for when they open)
 	VenomJungle = {
 		Spores = { Rate = 26, Color = hex("B8FF6A") },
-		Lighting = { Tint = hex("E2FFD6"), Saturation = 0.12, Brightness = -0.02, Haze = 0.2 }, -- green, humid haze
+		-- green humid light, the sky a jungle haze, but clear enough air to read the temple and the mushrooms
+		Lighting = { Tint = hex("E8FFDC"), Saturation = 0.04, Brightness = 0.02, Haze = 0.06, AtmoColor = hex("B4E39C"), AtmoDecay = hex("5A8A46"), AtmoHaze = 3.2, AtmoGlare = 0 },
 	},
 	SunkenAbyss = {
 		Bubbles = { Rate = 34, Color = hex("D8FBFF") },
@@ -99,7 +100,8 @@ VFXConfig.Weather = {
 	},
 	CosmicRift = {
 		Stardust = { Rate = 40, Color = hex("E8D8FF") },
-		Lighting = { Tint = hex("E6D6FF"), Saturation = 0.12, Brightness = -0.06, Haze = 0.12 }, -- violet dusk
+		-- a deep violet sky (stars and planets show against it), the ground still clearly lit, clear air
+		Lighting = { Tint = hex("F0E6FF"), Saturation = 0.08, Brightness = 0.03, Haze = -0.05, AtmoColor = hex("3A2266"), AtmoDecay = hex("1A0C33"), AtmoHaze = 3.4, AtmoGlare = 0 },
 	},
 }
 
