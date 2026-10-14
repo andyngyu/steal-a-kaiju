@@ -866,7 +866,19 @@ function B.EndCap(b)
 end
 
 ------------------------------------------------------------------------------- entry point
-local ORDER = { "Widen", "Cliffs", "Gate", "Landmark", "Dress" }
+-- Refine: a biome with its own child module (CanyonBuilder.<BiomeId>, using CanyonBuilder.Terrain) is rebuilt by that
+-- module instead of Widen / Cliffs / Landmark / Dress (its Gate still comes from GATES)
+local T = require(script.Terrain).init(K)
+function B.Refine(b)
+	local mod = script:FindFirstChild(b.Id)
+	if not mod then
+		return "no refine module (" .. b.Id .. ")"
+	end
+	return require(mod)(b, K, T)
+end
+
+local ORDER = { "Widen", "Cliffs", "Gate", "Landmark", "Dress", "Refine" }
+local REFINED_SKIP = { Widen = true, Cliffs = true, Landmark = true, Dress = true }
 
 function B.Build(ids, sections)
 	local list = biomes()
@@ -874,8 +886,15 @@ function B.Build(ids, sections)
 	K.reset()
 	for _, b in list do
 		if table.find(ids, b.Id) then
+			local refined = script:FindFirstChild(b.Id) ~= nil
 			for _, sec in ORDER do
-				if not sections or table.find(sections, sec) then
+				local wanted = not sections or table.find(sections, sec)
+				if refined and REFINED_SKIP[sec] then
+					wanted = false
+				elseif not refined and sec == "Refine" then
+					wanted = false
+				end
+				if wanted then
 					local ok, res = pcall(B[sec], b)
 					table.insert(report, b.Id .. "." .. sec .. ": " .. (ok and (typeof(res) == "Instance" and "built" or tostring(res)) or ("ERROR " .. tostring(res))))
 					task.wait()

@@ -104,7 +104,45 @@ return function(map, K)
 					table.insert(changed, "NEST > - " .. biome.Name .. " nest sign (Map.Lane." .. biome.Name .. ".Decor." .. d.Name .. ")")
 				end
 			end
+			-- the biome's speed sign: Antique lettering on dark timber. SpeedFX keeps writing the Rec / Status text and
+			-- the Status colour (green / red), so only fonts, the title colour and the board change here.
+			local speedSign = biome:FindFirstChild("Sign")
+			local sb = speedSign and speedSign:FindFirstChild("Board")
+			if sb then
+				board(sb, P.TimberDark)
+				for _, g in sb:GetChildren() do
+					if g:IsA("SurfaceGui") then
+						g:SetAttribute("NoAutoGradient", true)
+						for _, l in g:GetDescendants() do
+							if l:IsA("TextLabel") then
+								l.Font = Enum.Font.Antique
+								if l.Name == "Title" then
+									l.TextColor3 = P.SignGold
+								elseif l.Name == "Rec" then
+									l.TextColor3 = P.SignCream
+								end
+								for _, c in l:GetChildren() do
+									if c:IsA("UIGradient") then
+										c:Destroy()
+									end
+								end
+								local s = l:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
+								s.Color = P.Ink
+								s.Thickness = math.max(s.Thickness, 2)
+								s.Parent = l
+							end
+						end
+					end
+				end
+				table.insert(changed, "speed sign - " .. biome.Name .. " (Map.Lane." .. biome.Name .. ".Sign)")
+			end
 		end
+	end
+	-- the SAFE ZONE line's label
+	local safe = map:FindFirstChild("SafeZoneLine")
+	if safe then
+		guis(safe, P.SignGold)
+		table.insert(changed, "SAFE ZONE - the safe line's label (Map.SafeZoneLine)")
 	end
 	return changed
 end
