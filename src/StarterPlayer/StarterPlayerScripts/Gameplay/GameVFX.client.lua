@@ -1168,7 +1168,47 @@ local baseLook = {
 	sat = cc and cc.Saturation,
 	bri = cc and cc.Brightness,
 	density = atmo and atmo.Density,
+	color = atmo and atmo.Color,
+	decay = atmo and atmo.Decay,
+	haze = atmo and atmo.Haze,
+	glare = atmo and atmo.Glare,
 }
+
+-- the zone's sky (Atmosphere Color / Decay / Haze / Glare, e.g. Storm Spires' overcast): published as the Lighting
+-- attributes ZoneAtmo* so WeatherFX blends its events from (and back to) the zone's sky, and written to the
+-- Atmosphere directly only while no weather event is showing (WeatherFX owns it while one is)
+local atmoCur = atmo and { color = atmo.Color, decay = atmo.Decay, haze = atmo.Haze, glare = atmo.Glare }
+local atmoFade = 0
+local function fadeAtmo(target)
+	if not atmo then
+		return
+	end
+	atmoFade += 1
+	local token = atmoFade
+	local from = table.clone(atmoCur)
+	task.spawn(function()
+		local t0 = os.clock()
+		while token == atmoFade do
+			local a = math.clamp((os.clock() - t0) / W.Fade, 0, 1)
+			local s = a * a * (3 - 2 * a)
+			atmoCur.color = from.color:Lerp(target.color, s)
+			atmoCur.decay = from.decay:Lerp(target.decay, s)
+			atmoCur.haze = from.haze + (target.haze - from.haze) * s
+			atmoCur.glare = from.glare + (target.glare - from.glare) * s
+			Lighting:SetAttribute("ZoneAtmoColor", atmoCur.color)
+			Lighting:SetAttribute("ZoneAtmoDecay", atmoCur.decay)
+			Lighting:SetAttribute("ZoneAtmoHaze", atmoCur.haze)
+			Lighting:SetAttribute("ZoneAtmoGlare", atmoCur.glare)
+			if Lighting:GetAttribute("WeatherDark") == nil then
+				atmo.Color, atmo.Decay, atmo.Haze, atmo.Glare = atmoCur.color, atmoCur.decay, atmoCur.haze, atmoCur.glare
+			end
+			if a >= 1 then
+				break
+			end
+			task.wait(0.05)
+		end
+	end)
+end
 
 local currentZone
 local function setZone(zone)
@@ -1191,6 +1231,12 @@ local function setZone(zone)
 	end
 	if atmo and baseLook.density then
 		TweenService:Create(atmo, info, { Density = baseLook.density + (look and look.Haze or 0) }):Play()
+		fadeAtmo({
+			color = look and look.AtmoColor or baseLook.color,
+			decay = look and look.AtmoDecay or baseLook.decay,
+			haze = look and look.AtmoHaze or baseLook.haze,
+			glare = look and look.AtmoGlare or baseLook.glare,
+		})
 	end
 end
 

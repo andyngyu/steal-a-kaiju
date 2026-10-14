@@ -259,6 +259,16 @@ local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
 local sky = Lighting:FindFirstChildOfClass("Sky")
 local baseAtmo = atmo and { Color = atmo.Color, Decay = atmo.Decay, Haze = atmo.Haze, Glare = atmo.Glare }
 local baseSky = sky and { StarCount = sky.StarCount, Celestial = sky.CelestialBodiesShown }
+-- the sky to blend from and back to: the current biome's (GameVFX publishes it as Lighting ZoneAtmo* attributes,
+-- e.g. Storm Spires' overcast), else the start-up one
+local function zoneAtmo()
+	return {
+		Color = Lighting:GetAttribute("ZoneAtmoColor") or baseAtmo.Color,
+		Decay = Lighting:GetAttribute("ZoneAtmoDecay") or baseAtmo.Decay,
+		Haze = Lighting:GetAttribute("ZoneAtmoHaze") or baseAtmo.Haze,
+		Glare = Lighting:GetAttribute("ZoneAtmoGlare") or baseAtmo.Glare,
+	}
+end
 local flash = 0 -- lightning flash, decays each frame
 -- Atmosphere.Density also belongs to GameVFX (biome haze): weather adds on top of whatever it last set
 local densAdd, densWritten = 0, nil
@@ -560,10 +570,11 @@ RunService.RenderStepped:Connect(function(dt)
 		Lighting:SetAttribute("WeatherClock", look.Clock)
 		Lighting:SetAttribute("WeatherClockBlend", look.Clock and w or nil)
 		if atmo and baseAtmo then
-			atmo.Color = baseAtmo.Color:Lerp(look.AtmoColor or baseAtmo.Color, w)
-			atmo.Decay = baseAtmo.Decay:Lerp(look.AtmoDecay or baseAtmo.Decay, w)
-			atmo.Haze = baseAtmo.Haze + (look.Haze or 0) * w
-			atmo.Glare = math.max(0, baseAtmo.Glare + (look.Glare or 0) * w)
+			local za = zoneAtmo()
+			atmo.Color = za.Color:Lerp(look.AtmoColor or za.Color, w)
+			atmo.Decay = za.Decay:Lerp(look.AtmoDecay or za.Decay, w)
+			atmo.Haze = za.Haze + (look.Haze or 0) * w
+			atmo.Glare = math.max(0, za.Glare + (look.Glare or 0) * w)
 			setDensity((look.Density or 0) * w)
 		end
 		if sky and baseSky then
@@ -580,7 +591,8 @@ RunService.RenderStepped:Connect(function(dt)
 			Lighting:SetAttribute("WeatherClock", nil)
 			Lighting:SetAttribute("WeatherClockBlend", nil)
 			if atmo and baseAtmo then
-				atmo.Color, atmo.Decay, atmo.Haze, atmo.Glare = baseAtmo.Color, baseAtmo.Decay, baseAtmo.Haze, baseAtmo.Glare
+				local za = zoneAtmo()
+				atmo.Color, atmo.Decay, atmo.Haze, atmo.Glare = za.Color, za.Decay, za.Haze, za.Glare
 				setDensity(0)
 			end
 			if sky and baseSky then
