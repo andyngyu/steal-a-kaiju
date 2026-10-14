@@ -1,11 +1,13 @@
 -- Edit-time builder for the Kaiju Citadel (the hub) in the game's studded-voxel look: SmoothPlastic blocks with the stud
--- texture (like the checker ground and the canyon walls), warm light stone, navy-purple roofs and gold trim (the colours
--- of the KAIJU MARKET sign and the leaderboard frames). It edits workspace.Map in place:
+-- texture (like the checker ground and the canyon walls). The new pieces share the child module Kit (patch stone, tan
+-- trim, navy / deep red / gold, Antique signs, real fire). It edits workspace.Map in place:
 --   Map.Ground        regenerated over the citadel's footprint: grass checker, stone paving on the avenue and the hall floor
 --   Map.Walls         removed (the old dirt walls); Map.Citadel replaces them:
---     Walls, Towers   45-tall curtain walls with battlements, pilasters and banners; towers with stepped roofs and flags
+--     Walls, Towers   98-tall curtain walls, massive corner towers, medium towers, turrets (child module Walls)
 --     GrandGate       on the safe line (x 302): gatehouse tunnel, huge towers, portcullis, skull trophy (child module Gate)
 --     Keep            the landmark keep at the west end of the avenue, behind the Hall (child module Keep)
+--     Signs           restyles the other in-world signs (market, stalls, NEST signs) in the Antique style (child module
+--                     Signs; nothing is built, only fonts and board colours change)
 --     Hall            the Hall of Champions round the leaderboards (the boards themselves stay exactly where they are)
 --     Statues         two colossal golden kaiju in fountains, one each side of the spawn
 --     Avenue          curbs, braziers and banner poles between the plots
@@ -234,7 +236,7 @@ local function buildHall(root, map, ctx)
 	for _, s in { -1, 1 } do
 		local th = math.rad(64 * s)
 		local p = HALL + Vector3.new(-math.cos(th), 0, math.sin(th)) * 66
-		brazier(f, p.X, p.Z, 0, 1.15)
+		Kit.brazier(f, Vector3.new(p.X, 0, p.Z), 1.15)
 	end
 end
 
@@ -295,7 +297,7 @@ local function statue(parent, kaijuName, cx, cz, scale, title, lookAt)
 	lp("Plinth", Vector3.new(22, 8, 22), 10, P.StoneA, { studs = ALL })
 	lp("PlinthTrim", Vector3.new(23.2, 1, 23.2), 14.5, P.Gold, { studs = ALL })
 	lp("Plinth", Vector3.new(19, 3, 19), 16.5, P.StoneB, { studs = ALL })
-	sign(m, "Plaque", F * CFrame.new(0, 10, -11.5), 15, 3.6, title)
+	Kit.sign(m, "Plaque", F * CFrame.new(0, 10, -11.5), 15, 3.6, title)
 	-- lanterns round the basin, on the plinth's diagonals (clear of the plaque)
 	for k = 0, 3 do
 		local a = math.rad(45 + k * 90)
@@ -356,7 +358,7 @@ local function bannerPole(parent, x, z, armDir, side)
 	box(m, "Cap", x - 1.1, x + 1.1, 30, 32.2, z - 1.1, z + 1.1, P.Gold, { studs = ALL })
 	box(m, "Arm", x, x + armDir * 8.5, 27.4, 28.4, z - 0.4, z + 0.4, P.Gold, { solid = false })
 	local bx = x + armDir * 4.8
-	banner(m, CFrame.lookAt(Vector3.new(bx, 27, z), Vector3.new(bx, 27, z - side * 10)), 6.5, 15, P.Navy, P.Gold, P.Gold)
+	Kit.banner(m, CFrame.lookAt(Vector3.new(bx, 27, z), Vector3.new(bx, 27, z - side * 10)), 6.5, 15, { cloth = Kit.P.Navy, trim = Kit.P.Gold, emblem = "diamond", mark = Kit.P.Gold })
 end
 
 local function buildAvenue(root, map, ctx)
@@ -366,7 +368,7 @@ local function buildAvenue(root, map, ctx)
 	end
 	for _, x in { 14, 109, 205 } do
 		for _, s in { -1, 1 } do
-			brazier(f, x, s * 24, 0, 1)
+			Kit.brazier(f, Vector3.new(x, 0, s * 24), 1)
 		end
 	end
 	for _, gx in { 109, 205 } do
@@ -461,26 +463,43 @@ local function buildBackdrop(root, map, ctx)
 		box(f, "Hill", x0, x1, -60, h, z0, z1, body, { studs = SIDES, solid = false, shadow = false })
 		box(f, "HillCap", x0 - 1, x1 + 1, h, h + 2, z0 - 1, z1 + 1, cap, { studs = ALL, solid = false, shadow = false })
 	end
+	-- the apron: grass-topped ground under the walls and the Keep, between the courtyard tiles and the hills
+	-- (and past the safe line under the Grand Gate's towers and the east corner towers, until the canyon rebuild)
+	for _, a in { { -270, 302, 160, 192 }, { -270, 302, -192, -160 }, { -270, -120, -160, 160 }, { 302, 356, 64, 192 }, { 302, 356, -192, -64 } } do
+		box(f, "Apron", a[1], a[2], -60, -1, a[3], a[4], P.Dirt, { studs = SIDES, solid = false, shadow = false })
+		box(f, "ApronCap", a[1], a[2], -1, -0.05, a[3], a[4], P.GrassB, { studs = TOP, solid = false, shadow = false })
+	end
+	-- (kept clear of the walls' outer buttresses and the corner towers)
 	for _, s in { -1, 1 } do
-		for x = -130, 301, 30 do
+		for x = -150, 301, 30 do
 			local x1 = math.min(x + 30, 302)
-			hill(x, x1, s * 172, s * 250, hillHeight(x, s * 200, 50, 86, 1), 1)
-			hill(x, x1, s * 250, s * 340, hillHeight(x, s * 300, 96, 150, 2), 2)
+			hill(x, x1, s * 192, s * 262, hillHeight(x, s * 200, 50, 86, 1), 1)
+			hill(x, x1, s * 262, s * 350, hillHeight(x, s * 300, 96, 150, 2), 2)
 		end
 	end
-	for z = -340, 339, 30 do
+	for z = -350, 349, 30 do
 		if z + 30 <= -85 or z >= 85 then -- the Keep stands in the middle
-			hill(-250, -130, z, z + 30, hillHeight(-190, z, 50, 86, 3), 1)
+			hill(-262, -152, z, z + 30, hillHeight(-190, z, 50, 86, 3), 1)
 		end
-		hill(-340, -250, z, z + 30, hillHeight(-300, z, 96, 150, 4), 2)
+		hill(-350, -262, z, z + 30, hillHeight(-300, z, 96, 150, 4), 2)
 	end
 end
 
 ------------------------------------------------------------------------------- entry point
 local SECTIONS = {
 	{ "Ground", buildGround },
-	{ "Walls", buildWalls },
-	{ "Towers", buildTowers },
+	{
+		"Walls",
+		function(root, map, ctx)
+			return require(script.Walls).Walls(root, map, ctx, Kit)
+		end,
+	},
+	{
+		"Towers",
+		function(root, map, ctx)
+			return require(script.Walls).Towers(root, map, ctx, Kit)
+		end,
+	},
 	{
 		"GrandGate",
 		function(root, map, ctx)
@@ -498,6 +517,12 @@ local SECTIONS = {
 	{ "Avenue", buildAvenue },
 	{ "Gatehouses", buildGatehouses },
 	{ "Backdrop", buildBackdrop },
+	{
+		"Signs",
+		function(root, map, ctx)
+			ctx.signs = require(script.Signs)(map, Kit)
+		end,
+	},
 }
 
 function C.Build(only)
@@ -542,7 +567,11 @@ function C.Build(only)
 			n += 1
 		end
 	end
-	return string.format("Citadel: built %s (%d new parts this run, %d in Map.Citadel)", table.concat(done, ", "), made + Kit.count(), n)
+	local report = string.format("Citadel: built %s (%d new parts this run, %d in Map.Citadel)", table.concat(done, ", "), made + Kit.count(), n)
+	if ctx.signs then
+		report ..= "\nSigns restyled:\n  " .. table.concat(ctx.signs, "\n  ")
+	end
+	return report
 end
 
 return C

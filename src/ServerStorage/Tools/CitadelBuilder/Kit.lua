@@ -447,14 +447,17 @@ function K.weather(parent, F, w, h, rng, o)
 		K.part(parent, "Stain", Vector3.new(p.w or 2, len, 0.2), F * CFrame.new(p.x, p.y - len / 2, -0.12), P.Stain, { solid = false, transparency = 0.55, shadow = false })
 	end
 	for _ = 1, (o.cracks or 1) do
-		local x, y = rng:NextNumber(-w * 0.4, w * 0.4), rng:NextNumber(math.max(yMin, h * 0.15), h * 0.8)
-		local a = rng:NextNumber(-0.4, 0.4)
-		for j = 0, 2 do
-			local seg = rng:NextNumber(3, 6)
-			local ang = a + (j % 2 == 0 and 0.5 or -0.5)
-			local dx, dy = math.sin(ang), -math.cos(ang)
-			K.part(parent, "Crack", Vector3.new(0.6, seg, 0.2), F * CFrame.new(x + dx * seg / 2, y + dy * seg / 2, -0.12) * CFrame.Angles(0, 0, ang), P.Crack, { solid = false, shadow = false })
-			x, y = x + dx * seg, y + dy * seg
+		-- a crack carved into the stone: a stepped run of small set-in blocks a few shades darker than the stone there
+		local x = math.floor(rng:NextNumber(-w * 0.4, w * 0.4) / 1.2) * 1.2
+		local y = math.floor(rng:NextNumber(math.max(yMin, h * 0.2), h * 0.8) / 1.2) * 1.2
+		local dir = rng:NextNumber() < 0.5 and -1 or 1
+		local dark = shade(K.stone((F * CFrame.new(x, y, 0)).Position, y / h), -0.3)
+		for j = 0, rng:NextInteger(3, 5) do
+			local tall = j % 2 == 0
+			local size = tall and Vector3.new(1.2, 2.4, 0.4) or Vector3.new(2.4, 1.2, 0.4)
+			K.part(parent, "Crack", size, F * CFrame.new(x, y, -0.1 - (j % 2) * 0.06), dark, { solid = false, shadow = false })
+			x += dir * (tall and 1.2 or 1.8)
+			y -= tall and 1.8 or 1.2
 		end
 	end
 	for _ = 1, (o.holes or 1) do
@@ -614,15 +617,20 @@ function K.flagPole(parent, base, poleH, fw, fh, cloth, stripe)
 end
 
 ------------------------------------------------------------------------------- fire
+-- real fire: an invisible anchor at pos (the base of the flames) carrying a Fire effect and a warm orange PointLight
 function K.flame(parent, pos, s, range)
 	s = s or 1
-	local a = K.part(parent, "Flame", Vector3.new(3.4, 3, 3.4) * s, CFrame.new(pos + Vector3.new(0, 1.5 * s, 0)) * CFrame.Angles(0, math.rad(45), 0), P.FlameA, { neon = true, solid = false })
-	K.part(parent, "Flame", Vector3.new(2.3, 2.6, 2.3) * s, CFrame.new(pos + Vector3.new(0.2 * s, 3.6 * s, -0.1 * s)) * CFrame.Angles(0, math.rad(20), 0), P.FlameB, { neon = true, solid = false })
-	K.part(parent, "Flame", Vector3.new(1.2, 1.8, 1.2) * s, CFrame.new(pos + Vector3.new(-0.1 * s, 5.5 * s, 0.2 * s)) * CFrame.Angles(0, math.rad(60), 0), P.FlameC, { neon = true, solid = false })
+	local a = K.part(parent, "Flame", Vector3.new(1, 1, 1), CFrame.new(pos + Vector3.new(0, 0.5, 0)), P.FlameA, { solid = false, transparency = 1, shadow = false })
+	local fire = Instance.new("Fire")
+	fire.Size = math.clamp(6 * s, 2, 30)
+	fire.Heat = math.clamp(11 * s, 4, 25)
+	fire.Color = Color3.fromRGB(255, 138, 36)
+	fire.SecondaryColor = Color3.fromRGB(255, 62, 12)
+	fire.Parent = a
 	local l = Instance.new("PointLight")
-	l.Color = hex("FFA043")
+	l.Color = Color3.fromRGB(255, 148, 64)
 	l.Range = range or math.max(14, 20 * s)
-	l.Brightness = 1.6
+	l.Brightness = 1.8
 	l.Shadows = false
 	l.Parent = a
 	return a
@@ -649,7 +657,8 @@ function K.torch(parent, F, x, y)
 	K.part(m, "Arm", Vector3.new(0.6, 0.6, 2.6), F * CFrame.new(x, y - 0.4, -1.6), P.Iron, { solid = false })
 	K.part(m, "Stick", Vector3.new(0.8, 3.6, 0.8), F * CFrame.new(x, y + 0.8, -2.8) * CFrame.Angles(math.rad(-12), 0, 0), P.Timber, { solid = false })
 	K.part(m, "Cup", Vector3.new(1.4, 0.8, 1.4), F * CFrame.new(x, y + 2.6, -3.15), P.Iron, { solid = false })
-	K.flame(m, (F * CFrame.new(x, y + 3, -3.2)).Position, 0.6, 18)
+	K.part(m, "Embers", Vector3.new(1, 0.3, 1), F * CFrame.new(x, y + 3.1, -3.15), P.Ember, { neon = true, solid = false })
+	K.flame(m, (F * CFrame.new(x, y + 3.1, -3.2)).Position, 0.6, 20)
 	return m
 end
 
@@ -688,6 +697,48 @@ function K.gateLeaf(parent, F, w, h)
 	K.part(m, "RingPlate", Vector3.new(3.6, 3.6, 0.4), rp, P.Bronze, { solid = false })
 	for _, e in { { 0, -4.4, 4.6, 0.8 }, { 0, -0.6, 4.6, 0.8 }, { -1.9, -2.5, 0.8, 4.6 }, { 1.9, -2.5, 0.8, 4.6 } } do
 		K.part(m, "Ring", Vector3.new(e[3], e[4], 0.8), rp * CFrame.new(e[1], e[2], -0.3), P.IronLight, { solid = false })
+	end
+	return m
+end
+
+------------------------------------------------------------------------------- the kaiju crest
+-- The citadel's emblem: a carved golden kaiju head (horns, V brow, ember eyes, snout, fangs, jaw) on a deep red shield
+-- with a gold border. cf = the centre of the shield's face on the wall, look vector = outwards; s = scale (1: the
+-- shield is 33 wide and about 40 tall, the horns reach 6 above it).
+function K.crest(parent, cf, s)
+	s = s or 1
+	local m = K.model(parent, "KaijuCrest")
+	local function cp(name, size, pos, color, rot, o)
+		local c = cf * CFrame.new(pos * s)
+		if rot then
+			c = c * rot
+		end
+		return K.part(m, name, size * s, c, color, o or { studs = K.FRONT, solid = false })
+	end
+	-- the shield: gold behind, deep red in front, stepping to a point
+	local field = { { 30, 26, 4 }, { 24, 4, -11 }, { 16, 4, -15 }, { 8, 3, -18.5 } } -- { width, height, centre y }
+	for i, r in field do
+		cp("CrestBorder", Vector3.new(r[1] + 3.2, r[2] + (i == 1 and 3.2 or 0), 1), Vector3.new(0, r[3], -0.5), P.Gold)
+		cp("CrestField", Vector3.new(r[1], r[2], 1), Vector3.new(0, r[3], -1.2), P.Red)
+	end
+	cp("CrestBorder", Vector3.new(4.4, 1.6, 1), Vector3.new(0, -20.8, -0.5), P.Gold)
+	-- the golden head, carved in relief (deep gold body, bright gold ridges)
+	cp("Cranium", Vector3.new(12, 10, 2), Vector3.new(0, 6, -2.6), P.GoldPale)
+	cp("Snout", Vector3.new(8, 6, 2.6), Vector3.new(0, -0.5, -2.9), P.Gold)
+	cp("Jaw", Vector3.new(7, 2, 2), Vector3.new(0, -7.2, -2.6), P.Bronze)
+	for _, sx in { -1, 1 } do
+		cp("Horn", Vector3.new(2.4, 11, 2), Vector3.new(sx * 7.6, 15, -2.4), P.Gold, CFrame.Angles(0, 0, -sx * math.rad(28)))
+		cp("HornTip", Vector3.new(1.4, 5, 1.8), Vector3.new(sx * 11.2, 22, -2.4), P.GoldPale, CFrame.Angles(0, 0, -sx * math.rad(38)))
+		cp("Brow", Vector3.new(7, 2, 2.6), Vector3.new(sx * 3.8, 9.2, -3.8), P.Gold, CFrame.Angles(0, 0, sx * math.rad(15)))
+		cp("Eye", Vector3.new(3.4, 1.4, 0.6), Vector3.new(sx * 3.8, 6.4, -3.7), P.Ember, nil, { neon = true, solid = false })
+		cp("Nostril", Vector3.new(1.2, 1, 0.4), Vector3.new(sx * 1.6, 1.4, -4.3), P.RedDark)
+		cp("CheekSpike", Vector3.new(2, 5, 1.6), Vector3.new(sx * 7.4, 1.5, -2.4), P.Gold, CFrame.Angles(0, 0, sx * math.rad(30)))
+	end
+	for _, x in { -3, -1, 1, 3 } do
+		cp("Fang", Vector3.new(1.2, math.abs(x) == 3 and 3.4 or 2.4, 1), Vector3.new(x, math.abs(x) == 3 and -4.9 or -4.4, -3.2), P.GoldPale)
+	end
+	for _, sx in { -1, 1 } do
+		cp("Rivet", Vector3.new(2, 2, 0.6), Vector3.new(sx * 13, 15.5, -2), P.Gold)
 	end
 	return m
 end
@@ -748,8 +799,11 @@ function K.skull(parent, cf, s)
 		local w = canine and 2.4 or 1.9
 		sp("Tooth", Vector3.new(w, len, w), Vector3.new(i * 2.75, -12 - len / 2, -30.8), P.Tooth)
 	end
-	sp("Crack", Vector3.new(0.5, 0.4, 10), Vector3.new(-7, 27.2, -9), P.Crack, CFrame.Angles(0, math.rad(20), 0), FLAT)
-	sp("Crack", Vector3.new(0.5, 5, 0.4), Vector3.new(9, -8, -32.3), P.Crack, CFrame.Angles(0, 0, math.rad(25)), FLAT)
+	-- cracks: stepped runs of set-in darker bone blocks
+	for j = 0, 3 do
+		sp("Crack", j % 2 == 0 and Vector3.new(1.2, 0.4, 2.4) or Vector3.new(2.4, 0.4, 1.2), Vector3.new(-8 + j * 1.6, 27.1, -4 - j * 1.8), P.BoneDark, nil, FLAT)
+		sp("Crack", j % 2 == 0 and Vector3.new(1.2, 2.4, 0.4) or Vector3.new(2.4, 1.2, 0.4), Vector3.new(7 + j * 1.5, -2.5 - j * 1.8, -32.1), P.BoneDark, nil, FLAT)
+	end
 	-- the lower jaw, dropped open, teeth up
 	local J = cf * CFrame.new(Vector3.new(0, -12, -6) * s) * CFrame.Angles(math.rad(-24), 0, 0)
 	local function jp(name, size, pos, color)

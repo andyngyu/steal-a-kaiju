@@ -2,7 +2,9 @@
 -- straight behind the Hall of Champions and on the line through the Grand Gate, so it closes the view down the avenue
 -- and is the first thing seen when coming home from the Wildlands. Four tiers of studded masonry (patch stone, tan trim),
 -- four corner towers with pointed roofs, corner turrets, glowing windows, deep red banners and spire bands, braziers,
--- and the tallest spire in the citadel (golden egg finial at about y 400). Footprint x -250..-107, z -84..84: outside
+-- and the tallest spire in the citadel (golden egg finial at about y 400). The front has depth: half-towers either side,
+-- a recessed entrance under a stepped arch with a balcony above, and the citadel's crest high on tier 2.
+-- Footprint x -250..-102 (the entrance steps), z -84..84: outside
 -- the old west wall line, clear of the plots, the market and the leaderboards (which stay exactly where they are).
 return function(root, map, ctx, K)
 	local P = K.P
@@ -13,10 +15,6 @@ return function(root, map, ctx, K)
 	local function face(x, y, z, n)
 		return K.face(Vector3.new(x, y, z), n)
 	end
-	local function buttress(x0, x1, z0, z1, y0, y1, tt)
-		local c = Vector3.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
-		return K.box(f, "Buttress", x0, x1, y0, y1, z0, z1, K.stone(c, tt, rng), { studs = K.ALL })
-	end
 
 	---------------------------------------------------------------- footing and tier 1 (the great hall)
 	K.box(f, "Footing", -250, -116, -40, 6, -72, 72, P.Base, { studs = K.SIDES })
@@ -25,23 +23,66 @@ return function(root, map, ctx, K)
 	local xc = (X0 + X1) / 2
 	K.masonry(f, "Stone", CFrame.new(xc, Y0, 0), Vector3.new(X1 - X0, Y1 - Y0, 2 * Z), rng, { t0 = 0, t1 = 0.34, courseMin = 6, courseMax = 10, stoneMin = 14, stoneMax = 34 })
 	local F1 = face(X1, 0, 0, EAST)
-	-- front buttresses carrying torches and carved eggs
-	for _, bz in { -26, 26 } do
-		buttress(X1, X1 + 6, bz - 3, bz + 3, Y0, 66, 0.1)
-		buttress(X1, X1 + 4, bz - 2.5, bz + 2.5, 66, 88, 0.25)
-		buttress(X1, X1 + 2, bz - 2, bz + 2, 88, 92, 0.3)
-		local bF = face(X1 + 6, 0, bz, EAST)
-		K.eggRelief(f, bF, 0, 20, 4.6, P.Light, P.Gold)
-		K.torch(f, bF, 0, 48)
-	end
-	K.window(f, F1, 0, 72, 8, 18, true)
-	for _, wz in { -38, 38 } do
-		K.window(f, F1, K.lx(F1, X1, wz), 56, 6, 18, true)
-	end
-	-- deep red banners either side of the great window
+
+	---------------------------------------------------------------- the facade
+	-- half-towers either side, standing out 14 from the front and rising past tier 1's battlements
 	for _, s in { -1, 1 } do
-		K.banner(f, CFrame.lookAt(Vector3.new(X1 + 0.8, 93, s * 13), Vector3.new(X1 + 20, 93, s * 13)), 8, 34, { cloth = P.Red, trim = P.Gold, emblem = "egg", mark = P.Gold, tail = "point" })
+		local hz = s * 34
+		local hx0, hx1 = X1, X1 + 14
+		local hxc = (hx0 + hx1) / 2
+		K.box(f, "Footing", hx0, hx1 + 1.5, -10, 4, hz - 9.5, hz + 9.5, P.Base, { studs = K.SIDES })
+		K.masonry(f, "Stone", CFrame.new(hxc, 0, hz), Vector3.new(14, 114, 16), rng, { t0 = 0, t1 = 0.42, courseMin = 6, courseMax = 9, stoneMin = 8, stoneMax = 16 })
+		local hF = face(hx1, 0, hz, EAST)
+		K.eggRelief(f, hF, 0, 14, 5, P.Light, P.Gold)
+		K.slit(f, hF, 0, 34, 2, 9, rng)
+		K.torch(f, hF, 0, 52)
+		K.banner(f, CFrame.lookAt(Vector3.new(hx1 + 0.8, 104, hz), Vector3.new(hx1 + 20, 104, hz)), 9, 38,
+			s > 0 and { cloth = P.Red, trim = P.Gold, emblem = "claw", mark = P.Gold }
+				or { cloth = P.Red, trim = P.Gold, emblem = "egg", mark = P.Gold, tail = "point" })
+		K.weather(f, hF, 16, 114, rng, { moss = 2, vines = 1, vineTop = 112, cracks = 1, holes = 0, yMin = 4 })
+		K.box(f, "Corbel", hx0 - 1, hx1 + 1.5, 114, 117, hz - 9.5, hz + 9.5, P.Light, { studs = K.ALLB })
+		K.merlonRect(f, hxc + 0.25, hz, 8.25, 9.5, 117, 3, 4.5, 2.2, rng, 0.98)
+		local top = K.spire(f, hxc, hz, 117, 10, 12, 26, 7, P.Red)
+		K.egg(f, Vector3.new(hxc, top, hz), 3, P.Gold, P.Red)
 	end
+	-- the recessed main entrance: two piers standing out 10 from the front, a stepped arch with tan voussoirs, the
+	-- iron-banded doors set back on the keep's face in deep shadow, a landing and steps down to the courtyard
+	local PX0, PX1 = X1, X1 + 10
+	local pxc = (PX0 + PX1) / 2
+	for _, s in { -1, 1 } do
+		K.masonry(f, "Stone", CFrame.new(pxc, 0, s * 16.5), Vector3.new(10, 54, 7), rng, { t0 = 0, t1 = 0.3, courseMin = 6, courseMax = 8, stoneMin = 6, stoneMax = 10 })
+		K.eggRelief(f, face(PX1, 0, s * 16.5, EAST), 0, 20, 4, P.Light, P.Gold)
+	end
+	local arch = { { 10.5, 42 }, { 7.5, 46 }, { 4, 50 } } -- { half-width of the opening above, bottom }
+	local prev = 13
+	for _, st in arch do
+		for _, s in { -1, 1 } do
+			K.box(f, "Arch", PX0, PX1, st[2], 54, s * st[1], s * prev, K.stone(Vector3.new(pxc, st[2], s * prev), 0.3, rng), { studs = K.ALLB })
+			K.box(f, "Voussoir", PX1, PX1 + 0.8, st[2], st[2] + 1.2, s * st[1], s * prev, P.Tan, { studs = K.ALLB, solid = false })
+		end
+		prev = st[1]
+	end
+	K.box(f, "Voussoir", PX1, PX1 + 0.8, 54, 55.2, -4, 4, P.Tan, { studs = K.ALLB, solid = false })
+	K.masonry(f, "Stone", CFrame.new(pxc, 54, 0), Vector3.new(10, 8, 40), rng, { t0 = 0.3, t1 = 0.34, axis = "Z", courseMin = 8, courseMax = 8, stoneMin = 8, stoneMax = 16 })
+	K.box(f, "Keystone", PX1, PX1 + 1.4, 53, 60, -2.5, 2.5, P.Tan, { studs = K.ALL, solid = false })
+	K.box(f, "DoorShadow", X1, X1 + 0.15, 42, 54, -13, 13, P.Socket, { solid = false, shadow = false })
+	for _, s in { -1, 1 } do
+		K.gateLeaf(f, face(X1, 12, s * 6.5, EAST), 13, 30)
+	end
+	K.box(f, "Landing", X1, PX1, 0, 12, -13, 13, P.Mid, { studs = K.ALL })
+	for i = 0, 3 do
+		K.box(f, "Step", PX1 + i * 3, PX1 + (i + 1) * 3, 0, 12 - i * 3, -16, 16, i % 2 == 0 and P.Light or P.Mid, { studs = K.ALL })
+	end
+	-- the balcony over the entrance: a slab on corbels, a low balustrade with a tan rail, a glowing doorway behind
+	K.box(f, "Balcony", X1, X1 + 16, 62, 64.5, -18, 18, P.Light, { studs = K.ALLB })
+	K.corbels(f, Vector3.new(PX1, 0, -14), Vector3.new(PX1, 0, 14), 62, EAST, 7, rng, 0.35)
+	K.box(f, "Balustrade", X1 + 14.4, X1 + 16, 64.5, 68, -18, 18, P.Light, { studs = K.SIDES })
+	K.box(f, "Rail", X1 + 14.2, X1 + 16.2, 68, 68.8, -18.2, 18.2, P.Tan, { studs = K.TOP, solid = false })
+	for _, s in { -1, 1 } do
+		K.box(f, "Balustrade", X1, X1 + 14.4, 64.5, 68, s * 16.4, s * 18, P.Light, { studs = K.SIDES })
+		K.box(f, "Rail", X1, X1 + 14.2, 68, 68.8, s * 16.2, s * 18.2, P.Tan, { studs = K.TOP, solid = false })
+	end
+	K.window(f, F1, 0, 64.5, 9, 22, true)
 	K.accents(f, F1, 2 * Z, Y1, 10, rng, 0, 0.34, { yMin = 14 })
 	K.weather(f, F1, 2 * Z, Y1, rng, { moss = 6, mossY = 12, vines = 3, vineTop = Y1 - 2, cracks = 2, holes = 1, yMin = 14 })
 	for _, s in { -1, 1 } do
@@ -57,7 +98,7 @@ return function(root, map, ctx, K)
 	K.corbels(f, Vector3.new(X1, 0, -46), Vector3.new(X1, 0, 46), Y1, EAST, 6, rng, 0.36)
 	K.merlonRect(f, xc, 0, (X1 - X0) / 2 + 3, Z + 3, Y1 + 5, 3.5, 5.5, 2.5, rng, 0.4)
 	for _, s in { -1, 1 } do
-		K.brazier(f, Vector3.new(X1 - 4, Y1 + 5, s * 40), 1.25)
+		K.brazier(f, Vector3.new(X1 - 4, Y1 + 5, s * 12), 1.25)
 	end
 
 	---------------------------------------------------------------- the four corner towers
@@ -87,9 +128,9 @@ return function(root, map, ctx, K)
 	local axc = (A0 + A1) / 2
 	K.masonry(f, "Stone", CFrame.new(axc, AY0, 0), Vector3.new(A1 - A0, AY1 - AY0, 2 * AZ), rng, { t0 = 0.38, t1 = 0.62, courseMin = 6, courseMax = 9, stoneMin = 14, stoneMax = 30 })
 	local F2 = face(A1, 0, 0, EAST)
-	-- the plaque sits high enough to clear tier 1's battlements when seen from the avenue
-	K.sign(f, "HallPlaque", CFrame.lookAt(Vector3.new(A1 + 0.6, 118, 0), Vector3.new(A1 + 20, 118, 0)), 52, 10, "HALL OF CHAMPIONS")
-	for _, wz in { -26, 0, 26 } do
+	-- the citadel's crest: a golden kaiju head on a deep red shield, high enough to clear the Rewards board from the spawn
+	K.crest(f, CFrame.lookAt(Vector3.new(A1, 140, 0), Vector3.new(A1 + 20, 140, 0)), 1.3)
+	for _, wz in { -28, 28 } do
 		K.window(f, F2, K.lx(F2, A1, wz), 128, 7, 24, true)
 	end
 	K.banner(f, CFrame.lookAt(Vector3.new(A1 + 0.8, 172, 42), Vector3.new(A1 + 20, 172, 42)), 9, 44, { cloth = P.Red, trim = P.Gold, emblem = "claw", mark = P.Gold })
