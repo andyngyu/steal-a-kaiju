@@ -71,6 +71,11 @@ return table.freeze({
 		PebblePlains = table.freeze({ Common = 60, Uncommon = 25, Rare = 10, Epic = 4, Legendary = 1, Secret = 0.05 }),
 		LavaLagoon = table.freeze({ Common = 40, Uncommon = 30, Rare = 17, Epic = 8, Legendary = 4, Mythic = 1, Secret = 0.1 }),
 		FrostfangPeaks = table.freeze({ Common = 25, Uncommon = 30, Rare = 22, Epic = 13, Legendary = 7, Mythic = 3, Secret = 0.2 }),
+		-- the four outer biomes (locked in BiomeConfig until their kaiju exist; tuned again in the progression pass)
+		VenomJungle = table.freeze({ Common = 20, Uncommon = 28, Rare = 24, Epic = 15, Legendary = 9, Mythic = 4, Secret = 0.3 }),
+		SunkenAbyss = table.freeze({ Common = 16, Uncommon = 26, Rare = 25, Epic = 17, Legendary = 10, Mythic = 6, Secret = 0.4 }),
+		StormSpires = table.freeze({ Common = 12, Uncommon = 24, Rare = 26, Epic = 19, Legendary = 12, Mythic = 7, Secret = 0.5 }),
+		CosmicRift = table.freeze({ Common = 10, Uncommon = 20, Rare = 26, Epic = 21, Legendary = 14, Mythic = 9, Secret = 0.7 }),
 	}),
 
 	-- Placeholder shell colour per biome; the crack band uses the rarity colour.
@@ -78,6 +83,10 @@ return table.freeze({
 		PebblePlains = hex("E9F5D8"),
 		LavaLagoon = hex("F7D2A6"),
 		FrostfangPeaks = hex("E6F4FF"),
+		VenomJungle = hex("E2F7C8"),
+		SunkenAbyss = hex("CFE9F2"),
+		StormSpires = hex("E3E7EE"),
+		CosmicRift = hex("E6D9FF"),
 	}),
 
 	Size = Vector3.new(2.2, 2.8, 2.2),
