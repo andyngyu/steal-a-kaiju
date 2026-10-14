@@ -5,8 +5,8 @@ local H = require(script.Parent.Helpers)
 -- like a mantis's, holding two raptorial forelimbs folded and raised to strike, each ending in a huge serrated
 -- bone-white scythe blade with a glowing venom groove. Scales shading from dark bark and jungle green on the back to
 -- light moss and cream below, bark-brown armour bands with glowing seams, bold purple fins down the back, a long tail.
--- Face: a narrow triangular mantis head, wide across two big glowing compound eyes under heavy armoured brows,
--- tapering down to a pair of hooked mandibles; antennae and a purple crest.
+-- Face: a sharp green mantis wedge, wide across two big bulging faceted compound eyes on its sides under heavy
+-- brows, tapering down to a point and a pair of hooked mandibles; antennae and a purple crest.
 local HEAD = CFrame.new(0, 3.62, -1.58) * CFrame.Angles(rad(-22), 0, 0)
 local SKULL = { 0.68, 0.46, 0.56 }
 local SH = { 0.48, 2.9, -1.04 } -- the left shoulder
@@ -35,8 +35,10 @@ return {
 		Joint = "2A2018",
 		Tooth = "E8E4C8",
 		Mouth = "5A1A30",
-		Eye = { "4CC02A", Neon = true },
-		EyeCore = { "B8FF6A", Neon = true },
+		Eye = { "62D42E", Neon = true },
+		EyeCore = { "C8FF8A", Neon = true },
+		EyeFacet = "17300E",
+		Plate = { "2A4A22", Material = "Slate" },
 		Socket = "0E1408",
 		Claw = "241C14",
 		ClawTip = "D0C8A0",
@@ -134,9 +136,9 @@ return {
 			local sh = Vector3.new(SH[1] * x, SH[2], SH[3])
 			local el = Vector3.new(0.74 * x, 3.46, -1.66)
 			local wr = Vector3.new(0.74 * x, 2.66, -1.92)
-			local arm = H.limb(K, g, { { sh.X, sh.Y, sh.Z, 0.24 }, { el.X, el.Y, el.Z, 0.2 }, { wr.X, wr.Y, wr.Z, 0.16 } }, { step = 0.2, cores = { "Hide", "Armour" }, tiles = { crust, nil } })
-			K:block(g, "Armour", CFrame.new(el) * CFrame.Angles(rad(30), 0, 0), Vector3.new(0.34, 0.3, 0.34))
-			K:block(g, "Armour", CFrame.lookAt(el:Lerp(wr, 0.5) + Vector3.new(0.08 * x, 0, -0.04), wr) * CFrame.Angles(0, 0, rad(45)), Vector3.new(0.26, 0.26, (wr - el).Magnitude * 0.9))
+			local arm = H.limb(K, g, { { sh.X, sh.Y, sh.Z, 0.24 }, { el.X, el.Y, el.Z, 0.2 }, { wr.X, wr.Y, wr.Z, 0.16 } }, { step = 0.2, cores = { "Hide", "Plate" }, tiles = { crust, nil } })
+			K:block(g, "Plate", CFrame.new(el) * CFrame.Angles(rad(30), 0, 0), Vector3.new(0.34, 0.3, 0.34))
+			K:block(g, "Plate", CFrame.lookAt(el:Lerp(wr, 0.5) + Vector3.new(0.08 * x, 0, -0.04), wr) * CFrame.Angles(0, 0, rad(45)), Vector3.new(0.26, 0.26, (wr - el).Magnitude * 0.9))
 			-- spines down the inner edge of the forearm
 			for k = 1, 4 do
 				local p = el:Lerp(wr, k / 5) + Vector3.new(0, 0, -0.1)
@@ -165,28 +167,36 @@ return {
 		local function hv(px, py, pz)
 			return HEAD:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
 		end
-		-- stepped layers narrowing downwards: a triangle seen from the front
-		for i, l in { { 0.5, 0.96, 0.46, -0.3 }, { 0.32, 0.8, 0.56, -0.36 }, { 0.14, 0.6, 0.6, -0.42 }, { -0.04, 0.42, 0.56, -0.48 }, { -0.2, 0.28, 0.44, -0.54 } } do
+		-- a sharp green wedge: layers narrowing downwards and forwards to a point at the mandibles (a triangle from the
+		-- front, a blade from the side), a pale keel down the face, angled cheek blades, dark plates over the crown
+		for i, l in { { 0.5, 0.78, 0.5, -0.28 }, { 0.32, 0.64, 0.6, -0.36 }, { 0.14, 0.48, 0.62, -0.46 }, { -0.04, 0.34, 0.56, -0.56 }, { -0.2, 0.22, 0.46, -0.64 } } do
 			K:block("Head", i % 2 == 0 and "HideDark" or "Hide", hcf(0, l[1], l[4]), Vector3.new(l[2], 0.22, l[3]))
 		end
-		K:block("Head", "Back", hcf(0, 0.62, -0.28, -6, 0, 0), Vector3.new(0.7, 0.08, 0.42))
-		-- an armoured face plate in two halves meeting in a point at the bottom
+		K:block("Head", "HideLight", hcf(0, 0.12, -0.84, 24, 0, 0), Vector3.new(0.1, 0.72, 0.12))
 		for _, x in { 1, -1 } do
-			K:block("Head", "Armour", hcf(0.14 * x, 0.18, -0.7, 8, 0, -20 * x), Vector3.new(0.26, 0.66, 0.1))
-			K:block("Head", "ArmourLight", hcf(0.1 * x, 0.3, -0.75, 8, 0, -20 * x), Vector3.new(0.12, 0.36, 0.06))
+			K:block("Head", "Plate", hcf(0.19 * x, 0.12, -0.62, 10, 18 * x, -24 * x), Vector3.new(0.1, 0.62, 0.5))
 		end
+		K:block("Head", "Plate", hcf(0, 0.62, -0.28, -6, 0, 0), Vector3.new(0.64, 0.08, 0.44))
 		K:plate("Head", { "Spine", "Spine", "SpineTip" }, hp(0, 0.6, -0.08), hv(0, 1, 0.45), hv(0, 0, 1), { h = 0.56, w = 0.56, t = 0.08, n = 3, lean = 40 })
 		for _, x in { 1, -1 } do
-			-- a big glowing compound eye on each top corner, dark facet lines across it, a heavy brow over it
-			local E = hcf(0.47 * x, 0.4, -0.4, 0, 20 * x, 0)
-			K:block("Head", "Socket", E * CFrame.new(-0.04 * x, 0, 0), Vector3.new(0.3, 0.4, 0.46))
-			-- a bulging eye: two turned blocks make a rounded octagon, a faint darker band and a bright highlight
-			K:block("Head", "Eye", E * CFrame.new(0.04 * x, 0, -0.02), Vector3.new(0.24, 0.3, 0.36))
-			K:block("Head", "Eye", E * CFrame.new(0.02 * x, 0, -0.02) * CFrame.Angles(rad(45), 0, 0), Vector3.new(0.27, 0.28, 0.28))
-			K:block("Head", "Socket", E * CFrame.new(0.07 * x, -0.03, -0.02), Vector3.new(0.22, 0.03, 0.4))
-			K:block("Head", "EyeCore", E * CFrame.new(0.12 * x, 0.06, -0.1), Vector3.new(0.07, 0.07, 0.07))
-			K:block("Head", "Armour", hcf(0.34 * x, 0.6, -0.46, -8, -12 * x, 8 * x), Vector3.new(0.4, 0.14, 0.56))
-			K:block("Head", "ArmourLight", hcf(0.3 * x, 0.67, -0.42, -8, -12 * x, 8 * x), Vector3.new(0.24, 0.06, 0.42))
+			-- a big compound eye bulging out of each side of the crown: an octagonal glowing dome (two turned blocks and an
+			-- outer bulge) in a dark socket, a grid of dark facet lines across it, a dark pseudopupil and a highlight
+			local E = hcf(0.5 * x, 0.42, -0.36, 0, 14 * x, 0)
+			K:block("Head", "Socket", E * CFrame.new(-0.08 * x, 0, 0), Vector3.new(0.2, 0.5, 0.58))
+			K:block("Head", "Eye", E * CFrame.new(0.06 * x, 0, 0), Vector3.new(0.34, 0.46, 0.52))
+			K:block("Head", "Eye", E * CFrame.new(0.04 * x, 0, 0) * CFrame.Angles(rad(45), 0, 0), Vector3.new(0.36, 0.42, 0.42))
+			K:block("Head", "Eye", E * CFrame.new(0.24 * x, 0, 0), Vector3.new(0.12, 0.3, 0.34))
+			for _, y in { -0.09, 0.09 } do
+				K:block("Head", "EyeFacet", E * CFrame.new(0.06 * x, y, 0), Vector3.new(0.36, 0.022, 0.5))
+			end
+			for _, z in { -0.11, 0.11 } do
+				K:block("Head", "EyeFacet", E * CFrame.new(0.06 * x, 0, z), Vector3.new(0.36, 0.44, 0.022))
+			end
+			K:block("Head", "Socket", E * CFrame.new(0.27 * x, 0.02, -0.12), Vector3.new(0.08, 0.1, 0.08))
+			K:block("Head", "EyeCore", E * CFrame.new(0.28 * x, 0.12, -0.04), Vector3.new(0.06, 0.06, 0.06))
+			-- a heavy green brow over it
+			K:block("Head", "Plate", hcf(0.36 * x, 0.68, -0.42, -10, -10 * x, 14 * x), Vector3.new(0.46, 0.14, 0.62))
+			K:block("Head", "HideDark", hcf(0.32 * x, 0.74, -0.38, -10, -10 * x, 14 * x), Vector3.new(0.28, 0.06, 0.46))
 			-- antennae sweeping back
 			K:chain("Head", { "Spine", "Spine", "Spine" }, hp(0.12 * x, 0.6, -0.56), hv(0.35 * x, 0.75, 0.55), hv(1, 0, 0), { n = 3, len = 0.92, w0 = 0.055, w1 = 0.035, bend = 22, tip = false })
 			-- the mandibles: hooked bone pincers curving in to meet under the face, teeth on their inner edge
