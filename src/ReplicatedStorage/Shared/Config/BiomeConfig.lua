@@ -220,7 +220,6 @@ local list: { Biome } = {
 		WallCap = hex("B45CFF"),
 		Border = hex("FF5CC8"),
 		Accent = hex("B45CFF"),
-		Locked = true,
 		Guardian = {
 			WalkSpeed = 68,
 			ReturnSpeed = 102,
