@@ -1,12 +1,12 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Storm Spires / Epic / storm: the stormgriff, a griffin. The front an eagle: white feathers shading to storm grey
--- down the back, a hooked gold beak, a heavy grey brow over fierce yellow eyes, a crest swept back off the skull,
+-- Storm Spires / Epic / storm: the stormgriff, a griffin. The front an eagle: a white chest, a storm-grey head and neck
+-- with a dark crown, a hooked gold beak, a heavy dark brow over glowing yellow eyes, a crest swept back off the skull,
 -- scaly gold forelegs on black talons. The back a lion: tawny fur, cream belly, big paws, a long tail ending in a
--- tuft of storm cloud with a bolt hanging from it. Two great storm-grey wings raised high over the back: long
--- primaries fanned up and out, secondaries hanging behind, storm-cloud coverts along the leading edge with lightning
--- forking out of them, the flight feathers tipped yellow-white and an electric blue line down each wing arm.
+-- tuft of storm cloud with a bolt dropping from it. Two great slate storm wings raised high over the back: long
+-- primaries fanned up and out, each edged with yellow lightning, secondaries hanging behind, storm-cloud coverts along
+-- the leading edge with bolts dropping out of them and a bolt running down each wing arm.
 local HEAD = CFrame.new(0, 2.74, -1.54) * CFrame.Angles(rad(-8), 0, 0)
 local HINGE = Vector3.new(0, -0.14, -0.4)
 local HS = 1.12
@@ -34,9 +34,13 @@ return {
 		Feather = "E8ECF0",
 		FeatherGrey = "B4BCC8",
 		FeatherDark = "5A6272",
-		Wing = "4A5262",
-		WingDark = "2A303C",
-		WingLight = "7A8494",
+		Wing = "5A6070",
+		WingDark = "3A3F4A",
+		WingLight = "7E8694",
+		HeadGrey = "7E8694",
+		HeadDark = "3E434E",
+		Bolt = { "FFC93A", Neon = true },
+		BoltHot = { "FFEFA8", Neon = true },
 		Cloud = "9AA2B0",
 		CloudDark = "5A6070",
 		CloudLight = "C8CED8",
@@ -98,14 +102,14 @@ return {
 			{ 0, 1.86, -0.82, rx = 0.56, ru = 0.56, rd = 0.6 },
 		}, { step = 0.2, core = "FeatherGrey", coreScale = 0.86, tile = { w = 0.26, l = 0.3, t = 0.08, lift = 10, jitter = 2, sink = 0.45, overlap = 1.15 }, color = function(th, ring)
 			local a = math.deg(math.abs(th))
-			return a < 30 and "FeatherGrey" or (ring % 3 == 0 and "FeatherGrey" or "Feather")
+			return a < 40 and "HeadDark" or (a > 120 and "Feather" or (ring % 2 == 0 and "HeadGrey" or "FeatherGrey"))
 		end })
 		-- hackles raised down the back of the neck
 		for s = 0.1, neck.total - 0.08, 0.16 do
 			local smp = K:at(neck, s)
 			for _, th in { 0, rad(36), rad(-36) } do
 				local pos, nrm = K:surface(smp, th, 0.02)
-				K:chain("Head", { "FeatherGrey", "FeatherDark" }, pos, (nrm + smp.T * 1.3).Unit, smp.R, { n = 2, len = 0.32, w0 = 0.14, w1 = 0.09, bend = 0, depth = 0.4 })
+				K:chain("Head", { "HeadGrey", "HeadDark" }, pos, (nrm + smp.T * 1.3).Unit, smp.R, { n = 2, len = 0.32, w0 = 0.14, w1 = 0.09, bend = 0, depth = 0.4 })
 			end
 		end
 
@@ -119,7 +123,8 @@ return {
 			return ring % 2 == 0 and "Lion" or "LionDark"
 		end })
 		local tip = K:at(tail, tail.total)
-		H.cloud(K, "Tail", { "CloudDark", "Cloud", "CloudLight" }, tip.p + tip.T * 0.12, Vector3.new(0.24, 0.2, 0.24), 8, "Spark", 2)
+		H.cloud(K, "Tail", { "CloudDark", "Cloud", "CloudLight" }, tip.p + tip.T * 0.12, Vector3.new(0.24, 0.2, 0.24), 8)
+		H.zap(K, "Tail", { "Bolt", "BoltHot" }, tip.p + Vector3.new(0, -0.1, 0.14), tip.p + Vector3.new(0.05, -0.72, 0.24), Vector3.xAxis, 3, 0.08, 0.08)
 
 		-- scaly gold eagle forelegs on black talons, white feather trousers; tawny lion hind legs on big paws
 		for _, x in { 1, -1 } do
@@ -157,7 +162,10 @@ return {
 				local f = i / 6
 				local d = Vector3.new((0.32 + 0.08 * f) * x, 1 - 0.85 * f, 0.15 + 0.95 * f).Unit
 				local len = 1.35 - f * 0.25
-				K:chain(g, { "WingDark", "Wing", "WingLight", i % 2 == 0 and "Spark" or "WingLight" }, wr + d * 0.04, d, d:Cross(Vector3.new(x, 0, 0)).Unit, { n = 4, len = len, w0 = 0.2, w1 = 0.13, bend = 0, depth = 0.28 })
+				local across = d:Cross(Vector3.new(x, 0, 0)).Unit
+				K:chain(g, { "WingDark", "Wing", "Wing", "WingLight" }, wr + d * 0.04, d, across, { n = 4, len = len, w0 = 0.2, w1 = 0.13, bend = 0, depth = 0.28 })
+				-- yellow lightning running along the feather's edge
+				H.zap(K, g, { "Bolt", "BoltHot" }, wr + d * 0.3 + across * 0.1, wr + d * len * 0.98 + across * 0.07, Vector3.new(x, 0, 0), 3, 0.07, 0.03)
 			end
 			-- secondaries hanging back from the forearm and the arm, closing the wing
 			for i = 0, 7 do
@@ -168,9 +176,11 @@ return {
 				K:chain(g, { "Wing", "WingDark", "WingLight" }, base + Vector3.new(0, -0.04, 0.06), d, Vector3.new(x, 0, 0), { n = 3, len = len, w0 = 0.26, w1 = 0.18, bend = 0, depth = 0.26 })
 			end
 			-- storm-cloud coverts along the leading edge, lightning forking out of them
-			H.cloud(K, g, { "Cloud", "CloudLight", "CloudDark" }, sh:Lerp(el, 0.6) + Vector3.new(0, 0.08, 0.14), Vector3.new(0.28, 0.2, 0.28), 8, "Spark", 1)
-			H.cloud(K, g, { "CloudLight", "Cloud", "CloudDark" }, el:Lerp(wr, 0.5) + Vector3.new(0, 0.04, 0.16), Vector3.new(0.24, 0.18, 0.26), 7, "Spark", 1)
-			H.bolt(K, g, "Arc", sh + Vector3.new(0.06 * x, 0.12, -0.12), wr + Vector3.new(0, 0.06, -0.1), Vector3.new(0, 0, 1), 5, 0.04, 0.06)
+			local c1, c2 = sh:Lerp(el, 0.6) + Vector3.new(0, 0.08, 0.14), el:Lerp(wr, 0.5) + Vector3.new(0, 0.04, 0.16)
+			H.cloud(K, g, { "Cloud", "CloudLight", "CloudDark" }, c1, Vector3.new(0.28, 0.2, 0.28), 8)
+			H.cloud(K, g, { "CloudLight", "Cloud", "CloudDark" }, c2, Vector3.new(0.24, 0.18, 0.26), 7)
+			H.zap(K, g, { "Bolt", "BoltHot" }, c1 + Vector3.new(0.1 * x, -0.14, 0.1), c1 + Vector3.new(0.24 * x, -0.7, 0.3), Vector3.zAxis, 3, 0.08, 0.08)
+			H.zap(K, g, { "BoltHot", "Bolt" }, sh + Vector3.new(0.06 * x, 0.14, -0.12), wr + Vector3.new(0, 0.08, -0.1), Vector3.new(0, 0, 1), 4, 0.08, 0.07)
 		end
 
 		-- head: an eagle's, a heavy scowling brow, a hooked gold beak
@@ -184,9 +194,9 @@ return {
 			return HEAD:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
 		end
 		K:scaled(HEAD.Position, HS, function()
-			K:block("Head", "Feather", hcf(0, 0.12, -0.24), Vector3.new(0.54, 0.5, 0.58))
-			K:block("Head", "Feather", hcf(0, 0.1, -0.24, 0, 0, 45), Vector3.new(0.42, 0.42, 0.54))
-			K:block("Head", "FeatherGrey", hcf(0, 0.36, -0.18, -6, 0, 0), Vector3.new(0.4, 0.1, 0.5))
+			K:block("Head", "HeadGrey", hcf(0, 0.12, -0.24), Vector3.new(0.54, 0.5, 0.58))
+			K:block("Head", "HeadGrey", hcf(0, 0.1, -0.24, 0, 0, 45), Vector3.new(0.42, 0.42, 0.54))
+			K:block("Head", "HeadDark", hcf(0, 0.36, -0.18, -6, 0, 0), Vector3.new(0.42, 0.12, 0.52))
 			-- the hooked gold beak with a yellow cere
 			K:block("Head", "Cere", hcf(0, 0.1, -0.56), Vector3.new(0.34, 0.3, 0.14))
 			K:block("Head", "Beak", hcf(0, 0.06, -0.74, -4, 0, 0), Vector3.new(0.3, 0.32, 0.3))
@@ -196,19 +206,19 @@ return {
 			for _, x in { 1, -1 } do
 				K:block("Head", "BeakDark", hcf(0.12 * x, 0.14, -0.6), Vector3.new(0.04, 0.05, 0.08))
 				-- the heavy brow ridge and a fierce eye under it
-				K:block("Head", "FeatherDark", hcf(0.2 * x, 0.32, -0.42, -4, -16 * x, 18 * x), Vector3.new(0.26, 0.11, 0.34))
-				H.eye(K, "Head", hcf(0.27 * x, 0.2, -0.42, 0, -46 * x, 10 * x), 0.15, 0.055)
-				-- grey streak back from the eye
-				K:block("Head", "FeatherGrey", hcf(0.28 * x, 0.18, -0.1, 0, -8 * x, 0), Vector3.new(0.06, 0.1, 0.4))
+				K:block("Head", "HeadDark", hcf(0.2 * x, 0.33, -0.42, -4, -16 * x, 20 * x), Vector3.new(0.3, 0.13, 0.38))
+				H.eye(K, "Head", hcf(0.27 * x, 0.2, -0.43, 0, -44 * x, 10 * x), 0.19, 0.07)
+				-- a dark streak back from the eye
+				K:block("Head", "HeadDark", hcf(0.28 * x, 0.18, -0.1, 0, -8 * x, 0), Vector3.new(0.06, 0.1, 0.4))
 			end
 			-- a crest of dark feathers swept back off the skull
 			for k = -1, 1 do
-				K:chain("Head", { "FeatherGrey", "FeatherDark", "FeatherDark" }, hp(k * 0.1, 0.36, -0.2), hv(k * 0.3, 0.35, 1), hv(1, 0, 0), { n = 3, len = 0.62 - math.abs(k) * 0.1, w0 = 0.12, w1 = 0.07, bend = -6, depth = 0.5 })
+				K:chain("Head", { "HeadDark", "FeatherDark", "FeatherDark" }, hp(k * 0.1, 0.36, -0.2), hv(k * 0.3, 0.35, 1), hv(1, 0, 0), { n = 3, len = 0.62 - math.abs(k) * 0.1, w0 = 0.12, w1 = 0.07, bend = -6, depth = 0.5 })
 			end
 			local JAW = HEAD * CFrame.new(HINGE) * CFrame.Angles(rad(-18), 0, 0)
 			K:block("Jaw", "Beak", JAW * CFrame.new(0, -0.06, -0.3), Vector3.new(0.24, 0.13, 0.5))
 			K:block("Jaw", "Mouth", JAW * CFrame.new(0, 0.02, -0.3), Vector3.new(0.18, 0.04, 0.44))
-			K:block("Jaw", "Feather", JAW * CFrame.new(0, -0.1, 0.0), Vector3.new(0.34, 0.14, 0.26))
+			K:block("Jaw", "HeadGrey", JAW * CFrame.new(0, -0.1, 0.0), Vector3.new(0.34, 0.14, 0.26))
 		end)
 	end,
 }
