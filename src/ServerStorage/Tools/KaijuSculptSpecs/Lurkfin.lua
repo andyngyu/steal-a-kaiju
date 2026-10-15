@@ -17,7 +17,8 @@ return {
 	Palette = {
 		Hide = { "2A5E6C", Material = "Slate" },
 		HideDark = { "1A3E4E", Material = "Slate" },
-		HideLight = { "5C9AA0", Material = "Slate" },
+		HideLight = { "D0607E", Material = "Slate" },
+		Band = { "E8708C", Material = "Slate" },
 		Back = { "10263A", Material = "Slate" },
 		Belly = "D8E2D0",
 		Belly2 = "BCCAB8",
@@ -46,7 +47,7 @@ return {
 	},
 	Parents = { Jaw = "Head" },
 	Build = function(K)
-		local skin = H.skin({ stripe = 30, band = 64, flank = 102, every = 3, upper = "HideDark" })
+		local skin = H.skin({ stripe = 30, band = 70, flank = 96, every = 3, upper = "HideDark", bandKey = "Band" })
 		local belly = { key = "Belly", key2 = "Belly2", arc = 52, t = 0.1, wide = 1.15 }
 		local scales = { w = 0.4, n = 8, t = 0.1, lift = 4, jitter = 1.5, sink = 0.5, overlap = 1.1 }
 		-- a long low body, broadest at the shoulders
@@ -92,7 +93,7 @@ return {
 					{ 0.6 * x, 1.0, L[2], L[4] },
 					{ 1.12 * x, 0.82, L[3], L[5] },
 					{ 1.18 * x, 0.24, L[2] - 0.12, L[5] * 0.8 },
-				}, { step = 0.3, cores = { "Hide", "HideDark" }, foot = { size = Vector3.new(0.58, 0.14, 0.58), key = "HideDark" }, yaw = 22, toes = 4, claw = { len = 0.2, w = 0.06, curl = 20 } })
+				}, { step = 0.3, cores = { "Hide", "HideLight" }, foot = { size = Vector3.new(0.58, 0.14, 0.58), key = "HideLight" }, yaw = 22, toes = 4, claw = { len = 0.2, w = 0.06, curl = 20 } })
 				-- the web between the toes
 				local fz = L[2] - 0.12 - 0.58 * 0.1
 				K:block(g, "Fin", CFrame.new(1.18 * x, 0.08, fz - 0.3) * CFrame.Angles(0, rad(-22 * x), 0), Vector3.new(0.5, 0.03, 0.26))
@@ -124,19 +125,23 @@ return {
 			H.eye(K, "Head", hcf(0.4 * x, 0.23, -0.76, 0, -24 * x, 12 * x), 0.13, 0.045)
 			-- needle teeth round the front and down the sides
 			H.teeth(K, "Head", "Tooth", hp(0.46 * x, -0.13, -0.6), hp(0.36 * x, -0.13, -1.14), 5, hv(0, -1, 0), hv(1, 0, 0), 0.12, 0.035)
-			-- three feathery gill fronds a side, sweeping back and up, glowing at the tips
+			-- three big feathery gill branches a side, fanning back from behind the jaw: a thick stem, rows of long
+			-- feathery filaments down both edges, glowing at the tips
 			for k = 0, 2 do
-				local base = hp(0.5 * x, 0.18 - k * 0.12, -0.14 + k * 0.05)
-				local d = hv(0.65 * x, 0.55 - k * 0.42, 0.55)
-				local len = 0.78 - k * 0.1
-				K:chain("Head", { "GillDark", "Gill", "Gill" }, base, d, hv(0, 0, 1), { n = 3, len = len, w0 = 0.12, w1 = 0.07, bend = 8, tip = false })
-				for f = 1, 4 do
-					local p = base + d * len * (0.25 + f * 0.17)
+				local base = hp(0.54 * x, 0.26 - k * 0.2, -0.06 + k * 0.06)
+				local d = hv(0.75 * x, 0.75 - k * 0.6, 0.5)
+				local len = 1.45 - k * 0.15
+				local side = d:Cross(hv(0, 0, 1))
+				side = side.Magnitude > 1e-3 and side.Unit or hv(0, 1, 0)
+				K:chain("Head", { "GillDark", "Gill", "Gill", "Gill" }, base, d, hv(0, 0, 1), { n = 4, len = len, w0 = 0.2, w1 = 0.1, bend = 10 * x, tip = false })
+				for f = 1, 6 do
+					local p = base + d * len * (0.18 + f * 0.13)
 					for _, sd in { 1, -1 } do
-						K:spike("Head", f == 4 and "GillTip" or "Gill", p, (d + hv(0, sd * 0.9, 0)).Unit, d, 0.16 - f * 0.015, 0.035)
+						local fd = (side * sd + d * 0.55).Unit
+						K:chain("Head", { "Gill", f >= 5 and "GillTip" or "Gill" }, p, fd, d, { n = 2, len = 0.34 - f * 0.025, w0 = 0.06, w1 = 0.04, bend = 0, tip = false })
 					end
 				end
-				H.point(K, "Head", "GillTip", base + d * (len + 0.05), d, 0.09)
+				H.point(K, "Head", "GillTip", base + d * (len + 0.08), d, 0.13)
 			end
 		end
 		H.teeth(K, "Head", "Tooth", hp(-0.28, -0.12, -1.26), hp(0.28, -0.12, -1.26), 6, hv(0, -1, 0), hv(0, 0, 1), 0.11, 0.035)
