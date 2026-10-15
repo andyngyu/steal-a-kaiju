@@ -3,7 +3,7 @@
 --     taken out of this client's workspace while the camera and the character are both far along the canyon from them,
 --     and put back before either gets close (only this client's copy: other players and the server are unaffected).
 --     Each open biome's silhouette - floor, cliffs, ridges, gate, volcano, glacier, lava - always stays, so the view down
---     the canyon (through the Grand Gate, past the Maw) never shows a gap. The locked biomes past Frostfang (Venom Jungle,
+--     the canyon (through the Grand Gate, past the Maw) never shows a gap. The biomes past Frostfang (Venom Jungle,
 --     Sunken Abyss, Storm Spires, Cosmic Rift) also take their whole body away while the camera is far back down the
 --     canyon, where the haze hides them anyway (each one appears well before it could be seen clearly).
 --   * lights, particles, fire and smoke in the Citadel and the canyon switch off beyond FX_RANGE from the camera; key
