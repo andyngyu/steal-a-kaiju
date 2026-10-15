@@ -121,6 +121,16 @@ SoundConfig.Ambience = {
 			{ Id = { 9116394545, 9116394876 }, Volume = 0.12, Pitch = 1.5, Vary = 0.1, Every = { 10, 18 } }, -- icicle twinkle
 		},
 	},
+	-- stand-in jungle bed built from the library sounds above (swap for real jungle ambience when it's picked)
+	VenomJungle = {
+		Beds = {
+			{ Id = 9114518794, Volume = 0.26, Pitch = 0.85 }, -- heavy leaves stirring
+			{ Id = 9125410075, Volume = 0.07, Pitch = 1.15 }, -- swamp bubbling underneath
+		},
+		Gusts = {
+			{ Id = { 9125337823, 9120311866 }, Volume = 0.12, Pitch = 1.25, Vary = 0.12, Every = { 5, 11 } }, -- toxic pools plopping
+		},
+	},
 }
 
 -- Guardian voice pitch per biome (bigger guardians sound deeper).
@@ -128,6 +138,7 @@ SoundConfig.GuardianPitch = {
 	PebblePlains = 1,
 	LavaLagoon = 0.86,
 	FrostfangPeaks = 0.74,
+	VenomJungle = 0.66,
 }
 
 -- Hatch reveal celebration: which layers play, by the lowest rarity that gets them (EggConfig rarity Order:
