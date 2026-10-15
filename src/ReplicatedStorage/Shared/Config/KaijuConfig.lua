@@ -64,6 +64,14 @@ local species: { [string]: Kaiju } = {
 	IcebreakerRex = k("Icebreaker Rex", "Legendary", "FrostfangPeaks", "Lizard", 900, 180, "6FA8DC", "DFF6FF"),
 	AuroraSerpent = k("Aurora Serpent", "Mythic", "FrostfangPeaks", "Serpent", 2200, 300, "3B4FA8", "6BFFB8"),
 
+	-- Venom Jungle (income x3 Frostfang's per rarity)
+	Vinewhip = k("Vinewhip", "Common", "VenomJungle", "Lizard", 75, 20, "4C7838", "58D22E"),
+	Shroomhog = k("Shroomhog", "Uncommon", "VenomJungle", "Quadruped", 165, 40, "6E5138", "C77DFF"),
+	Mantisaur = k("Mantisaur", "Rare", "VenomJungle", "Quadruped", 420, 75, "4E7A38", "62D42E"),
+	Sabrejag = k("Sabrejag", "Epic", "VenomJungle", "Quadruped", 1050, 120, "3E6A34", "F0E8D0"),
+	Toxitops = k("Toxitops", "Legendary", "VenomJungle", "Quadruped", 2700, 180, "52783A", "B04CFF"),
+	Hydravine = k("Hydravine", "Mythic", "VenomJungle", "Serpent", 6600, 300, "4A7636", "E0408A"),
+
 	-- Secret (placeholder species so Secret eggs have something to hatch into)
 	Prismling = k("Prismling", "Secret", "Any", "Lizard", 5000, 600, "FFFFFF", "FF4DFF"),
 }
