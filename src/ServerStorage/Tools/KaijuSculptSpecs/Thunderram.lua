@@ -177,17 +177,24 @@ return {
 				K:block("Head", "Brow", hcf(0.22 * x, 0.4, -0.5, -12, -16 * x, 18 * x), Vector3.new(0.34, 0.16, 0.34))
 				H.eye(K, "Head", hcf(0.36 * x, 0.27, -0.64, 0, -32 * x, 6 * x), 0.22, 0.08)
 				K:block("Head", "Face", hcf(0.33 * x, 0.0, -0.36, 0, -10 * x, 0), Vector3.new(0.14, 0.42, 0.46))
-				-- the giant curled copper horn: back, down and round past the cheek, tip forward and out
+				-- the giant curled copper horn: a cone-shaped spiral whose axis points out, a little forward and down from the
+				-- skull, so each turn stands further off the head: back, down and round past the cheek, then forward past the face
+				local axis = Vector3.new(x, -0.25, -0.62).Unit
+				local up = (Vector3.yAxis - axis * axis.Y).Unit
+				local back = axis:Cross(up).Unit * x
+				local base = Vector3.new(0.3 * x, 0.08, 0.06)
 				local pts = {}
-				for i = 0, 12 do
-					local f = i / 12
+				for i = 0, 14 do
+					local f = i / 14
 					local th = -0.12 * math.pi + f * math.pi * 1.74
-					local r = 0.44 - 0.22 * f
-					pts[i + 1] = hp((0.36 + 0.46 * f) * x, 0.06 + r * math.cos(th), 0.04 + r * math.sin(th))
+					local r = 0.42 - 0.24 * f
+					local v = base + axis * (0.05 + 1.0 * f) + up * (r * math.cos(th)) + back * (r * math.sin(th))
+					pts[i + 1] = hp(v.X, v.Y, v.Z)
 				end
 				-- then on forward past the face
-				table.insert(pts, hp(0.86 * x, 0.04, -0.52))
-				table.insert(pts, hp(0.9 * x, 0.14, -0.84))
+				local e = base + axis * 1.05
+				table.insert(pts, hp(e.X + 0.04 * x, e.Y + 0.02, e.Z - 0.3))
+				table.insert(pts, hp(e.X + 0.06 * x, e.Y + 0.14, e.Z - 0.56))
 				local nodes = {}
 				for i, p in pts do
 					local r = 0.2 - 0.14 * (i - 1) / (#pts - 1)
@@ -198,7 +205,7 @@ return {
 				H.point(K, "Head", "CopperLight", last + (last - pts[#pts - 1]).Unit * 0.12, last - pts[#pts - 1], 0.12)
 				-- dark coil bands wound round it
 				local smps = K:path(nodes, 0.06)
-				for s = 0.14, smps.total * 0.64, 0.15 do
+				for s = 0.14, smps.total * 0.6, 0.22 do
 					local smp = K:at(smps, s)
 					-- the same octagon as the horn, a little proud of it
 					local r = (0.2 - 0.14 * (s / smps.total)) * 1.1
