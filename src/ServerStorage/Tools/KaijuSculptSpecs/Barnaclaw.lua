@@ -18,8 +18,17 @@ return {
 		Belly = "D2D8C6",
 		Spike = { "2A3E4A", Material = "Slate" },
 		SpikeTip = "D8D2BE",
-		Claw = { "28566A", Material = "Slate" },
-		ClawDark = { "12303E", Material = "Slate" },
+		Claw = { "C8643A", Material = "Slate" },
+		ClawDark = { "7A3A22", Material = "Slate" },
+		Reef = { "B65A34", Material = "Slate" },
+		ReefDark = { "7A3A24", Material = "Slate" },
+		ReefLight = { "D88A52", Material = "Slate" },
+		CoralOrange = "F07A3A",
+		CoralOrangeDark = "B4501E",
+		CoralTeal = "2EB0A8",
+		CoralTealDark = "1A7A74",
+		TipOrange = { "FF9A4A", Neon = true },
+		TipTeal = { "3FE0D0", Neon = true },
 		Barnacle = { "CFC8B2", Material = "Slate" },
 		BarnacleDark = { "8C846E", Material = "Slate" },
 		BarnacleMouth = "141A1E",
@@ -59,31 +68,75 @@ return {
 						end
 					end
 				end
-				-- branching coral and anemones growing from the back of the shell
-				local function coral(base, d, len, depth)
-					K:chain("Body", { "CoralDark", "Coral" }, base, d, Vector3.xAxis, { n = 2, len = len, w0 = 0.2 * (len / 0.6), w1 = 0.13 * (len / 0.6), bend = 0, tip = false })
+				-- a tall domed reef mound grown over the back of the shell: stacked rounded layers of orange reef rock
+				local C = Vector3.new(0, 1.66, 0.5)
+				local RX, RY, RZ = 1.12, 1.85, 1.02
+				-- a point on the mound's surface and its outward normal, by angle round (az) and up (el)
+				local function onMound(az, el)
+					local ce, se = math.cos(el), math.sin(el)
+					local p = C + Vector3.new(RX * ce * math.sin(az), RY * se, RZ * ce * math.cos(az))
+					local n = Vector3.new(ce * math.sin(az) / RX, se / RY, ce * math.cos(az) / RZ).Unit
+					return p, n
+				end
+				-- a solid core, then the surface built up from tilted rock lumps so it reads as a rounded reef boulder
+				for i, s in { { 0.0, 1.0 }, { 0.45, 0.86 }, { 0.85, 0.58 } } do
+					local c = C + Vector3.new(0, RY * s[1] * 0.85, 0)
+					K:block("Body", "ReefDark", CFrame.new(c), Vector3.new(RX * 1.7 * s[2], RY * 0.7, RZ * 1.7 * s[2]))
+					K:block("Body", "ReefDark", CFrame.new(c) * CFrame.Angles(0, rad(45), 0), Vector3.new(RX * 1.5 * s[2], RY * 0.66, RZ * 1.5 * s[2]))
+				end
+				local k = 0
+				for el = 0.08, 1.45, 0.3 do
+					local ring = math.max(1, math.floor(9 * math.cos(el) + 0.5))
+					for j = 0, ring - 1 do
+						local az = j / ring * math.pi * 2 + el * 1.7
+						local p, n = onMound(az, el)
+						local sz = K:rand(0.5, 0.72) * (1 - el * 0.22)
+						local side = n:Cross(Vector3.yAxis)
+						side = side.Magnitude > 1e-3 and side.Unit or Vector3.xAxis
+						local key = k % 3 == 0 and "ReefLight" or (k % 3 == 1 and "Reef" or "ReefDark")
+						K:block("Body", key, CFrame.fromMatrix(p - n * sz * 0.3, side, n) * CFrame.Angles(rad(K:rand(-15, 15)), rad(K:rand(0, 90)), rad(K:rand(-15, 15))), Vector3.new(sz, sz * 0.7, sz))
+						k += 1
+					end
+				end
+				local SETS = {
+					{ "CoralOrangeDark", "CoralOrange", "TipOrange" },
+					{ "CoralDark", "Coral", "CoralTip" },
+					{ "CoralTealDark", "CoralTeal", "TipTeal" },
+				}
+				local function coral(set, base, d, len, depth)
+					K:chain("Body", { set[1], set[2] }, base, d, Vector3.xAxis, { n = 2, len = len, w0 = 0.2 * (len / 0.6), w1 = 0.13 * (len / 0.6), bend = 0, tip = false })
 					local tip = base + d * len
 					if depth > 0 then
 						for _, a in { -32, 32 } do
-							local nd = (CFrame.fromAxisAngle(Vector3.new(d.Z, 0, -d.X).Magnitude > 1e-3 and Vector3.new(d.Z, 0, -d.X).Unit or Vector3.xAxis, rad(a)) * d).Unit
-							coral(tip, (nd + Vector3.new(K:rand(-0.2, 0.2), 0.2, K:rand(-0.2, 0.2))).Unit, len * 0.7, depth - 1)
+							local axis = d:Cross(Vector3.zAxis)
+							axis = axis.Magnitude > 1e-3 and axis.Unit or Vector3.xAxis
+							coral(set, tip, (CFrame.fromAxisAngle(axis, rad(a)) * d + Vector3.new(K:rand(-0.2, 0.2), 0.25, K:rand(-0.2, 0.2))).Unit, len * 0.7, depth - 1)
 						end
 					else
-						H.point(K, "Body", "CoralTip", tip + d * 0.06, d, 0.08)
+						H.point(K, "Body", set[3], tip + d * 0.06, d, 0.09)
 					end
 				end
-				for i, o in { { 0.4, 0.5, 1.24 }, { -0.36, 0.6, 0.72 }, { 0.1, 0.4, 0.2 }, { -0.62, 0.3, 1.4 }, { 0.66, 0.35, 0.6 } } do
-					local smp = K:at(shell, o[3])
-					local pos = K:surface(smp, rad(o[1] * 60), -0.02)
-					coral(pos, Vector3.new(o[1], 1, 0.15).Unit, 0.55 + o[2] * 0.4, i == 3 and 1 or 2)
+				-- branching coral in orange, pink and teal growing from the mound
+				for i, o in { { 0, 1.3, 0.8, 2 }, { 0.9, 0.85, 0.7, 2 }, { -1.0, 0.9, 0.7, 2 }, { 2.4, 0.75, 0.62, 2 }, { -2.3, 0.8, 0.62, 2 }, { 3.14, 0.95, 0.6, 2 }, { 1.7, 0.4, 0.5, 1 }, { -1.6, 0.45, 0.5, 1 }, { 0.4, 0.5, 0.46, 1 } } do
+					local p, n = onMound(o[1], o[2])
+					coral(SETS[(i - 1) % 3 + 1], p - n * 0.04, (n + Vector3.new(0, 0.9, 0)).Unit, o[3], o[4])
 				end
-				for _, o in { { 0.62, 0.56, 0.5 }, { -0.66, 0.5, 0.9 } } do
-					local smp = K:at(shell, o[3])
-					local pos, nrm = K:surface(smp, rad(o[1] * 70), -0.02)
-					K:block("Body", "Anemone", CFrame.new(pos + nrm * 0.08), Vector3.new(0.3, 0.16, 0.3))
-					for k = 0, 5 do
-						local a = k / 6 * math.pi * 2
-						K:chain("Body", { "Anemone", "CoralTip" }, pos + nrm * 0.16, (nrm + Vector3.new(math.cos(a), 0, math.sin(a)) * 0.6).Unit, Vector3.yAxis, { n = 2, len = 0.26, w0 = 0.05, w1 = 0.035, bend = -20, tip = false })
+				-- barnacle clusters and anemones studding the mound
+				for k = 0, 15 do
+					local az, el = k * 2.4, 0.15 + (k % 4) * 0.22
+					local p, n = onMound(az, el)
+					barnacle("Body", p - n * 0.05, n, K:rand(0.2, 0.3))
+				end
+				for k, o in { { 0.5, 0.3 }, { -0.6, 0.45 }, { 2.0, 0.25 }, { -2.2, 0.5 }, { 3.0, 0.3 } } do
+					local p, n = onMound(o[1], o[2])
+					local key = k % 2 == 0 and "CoralTeal" or "Anemone"
+					K:block("Body", key, CFrame.lookAt(p + n * 0.06, p + n), Vector3.new(0.34, 0.34, 0.16))
+					for j = 0, 6 do
+						local a = j / 7 * math.pi * 2
+						local side = n:Cross(Vector3.yAxis)
+						side = side.Magnitude > 1e-3 and side.Unit or Vector3.xAxis
+						local up2 = side:Cross(n).Unit
+						K:chain("Body", { key, k % 2 == 0 and "TipTeal" or "CoralTip" }, p + n * 0.14, (n + (side * math.cos(a) + up2 * math.sin(a)) * 0.7).Unit, n, { n = 2, len = 0.3, w0 = 0.06, w1 = 0.04, bend = -20, tip = false })
 					end
 				end
 				-- kelp trailing off the rim
