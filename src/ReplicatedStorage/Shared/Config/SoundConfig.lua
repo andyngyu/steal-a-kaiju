@@ -142,6 +142,17 @@ SoundConfig.Ambience = {
 			{ Id = 9113200364, Volume = 0.18, Pitch = 0.45, Every = { 16, 28 } }, -- something huge moving far below
 		},
 	},
+	-- stand-in storm bed built from the library sounds above (swap for real rain and thunder when they're picked)
+	StormSpires = {
+		Beds = {
+			{ Id = 136454830957820, Volume = 0.36, Pitch = 0.8 }, -- storm wind tearing across the spires
+		},
+		Gusts = {
+			{ Id = { 9120697823, 9120698415, 9120697984 }, Volume = 0.28, Pitch = 0.85, Vary = 0.06, Every = { 5, 10 } }, -- howling gusts
+			{ Id = 9113200364, Volume = 0.32, Pitch = 0.6, Vary = 0.08, Every = { 7, 14 } }, -- thunder rolling in the distance
+			{ Id = { 9118882814, 9118884046 }, Volume = 0.1, Pitch = 1.6, Vary = 0.1, Every = { 6, 12 } }, -- electric crackle off the rods
+		},
+	},
 }
 
 -- Guardian voice pitch per biome (bigger guardians sound deeper).
@@ -151,6 +162,7 @@ SoundConfig.GuardianPitch = {
 	FrostfangPeaks = 0.74,
 	VenomJungle = 0.66,
 	SunkenAbyss = 0.58,
+	StormSpires = 0.52,
 }
 
 -- Hatch reveal celebration: which layers play, by the lowest rarity that gets them (EggConfig rarity Order:
