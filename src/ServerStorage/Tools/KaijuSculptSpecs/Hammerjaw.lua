@@ -37,8 +37,8 @@ return {
 	Joints = {
 		Head = { 0, 3.6, -1.18 },
 		Jaw = HEAD * HINGE,
-		ArmL = { 1.72, 4.0, -0.5 },
-		ArmR = { -1.72, 4.0, -0.5 },
+		ArmL = { 1.78, 4.0, -0.5 },
+		ArmR = { -1.78, 4.0, -0.5 },
 		LegL = { 0.62, 2.15, 0.72 },
 		LegR = { -0.62, 2.15, 0.72 },
 		Tail = { 0, 2.25, 0.85 },
@@ -64,13 +64,27 @@ return {
 		local function limbColor(th)
 			return math.abs(th) < rad(70) and "Hide" or "HideDark"
 		end
-		-- the torso: a deep chest high at the front, pinching in to a narrow waist, small hips
+		-- the torso: a deep chest high at the front hanging low into a heavy belly, pinching in at the sides to a
+		-- narrow waist, small hips: mass in the middle so it doesn't read as an arch from the front
 		local torso = K:tube("Body", {
-			{ 0, 3.78, -0.72, rx = 1.26, ru = 1.04, rd = 1.12 },
-			{ 0, 3.42, -0.06, rx = 1.18, ru = 1.02, rd = 1.0 },
-			{ 0, 2.82, 0.42, rx = 0.78, ru = 0.72, rd = 0.7 },
+			{ 0, 3.78, -0.72, rx = 1.26, ru = 1.04, rd = 1.52 },
+			{ 0, 3.42, -0.06, rx = 1.18, ru = 1.02, rd = 1.42 },
+			{ 0, 2.86, 0.42, rx = 0.84, ru = 0.72, rd = 1.0 },
 			{ 0, 2.2, 0.66, rx = 0.86, ru = 0.72, rd = 0.68 },
 		}, { step = 0.4, core = "Hide", coreScale = 0.92, tile = smooth, belly = belly, color = skin })
+		-- heavy pectorals bulging down the front of the chest
+		for _, x in { 1, -1 } do
+			K:tile("Body", "Hide", K:at(torso, 0.3), math.pi - rad(34) * x, 1.0, 0.9, 0.22, 4, 1, 0.4)
+		end
+		-- a heavy chest and gut hanging low between the arms, filling the middle: a deep keel of chest running forward
+		-- under the neck and a big pale belly sagging below it
+		K:tube("Body", {
+			{ 0, 2.86, -1.32, rx = 1.02, ru = 0.8, rd = 1.24 },
+			{ 0, 2.6, -0.5, rx = 1.18, ru = 0.86, rd = 1.34 },
+			{ 0, 2.34, 0.3, rx = 0.96, ru = 0.74, rd = 1.0 },
+		}, { step = 0.38, core = "Hide", coreScale = 0.92, tile = smooth, belly = { key = "Belly2", key2 = "HideLight", arc = 58, t = 0.12, wide = 1.05 }, color = function(th)
+			return math.abs(th) < rad(80) and nil or "Hide"
+		end })
 		-- the massive shoulder hump: a great bar of muscle across the shoulders rising above the head
 		local mantle = K:tube("Body", {
 			{ -1.72, 3.98, -0.46, rx = 0.8, ru = 0.84, rd = 0.68 },
@@ -106,12 +120,13 @@ return {
 			end
 		end
 		for _, x in { 1, -1 } do
-			-- long thick arms planted on huge knuckles, a fin down the back of each forearm
+			-- long, much thicker arms angled forward, the huge knuckles planted well ahead of the body, a fin down the back
+			-- of each forearm
 			local g = x == 1 and "ArmL" or "ArmR"
 			local arm = H.apeArm(K, g, x, {
-				pts = { { 1.72, 4.0, -0.5, 0.74 }, { 2.32, 2.46, -0.62, 0.6 }, { 2.14, 0.98, -0.96, 0.54 } },
-				fist = Vector3.new(0.98, 0.86, 0.98),
-				fistY = 0.46,
+				pts = { { 1.78, 4.0, -0.5, 0.88 }, { 2.34, 2.56, -1.2, 0.74 }, { 2.08, 1.06, -2.0, 0.64 } },
+				fist = Vector3.new(1.2, 1.04, 1.2),
+				fistY = 0.54,
 				core = "Hide",
 				fistKey = "HideDark",
 				knuckleKey = "Back",
