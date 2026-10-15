@@ -1,9 +1,9 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Cosmic Rift / Common / void: the starmite, an alien hopper. Squat and broad on heavy folded hind legs, a void-black
--- hide flecked with tiny stars, a back of cracked lilac crystal shards with magenta void light leaking out of the cracks
--- between them, glowing seams down its flanks. Face: a wide flat head split by a huge fanged grin, a cluster of six
+-- Cosmic Rift / Common / void: the starmite, an alien hopper. Squat and broad on heavy folded hind legs, a deep violet
+-- hide flecked with tiny stars and a pale lavender belly, a back of lilac crystal shards, irregular branching cracks
+-- of magenta void light splitting its flanks. Face: a wide flat head split by a huge fanged grin, a cluster of six
 -- glowing magenta eyes on the brow, two antennae ending in starlight bulbs.
 local HEAD = CFrame.new(0, 1.4, -0.92) * CFrame.Angles(rad(-4), 0, 0)
 
@@ -14,12 +14,13 @@ return {
 	Gait = "Hop",
 	Emotes = { "BigHop", "Look" },
 	Palette = {
-		Hide = { "2A2040", Material = "Slate" },
-		HideDark = { "17121F", Material = "Slate" },
-		HideLight = { "463860", Material = "Slate" },
-		Back = { "0E0B14", Material = "Slate" },
-		Belly = { "3A2C58", Material = "Slate" },
-		Belly2 = { "30244A", Material = "Slate" },
+		Hide = { "4E3A82", Material = "Slate" },
+		HideDark = { "36286A", Material = "Slate" },
+		HideLight = { "6E5AA8", Material = "Slate" },
+		Back = { "241A46", Material = "Slate" },
+		Belly = { "A898D4", Material = "Slate" },
+		Belly2 = { "9282C2", Material = "Slate" },
+		SeamLip = { "0E0A16", Material = "Slate" },
 		Crystal = "B8A4FF",
 		CrystalDark = "7A62D0",
 		CrystalLight = "DCD0FF",
@@ -56,8 +57,10 @@ return {
 				H.crystal(K, "Body", SHARDS, pos, (nrm + smp.T * 0.3).Unit, size, 3, 26)
 			end
 		end
-		-- thick glowing void seams down the flanks, tiny stars flecked over the dark hide
-		H.cracks(K, "Body", "Void", body, { rad(70), rad(-70), rad(100), rad(-100) }, 0.2, body.total - 0.2, 0.26, 0.1, 0.08)
+		-- irregular branching cracks of void light splitting the flanks, tiny stars flecked over the hide
+		for _, x in { 1, -1 } do
+			H.vein(K, "Body", "Void", body, rad(76) * x, 0.3, body.total - 0.25, { width = 0.12, height = 0.1, lift = 0.09, wander = 34, step = 0.2, forks = 4, forkSteps = 3, forkTurn = 55 })
+		end
 		for i = 1, 18 do
 			local smp = K:at(body, K:rand(0.2, body.total - 0.2))
 			local pos = K:surface(smp, rad(K:rand(50, 130)) * (i % 2 == 0 and 1 or -1), -0.06)
@@ -76,7 +79,7 @@ return {
 				{ 1.3 * x, 0.74, -0.08, 0.38 },
 				{ 1.26 * x, 0.32, 0.66, 0.26 },
 			}, { step = 0.3, cores = { "Hide", "HideDark" } })
-			H.cracks(K, g, "Void", leg[1], { rad(80) * x }, 0.1, leg[1].total - 0.1, 0.24, 0.08, 0.06)
+			H.vein(K, g, "Void", leg[1], rad(80) * x, 0.08, leg[1].total - 0.08, { width = 0.1, height = 0.09, lift = 0.07, wander = 30, step = 0.16, forks = 2, forkSteps = 2, forkTurn = 50 })
 			H.crystal(K, g, SHARDS, K:surface(K:at(leg[1], leg[1].total * 0.5), rad(20) * x, 0.04), Vector3.new(0.3 * x, 1, 0.3), 0.28, 2, 20)
 			K:block(g, "HideDark", CFrame.new(1.28 * x, 0.1, 0.28) * CFrame.Angles(0, rad(-16 * x), 0), Vector3.new(0.5, 0.18, 0.86))
 			H.claws(K, g, Vector3.new(1.18 * x, 0.08, -0.14), CFrame.Angles(0, rad(-16 * x), 0):VectorToWorldSpace(Vector3.new(0, 0, -1)), Vector3.xAxis, { n = 4, spread = 0.4, fan = 40, droop = 0.4, len = 0.22, w = 0.07, curl = 24 })
