@@ -1,12 +1,14 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Cosmic Rift / Epic / void: the quasarab, a cosmic Hercules beetle. A broad armoured beetle on six spiked legs (LegFL /
--- LegML / LegBL and their right twins: KaijuMotion walks them in two tripods). Its wing cases are deep blue, each
--- swirled with a spiral galaxy, pale glowing arms winding out of a white-hot core and white stars scattered over them.
--- A great thoracic shield of deep blue chitin flecked with stars, and a long pale horn curving forward from it, tipped
--- with a star. Head: big glowing compound eyes, two huge crossed sickle mandibles with serrated inner edges, long elbowed
--- antennae ending in glowing clubs. Lavender underside.
+-- Cosmic Rift / Epic / void: the quasarab, a cosmic Hercules beetle. A broad armoured beetle on six thick spiked legs
+-- tucked in under its shell (LegFL / LegML / LegBL and their right twins: KaijuMotion walks them in two tripods). Its
+-- wing cases are deep blue, each swirled with a spiral galaxy, pale glowing arms winding out of a white-hot core and
+-- white stars scattered over them. A great thoracic shield of deep blue chitin flecked with stars, and rising from it
+-- the huge pale Hercules horn: thick at the root, arching high over the head and reaching far past it before hooking
+-- down, toothed underneath with two side knobs, tipped with a star; a shorter horn curves up from the head to meet it.
+-- Head: big glowing compound eyes, two crossed sickle mandibles with serrated inner edges, long elbowed antennae ending
+-- in glowing clubs. Lavender underside.
 local HEAD = CFrame.new(0, 1.18, -1.08) * CFrame.Angles(rad(-6), 0, 0)
 
 return {
@@ -28,6 +30,7 @@ return {
 		Under = { "8A86C8", Material = "Slate" },
 		Under2 = { "7A76B8", Material = "Slate" },
 		Horn = "C8D4FF",
+		HornShade = "A8B6EC",
 		HornDark = "7A88C8",
 		Mandible = "3A3880",
 		MandibleTip = "D8DEFF",
@@ -39,12 +42,12 @@ return {
 	},
 	Joints = {
 		Head = { 0, 1.2, -0.96 },
-		LegFL = { 0.66, 1.08, -0.72 },
-		LegFR = { -0.66, 1.08, -0.72 },
-		LegML = { 0.72, 1.06, -0.3 },
-		LegMR = { -0.72, 1.06, -0.3 },
-		LegBL = { 0.72, 1.06, 0.12 },
-		LegBR = { -0.72, 1.06, 0.12 },
+		LegFL = { 0.5, 1.0, -0.66 },
+		LegFR = { -0.5, 1.0, -0.66 },
+		LegML = { 0.56, 0.98, -0.3 },
+		LegMR = { -0.56, 0.98, -0.3 },
+		LegBL = { 0.56, 0.98, 0.06 },
+		LegBR = { -0.56, 0.98, 0.06 },
 		WingL = { 0.08, 1.92, -0.1 },
 		WingR = { -0.08, 1.92, -0.1 },
 	},
@@ -101,7 +104,7 @@ return {
 			end
 		end
 
-		-- the great thoracic shield, flecked with stars, and the long horn curving forward from it
+		-- the great thoracic shield, flecked with stars, and the huge horn rising from it
 		local pron = K:tube("Body", {
 			{ 0, 1.34, -1.0, rx = 0.6, ru = 0.46, rd = 0.38 },
 			{ 0, 1.46, -0.56, rx = 0.86, ru = 0.64, rd = 0.46 },
@@ -118,40 +121,65 @@ return {
 			local pos = K:surface(smp, rad(K:rand(-90, 90)), -0.08)
 			K:block("Body", "Star", CFrame.new(pos) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.08, 0.08, 0.08))
 		end
-		local horn = { Vector3.new(0, 1.92, -0.5), Vector3.new(0, 2.18, -1.08), Vector3.new(0, 2.26, -1.66), Vector3.new(0, 2.5, -2.04) }
-		H.curve(K, "Body", { "HornDark", "Horn", "Horn", "Horn" }, horn, 0.36, 0.08, 0.12)
-		K:block("Body", "Star", CFrame.new(horn[4] + Vector3.new(0, 0.1, -0.06)) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.18, 0.18, 0.18))
-		for _, z in { -1.2, -1.55 } do
-			K:spike("Body", "Horn", Vector3.new(0, 2.12 + (z + 1.2) * -0.12, z), Vector3.new(0, -1, -0.3).Unit, Vector3.zAxis, 0.16, 0.08)
+		-- the Hercules horn: thick at the root, arching high over the head and far past it, hooking down at the tip
+		local hornTube = K:tube("Body", {
+			{ 0, 1.9, -0.36, rx = 0.34, ru = 0.36, rd = 0.32 },
+			{ 0, 2.6, -1.0, rx = 0.28, ru = 0.3, rd = 0.27 },
+			{ 0, 2.98, -1.76, rx = 0.22, ru = 0.24, rd = 0.21 },
+			{ 0, 3.02, -2.5, rx = 0.16, ru = 0.17, rd = 0.15 },
+			{ 0, 2.74, -3.08, rx = 0.1, ru = 0.1, rd = 0.1 },
+		}, { step = 0.16, core = "HornDark", coreScale = 0.9, tile = { w = 0.2, t = 0.07, lift = 1, jitter = 0.3, sink = 0.5, overlap = 1.15 }, color = function(th, ring)
+			if math.abs(th) > rad(125) then
+				return "HornDark"
+			end
+			return ring % 4 == 0 and "HornShade" or "Horn"
+		end })
+		local tipS = K:at(hornTube, hornTube.total)
+		local tipDir = (tipS.T + Vector3.new(0, -0.5, 0)).Unit
+		H.point(K, "Body", "Horn", tipS.p + tipS.T * 0.06, tipDir, 0.18)
+		K:block("Body", "Star", CFrame.new(tipS.p + tipDir * 0.1) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.17, 0.17, 0.17))
+		-- teeth down its underside and a knob each side, so it reads from the front too
+		for k, u in { 0.42, 0.56, 0.7, 0.82 } do
+			local s = K:at(hornTube, hornTube.total * u)
+			K:spike("Body", "Horn", K:surface(s, rad(180), 0.04), Vector3.new(0, -1, -0.25).Unit, Vector3.zAxis, 0.22 - k * 0.025, 0.1)
+		end
+		for _, x in { 1, -1 } do
+			local s = K:at(hornTube, hornTube.total * 0.36)
+			K:spike("Body", "Horn", K:surface(s, rad(95) * x, 0.04), Vector3.new(x, 0.15, -0.5).Unit, Vector3.yAxis, 0.24, 0.12)
+		end
+		-- stars flecked up the horn's back
+		for i = 1, 5 do
+			local s = K:at(hornTube, hornTube.total * (0.15 + i * 0.13))
+			K:block("Body", "Star", CFrame.new(K:surface(s, rad(K:rand(-30, 30)), -0.05)) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.07, 0.07, 0.07))
 		end
 
-		-- six spiked legs: the front pair reaching forward, the middle out to the side, the back pair back
+		-- six thick legs tucked in under the shell like a real beetle's: a short femur out to a knee just under the shell's
+		-- rim, a stout spiked shin down to the ground; the front pair reaching forward, the middle out, the back pair back
 		local function chit(_, ring)
 			return ring % 2 == 0 and "Chitin" or "ChitinLight"
 		end
+		local LEGS = {
+			{ "F", { 0.5, 1.0, -0.66 }, { 0.9, 1.0, -0.86 }, { 1.18, 0.12, -1.24 } },
+			{ "M", { 0.56, 0.98, -0.3 }, { 1.0, 1.0, -0.28 }, { 1.34, 0.12, -0.16 } },
+			{ "B", { 0.56, 0.98, 0.06 }, { 0.98, 0.98, 0.4 }, { 1.26, 0.12, 0.96 } },
+		}
 		for _, x in { 1, -1 } do
-			for _, o in { { "F", -0.72, -0.34, -0.62 }, { "M", -0.3, 0.0, 0.02 }, { "B", 0.12, 0.32, 0.66 } } do
+			for _, o in LEGS do
 				local g = "Leg" .. o[1] .. (x == 1 and "L" or "R")
-				local hip = Vector3.new(0.66 * x + (o[1] == "F" and 0 or 0.06 * x), 1.08, o[2])
-				local knee = Vector3.new(1.3 * x, 1.4, o[2] + o[3])
-				local foot = Vector3.new(1.6 * x, 0.14, o[2] + o[4])
-				local seg = H.limb(K, g, { { hip.X, hip.Y, hip.Z, 0.2 }, { knee.X, knee.Y, knee.Z, 0.15 }, { foot.X, foot.Y + 0.08, foot.Z, 0.08 } }, { step = 0.2, cores = { "Chitin", "ChitinLight" }, color = chit })
-				K:block(g, "ChitinLight", CFrame.new(knee) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.24, 0.24, 0.24))
-				-- spikes down the back of the shin
-				for k = 1, 3 do
-					local p = knee:Lerp(foot, k / 4)
-					local out = Vector3.new(x * 0.6, 0.2, o[1] == "F" and 0.6 or (o[1] == "B" and -0.2 or 0.4)).Unit
-					K:spike(g, "ClawTip", p, out, (foot - knee).Unit, 0.14, 0.05)
+				local hip = Vector3.new(o[2][1] * x, o[2][2], o[2][3])
+				local knee = Vector3.new(o[3][1] * x, o[3][2], o[3][3])
+				local foot = Vector3.new(o[4][1] * x, o[4][2], o[4][3])
+				H.limb(K, g, { { hip.X, hip.Y, hip.Z, 0.3 }, { knee.X, knee.Y, knee.Z, 0.26 }, { foot.X, foot.Y + 0.1, foot.Z, 0.15 } }, { step = 0.18, cores = { "Chitin", "ChitinLight" }, color = chit })
+				K:block(g, "ChitinLight", CFrame.new(knee) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.38, 0.38, 0.38))
+				-- two spikes on the outside of the shin
+				local out = Vector3.new(x * 0.7, 0.25, o[1] == "F" and 0.5 or (o[1] == "B" and -0.1 or 0.3)).Unit
+				for k = 1, 2 do
+					local p = knee:Lerp(foot, k / 3)
+					K:spike(g, "ClawTip", p + out * 0.16, out, (foot - knee).Unit, 0.16, 0.07)
 				end
-				-- the foot: a short segmented tarsus along the ground ending in two hooks
+				-- the foot: a short stout tarsus tapering to a pale hooked tip
 				local fwd = Vector3.new(0.35 * x, 0, o[1] == "B" and 0.6 or (o[1] == "F" and -0.8 or 0)).Unit
-				if fwd.Magnitude < 0.1 then
-					fwd = Vector3.new(x, 0, 0)
-				end
-				K:chain(g, { "Chitin", "ChitinLight" }, foot + Vector3.new(0, 0.02, 0), fwd, Vector3.yAxis, { n = 2, len = 0.32, w0 = 0.1, w1 = 0.07, bend = 0, tip = false })
-				for _, s in { -1, 1 } do
-					K:chain(g, { "Claw", "ClawTip" }, foot + fwd * 0.32 + Vector3.new(0, 0.04, 0), (fwd + Vector3.yAxis:Cross(fwd) * 0.4 * s - Vector3.new(0, 0.3, 0)).Unit, Vector3.yAxis, { n = 2, len = 0.16, w0 = 0.05, w1 = 0.03, bend = 0 })
-				end
+				K:chain(g, { "Chitin", "ChitinLight", "ClawTip" }, foot + Vector3.new(0, 0.05, 0), fwd, Vector3.yAxis, { n = 3, len = 0.17, w0 = 0.16, w1 = 0.08, bend = 8 })
 			end
 		end
 
@@ -181,6 +209,10 @@ return {
 				local f = 0.25 + k * 0.15
 				local p = (k <= 2) and pts[2]:Lerp(pts[3], f) or pts[3]:Lerp(pts[4], f - 0.4)
 				K:spike("Head", "Tooth", p, hv(-x, 0, -0.2), hv(0, 1, 0), 0.12, 0.05)
+			end
+			-- the shorter head horn curving up to meet the great horn (once, on the centre line)
+			if x == 1 then
+				H.curve(K, "Head", { "HornDark", "Horn", "Horn" }, { hp(0, 0.2, -0.36), hp(0, 0.26, -0.82), hp(0, 0.5, -1.22), hp(0, 0.86, -1.44) }, 0.3, 0.1, 0.14)
 			end
 			-- elbowed antennae with glowing clubs
 			local a0 = hp(0.16 * x, 0.22, -0.42)
