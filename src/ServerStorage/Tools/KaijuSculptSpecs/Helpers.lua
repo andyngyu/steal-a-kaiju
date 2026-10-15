@@ -528,6 +528,26 @@ function H.bolt(K, group, key, p0, p1, side, kinks, width, amp)
 	end
 end
 
+-- a thick lightning bolt from p0 to p1 that still reads at game scale: chunky glowing segments (turned on their edge)
+-- kinking across `side`, a block at every kink so the zigzag reads as one solid bolt; keys alternate segment by segment
+function H.zap(K, group, keys, p0, p1, side, kinks, width, amp)
+	keys = type(keys) == "table" and keys or { keys }
+	kinks = kinks or 4
+	width = width or 0.14
+	local pts = { p0 }
+	for i = 1, kinks - 1 do
+		table.insert(pts, p0:Lerp(p1, i / kinks) + side * (i % 2 == 0 and -1 or 1) * (amp or 0.18) * K:rand(0.75, 1.15))
+	end
+	table.insert(pts, p1)
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		K:block(group, keys[(i - 1) % #keys + 1], CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, 0, rad(45)), Vector3.new(width, width, (b - a).Magnitude + width * 0.3))
+		if i > 1 then
+			K:block(group, keys[1], CFrame.lookAt(a, b) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(width * 1.15, width * 1.15, width * 1.15))
+		end
+	end
+end
+
 -- a storm cloud: overlapping dark puffs around `centre` (size = half extents), bolts hanging out of its belly
 function H.cloud(K, group, keys, centre, size, puffs, boltKey, bolts)
 	for i = 1, puffs do
