@@ -14,7 +14,7 @@ local AdminConfig = {
 }
 
 local RARITIES = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
-local AREAS = { "Base", "PebblePlains", "LavaLagoon", "FrostfangPeaks" }
+local AREAS = { "Base", "PebblePlains", "LavaLagoon", "FrostfangPeaks", "VenomJungle" }
 
 -- mutation and weather choices come straight from their configs, so new ones show up here by themselves
 local MUTATIONS, MUTATIONS_OR_NONE, WEATHERS = {}, { "None" }, {}
