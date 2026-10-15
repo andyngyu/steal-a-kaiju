@@ -46,6 +46,13 @@ IconConfig.Kaiju = {
 	Stormgriff = "rbxassetid://93653647840317",
 	Voltkirin = "rbxassetid://71478183104873",
 	RaijinWyrm = "rbxassetid://115343724671150",
+	-- Cosmic Rift
+	Starmite = "rbxassetid://139569993712190",
+	Nebulynx = "rbxassetid://99749709023002",
+	Cometshell = "rbxassetid://118985851830313",
+	Quasarab = "rbxassetid://133353196433348",
+	Astrodon = "rbxassetid://129820787358062",
+	AstralWyrm = "rbxassetid://122883988123387",
 	Prismling = "rbxassetid://107278256092402",
 }
 
