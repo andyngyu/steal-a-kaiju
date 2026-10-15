@@ -5,17 +5,38 @@ local H = require(script.Parent.Helpers)
 -- and pale underneath, glowing cyan seams and photophores down its flanks. A mane of long lionfish spines runs down its
 -- back, webbed with red-and-white striped membrane; two great manta wings spread from its shoulders; the tail ends in a
 -- tall fan fin. Head: a horned dragon skull crowned with branching coral glowing at the tips, long whisker barbels
--- trailing from the snout, heavy brows over cyan eyes, a fanged mouth glowing deep inside.
+-- trailing from the snout, heavy brows over cyan eyes, a fanged mouth glowing deep inside. Unlike the other serpents
+-- it carries its front raised off the seabed: the first coil, the neck and the head are tilted up about the second
+-- coil's joint, and the wings spread flat and wide from the raised shoulders.
+local SCALE = 1.55
+local LIFT = rad(24)
+local PIVOT = Vector3.new(0, 0.6, 1.3)
+local TILT = CFrame.new(PIVOT) * CFrame.Angles(LIFT, 0, 0) * CFrame.new(-PIVOT)
+local function vec(v)
+	return typeof(v) == "Vector3" and v or Vector3.new(v[1], v[2], v[3])
+end
+local HEAD_J = TILT * vec(H.SERPENT_JOINTS.Head)
+local UNTILT = CFrame.new(HEAD_J) * CFrame.Angles(-LIFT * 0.8, 0, 0) * CFrame.new(-HEAD_J)
+local JOINTS = {}
+for k, v in H.SERPENT_JOINTS do
+	JOINTS[k] = vec(v)
+end
+JOINTS.Seg1 = TILT * JOINTS.Seg1
+JOINTS.Neck = TILT * JOINTS.Neck
+JOINTS.Head = HEAD_J
+JOINTS.Jaw = UNTILT * (TILT * JOINTS.Jaw)
+JOINTS.Tongue = UNTILT * (TILT * JOINTS.Tongue)
+
 return {
 	Seed = 541,
 	Vary = 0.04,
-	Scale = 1.55,
+	Scale = SCALE,
 	Gait = "Slither",
 	Emotes = { "RearUp", "Look" },
 	Palette = {
-		Hide = { "1E5A6A", Material = "Slate" },
-		HideDark = { "123A4E", Material = "Slate" },
-		HideLight = { "4E9AA4", Material = "Slate" },
+		Hide = { "1E8088", Material = "Slate" },
+		HideDark = { "14506A", Material = "Slate" },
+		HideLight = { "52C2BE", Material = "Slate" },
 		Back = { "0B1E32", Material = "Slate" },
 		Belly = "E2E6D6",
 		Belly2 = "C8D0C0",
@@ -25,8 +46,9 @@ return {
 		SpineTip = "C8405A",
 		Membrane = "C8405A",
 		MembraneLight = "F0D8D0",
-		Wing = { "163E52", Material = "Slate" },
-		WingEdge = { "4E9AA4", Material = "Slate" },
+		Wing = { "1A6A78", Material = "Slate" },
+		WingDark = { "10384C", Material = "Slate" },
+		WingUnder = "DCEEEA",
 		Coral = "E8506E",
 		CoralDark = "A8344E",
 		CoralTip = { "FF5A82", Neon = true },
@@ -39,7 +61,7 @@ return {
 		Eye = { "22C4E8", Neon = true },
 		Socket = "060C10",
 	},
-	Joints = H.SERPENT_JOINTS,
+	Joints = JOINTS,
 	Parents = H.SERPENT_PARENTS,
 	Build = function(K)
 		-- a raked fin or wing: stacked boards from the base out along `up`, the leading edge sweeping back
@@ -96,19 +118,8 @@ return {
 						k += 1
 					end
 				end
-				-- the manta wings spreading from the shoulders, rows of glowing spots along them
-				local sh = K:at(segs.Seg1, 0.55)
-				for _, x in { 1, -1 } do
-					local base = K:surface(sh, rad(84) * x, 0.08)
-					local out = (sh.R * x * (sh.R.X * x > 0 and 1 or -1) + Vector3.new(0, 0.7, 0)).Unit
-					local back = Vector3.new(sh.T.X, 0, sh.T.Z).Unit
-					fin("Seg1", { "Wing", "WingEdge" }, base, out, back, 2.7, 2.2, 0.1, 10)
-					for k = 1, 4 do
-						local p = base + out * 2.7 * (k / 5) + back * (0.1 + k * 0.1) + out:Cross(back).Unit * 0.06 * x
-						K:block("Seg1", "SeamLip", CFrame.lookAt(p, p + back), Vector3.new(0.14, 0.05, 0.14))
-						K:block("Seg1", "Glow", CFrame.lookAt(p + Vector3.new(0, 0.01, 0), p + back), Vector3.new(0.07, 0.05, 0.07))
-					end
-				end
+				-- remember the shoulder for the wings (built once the front is raised)
+				K.tidewyrmShoulder = K:at(segs.Seg1, 0.6)
 				-- the tall fan fin at the end of the tail
 				local tip = K:at(segs.Tail, segs.Tail.total)
 				local flat = Vector3.new(tip.T.X, 0, tip.T.Z).Unit
@@ -143,5 +154,35 @@ return {
 				K:block("Head", "Glow", hcf(0, -0.15, -0.4), Vector3.new(0.18, 0.04, 0.2))
 			end,
 		})
+		-- raise the front off the seabed: tilt the first coil, the neck and the head up about the second coil's joint,
+		-- then bring the head back down most of the way so it looks ahead (the parts are already scaled)
+		local function move(group, cf, deep)
+			local g = K.groups[group]
+			for _, d in (deep and g:GetDescendants() or g:GetChildren()) do
+				if d:IsA("BasePart") then
+					d.CFrame = cf * d.CFrame
+				end
+			end
+		end
+		local pw = PIVOT * SCALE
+		move("Seg1", CFrame.new(pw) * CFrame.Angles(LIFT, 0, 0) * CFrame.new(-pw), false)
+		move("Neck", CFrame.new(pw) * CFrame.Angles(LIFT, 0, 0) * CFrame.new(-pw), true)
+		local hw = HEAD_J * SCALE
+		move("Head", CFrame.new(hw) * CFrame.Angles(-LIFT * 0.8, 0, 0) * CFrame.new(-hw), true)
+		-- the manta wings: spread wide and flat from the raised shoulders, teal on top with a cyan glowing leading
+		-- edge, pale underneath, a row of glowing spots
+		local sh = K.tidewyrmShoulder
+		for _, x in { 1, -1 } do
+			local base = TILT * (sh.p + Vector3.new(0.7 * x, 0.1, 0))
+			local out = Vector3.new(x, 0.1, 0).Unit
+			local back = Vector3.zAxis
+			fin("Seg1", { "Wing", "Glow" }, base, out, back, 3.1, 2.4, 0.12, 11)
+			fin("Seg1", { "WingUnder", "WingUnder" }, base - Vector3.new(0, 0.09, 0), out, back, 3.0, 2.3, 0.06, 11)
+			for k = 1, 5 do
+				local p = base + out * 3.1 * (k / 6) + back * (0.15 + k * 0.12) + Vector3.new(0, 0.08, 0)
+				K:block("Seg1", "WingDark", CFrame.new(p), Vector3.new(0.18, 0.04, 0.18))
+				K:block("Seg1", "Glow", CFrame.new(p + Vector3.new(0, 0.01, 0)), Vector3.new(0.09, 0.04, 0.09))
+			end
+		end
 	end,
 }
