@@ -59,6 +59,7 @@ VFXConfig.Guardian = {
 		LavaLagoon = { Ring = hex("FF9A3C"), Dust = hex("6B5A50"), Rock = hex("3B2A2A"), Sparks = hex("FF6A1F") },
 		FrostfangPeaks = { Ring = hex("BFEFFF"), Dust = hex("FFFFFF"), Rock = hex("9CB8D6") },
 		VenomJungle = { Ring = hex("C8FF8A"), Dust = hex("7A8A56"), Rock = hex("4A5A32") },
+		SunkenAbyss = { Ring = hex("7FF4FF"), Dust = hex("8FB0B4"), Rock = hex("2A4A5A") },
 	},
 }
 
@@ -88,12 +89,12 @@ VFXConfig.Weather = {
 		-- green humid light, the sky a jungle haze, but clear enough air to read the temple and the mushrooms
 		Lighting = { Tint = hex("E8FFDC"), Saturation = 0.04, Brightness = 0.02, Haze = 0.06, AtmoColor = hex("B4E39C"), AtmoDecay = hex("5A8A46"), AtmoHaze = 3.2, AtmoGlare = 0 },
 	},
-	-- the locked biomes (ready for when they open)
 	SunkenAbyss = {
 		Bubbles = { Rate = 34, Color = hex("D8FBFF") },
 		-- bright teal water light, the sky an aqua haze as if seen from under the sea
 		Lighting = { Tint = hex("D6F6F0"), Saturation = 0.14, Brightness = 0.02, Haze = 0.06, AtmoColor = hex("8EE0DA"), AtmoDecay = hex("2F8F98"), AtmoHaze = 2.0, AtmoGlare = 0 },
 	},
+	-- the locked biomes (ready for when they open)
 	StormSpires = {
 		Rain = { Rate = 150, Color = hex("C8D2E6") },
 		-- overcast and darker: a grey hazed sky, greyed light, but clear air so the spires still read
