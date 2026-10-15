@@ -2,13 +2,15 @@ local rad = math.rad
 local H = require(script.Parent.Helpers)
 
 -- Cosmic Rift / Legendary / void: the astrodon, a sauropod the size of a moon. A towering long-necked giant on four
--- pillar legs, its hide deep void-violet speckled with stars like a night sky, darker down the back, a pale violet
--- belly. A row of tall crystal plates runs up its spine and neck. Around its middle floats a tilted planetary ring of
--- gold and pale gold bands with a small moon riding on it. A long sweeping tail. Head: a small heavy skull held high,
--- a brow ridge over glowing magenta eyes, peg teeth, crystal spikes on the crown.
+-- pillar legs, its hide deep violet speckled with stars like a night sky, darker down the back, a pale lavender belly.
+-- A row of tall crystal plates runs up its spine and neck. A wide planetary ring of gold bands floats round it, tilted
+-- steeply and well clear of the body, three small moons and chunks of rock riding on it. A long sweeping tail. Head: a
+-- small heavy skull held high, a brow ridge over glowing gold eyes, peg teeth, crystal spikes on the crown.
 local HEAD = CFrame.new(0, 5.52, -2.86) * CFrame.Angles(rad(-12), 0, 0)
-local RING_C = Vector3.new(0, 2.8, 0.25)
-local RING_TILT = CFrame.new(RING_C) * CFrame.Angles(rad(-14), 0, rad(12))
+local RING_C = Vector3.new(0, 3.0, 0.4)
+-- tilted 28 degrees (the back of the ring up, the front down under the neck) and rolled a little
+local RING_TILT = CFrame.new(RING_C) * CFrame.Angles(rad(-28), 0, rad(8))
+local RING_R = 3.4
 
 return {
 	Seed = 741,
@@ -17,12 +19,12 @@ return {
 	Gait = "Amble",
 	Emotes = { "Look", "Trumpet", "Wiggle" },
 	Palette = {
-		Hide = { "2E2648", Material = "Slate" },
-		HideDark = { "1C1830", Material = "Slate" },
-		HideLight = { "4A3E6E", Material = "Slate" },
-		Back = { "120F1E", Material = "Slate" },
-		Belly = "6A5C94",
-		Belly2 = "5A4C80",
+		Hide = { "4E3A86", Material = "Slate" },
+		HideDark = { "36286A", Material = "Slate" },
+		HideLight = { "6E5AAE", Material = "Slate" },
+		Back = { "28205A", Material = "Slate" },
+		Belly = "B0A2DA",
+		Belly2 = "9C8ECA",
 		Crystal = "B8A4FF",
 		CrystalDark = "7A62D0",
 		CrystalLight = "DCD0FF",
@@ -30,12 +32,14 @@ return {
 		Ring = "D8AC4C",
 		RingLight = "F2D690",
 		RingDark = "9A7428",
-		Moon = { "8C8698", Material = "Basalt" },
-		MoonDark = { "4E4A58", Material = "Basalt" },
+		Moon = { "A8A2B8", Material = "Basalt" },
+		MoonDark = { "5E5872", Material = "Basalt" },
+		Rock = { "6A6088", Material = "Basalt" },
+		RockDark = { "443C5E", Material = "Basalt" },
 		Star = { "FFF4FF", Neon = true },
 		Tooth = "E8E2F0",
 		Mouth = "3A1238",
-		Eye = { "FF40E0", Neon = true },
+		Eye = { "FFD86A", Neon = true },
 		Socket = "07050C",
 		Claw = "141018",
 		ClawTip = "8A82A0",
@@ -95,23 +99,36 @@ return {
 				K:block(g, "CrystalGlow", CFrame.new(pos) * CFrame.Angles(0, rad(45), 0), Vector3.new(0.22, 0.1, 0.22) * f)
 			end
 		end
-		-- the planetary ring floating round its middle: two gold bands and a moon riding on it
-		for band, o in { { 2.25, 0.34, "Ring", "RingDark" }, { 2.72, 0.22, "RingLight", "Ring" } } do
+		-- the planetary ring: wide gold bands floating well clear of the body, tilted steeply, three moons and chunks
+		-- of rock riding on it
+		local function ringAt(a, r, h)
+			return RING_TILT * Vector3.new(math.cos(a) * r, h or 0, math.sin(a) * r)
+		end
+		local up = RING_TILT:VectorToWorldSpace(Vector3.yAxis)
+		for band, o in { { RING_R - 0.22, 0.4, "Ring", "RingDark" }, { RING_R + 0.22, 0.26, "RingLight", "Ring" } } do
 			local R, w, k1, k2 = o[1], o[2], o[3], o[4]
-			local N = 36
+			local N = 44
 			for i = 0, N - 1 do
-				local a0, a1 = i / N * math.pi * 2, (i + 1) / N * math.pi * 2
-				local p0 = RING_TILT * Vector3.new(math.cos(a0) * R, 0, math.sin(a0) * R * 1.12)
-				local p1 = RING_TILT * Vector3.new(math.cos(a1) * R, 0, math.sin(a1) * R * 1.12)
-				local mid = (p0 + p1) / 2
-				local up = RING_TILT:VectorToWorldSpace(Vector3.yAxis)
-				K:block("Body", i % 3 == band % 2 and k2 or k1, CFrame.lookAt(mid, p1, up), Vector3.new(w, 0.06, (p1 - p0).Magnitude + 0.04))
+				local p0 = ringAt(i / N * math.pi * 2, R)
+				local p1 = ringAt((i + 1) / N * math.pi * 2, R)
+				K:block("Body", i % 3 == band % 2 and k2 or k1, CFrame.lookAt((p0 + p1) / 2, p1, up), Vector3.new(w, 0.1, (p1 - p0).Magnitude + 0.04))
 			end
 		end
-		local moon = RING_TILT * Vector3.new(math.cos(rad(210)) * 2.5, 0.2, math.sin(rad(210)) * 2.5 * 1.12)
-		K:block("Body", "Moon", CFrame.new(moon) * CFrame.Angles(rad(20), rad(30), 0), Vector3.new(0.5, 0.5, 0.5))
-		K:block("Body", "Moon", CFrame.new(moon) * CFrame.Angles(rad(65), rad(75), rad(20)), Vector3.new(0.44, 0.44, 0.44))
-		K:block("Body", "MoonDark", CFrame.new(moon + Vector3.new(0.12, 0.12, -0.18)), Vector3.new(0.14, 0.08, 0.14))
+		for i, o in { { 20, 0.95 }, { 150, 0.78 }, { 262, 0.62 } } do
+			local m = ringAt(rad(o[1]), RING_R, 0.2)
+			local s = o[2]
+			K:block("Body", "Moon", CFrame.new(m) * CFrame.Angles(rad(20), rad(30), 0), Vector3.new(s, s, s))
+			K:block("Body", "Moon", CFrame.new(m) * CFrame.Angles(rad(65), rad(75), rad(20)), Vector3.new(s * 0.9, s * 0.9, s * 0.9))
+			K:block("Body", "MoonDark", CFrame.new(m + Vector3.new(s * 0.25, s * 0.25, -s * 0.36)), Vector3.new(s * 0.28, s * 0.16, s * 0.28))
+			K:block("Body", "MoonDark", CFrame.new(m + Vector3.new(-s * 0.3, -s * 0.1, -s * 0.38)), Vector3.new(s * 0.2, s * 0.14, s * 0.2))
+		end
+		for i = 0, 9 do
+			local a = rad(55 + i * 31 + K:rand(-8, 8))
+			local r = RING_R + K:rand(-0.3, 0.3)
+			local p = ringAt(a, r, K:rand(-0.05, 0.25))
+			local s = K:rand(0.18, 0.32)
+			K:block("Body", i % 2 == 0 and "Rock" or "RockDark", CFrame.new(p) * CFrame.Angles(rad(K:rand(0, 90)), rad(K:rand(0, 90)), rad(K:rand(0, 90))), Vector3.new(s, s * 0.8, s))
+		end
 
 		-- four huge pillar legs on round feet
 		local function legSkin(_, ring)
