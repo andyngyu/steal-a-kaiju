@@ -72,6 +72,14 @@ local species: { [string]: Kaiju } = {
 	Toxitops = k("Toxitops", "Legendary", "VenomJungle", "Quadruped", 2700, 180, "52783A", "B04CFF"),
 	Hydravine = k("Hydravine", "Mythic", "VenomJungle", "Serpent", 6600, 300, "4A7636", "E0408A"),
 
+	-- Sunken Abyss (income x3 Venom Jungle's per rarity)
+	Lurkfin = k("Lurkfin", "Common", "SunkenAbyss", "Lizard", 225, 20, "2A5E6C", "E8708C"),
+	Barnaclaw = k("Barnaclaw", "Uncommon", "SunkenAbyss", "CrabBug", 495, 40, "1E4A58", "F07A3A"),
+	Hammerjaw = k("Hammerjaw", "Rare", "SunkenAbyss", "Ape", 1260, 75, "5C7E88", "22C4E8"),
+	Krakling = k("Krakling", "Epic", "SunkenAbyss", "Quadruped", 3150, 120, "58348A", "1AA6D8"),
+	Megajaw = k("Megajaw", "Legendary", "SunkenAbyss", "Quadruped", 8100, 180, "5A6C78", "E6ECE6"),
+	Tidewyrm = k("Tidewyrm", "Mythic", "SunkenAbyss", "Serpent", 19800, 300, "1E8088", "E8506E"),
+
 	-- Secret (placeholder species so Secret eggs have something to hatch into)
 	Prismling = k("Prismling", "Secret", "Any", "Lizard", 5000, 600, "FFFFFF", "FF4DFF"),
 }
