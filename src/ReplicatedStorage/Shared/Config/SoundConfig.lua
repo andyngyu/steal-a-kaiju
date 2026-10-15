@@ -153,6 +153,17 @@ SoundConfig.Ambience = {
 			{ Id = { 9118882814, 9118884046 }, Volume = 0.1, Pitch = 1.6, Vary = 0.1, Every = { 6, 12 } }, -- electric crackle off the rods
 		},
 	},
+	-- stand-in space bed built from the library sounds above (swap for a real cosmic drone when it's picked)
+	CosmicRift = {
+		Beds = {
+			{ Id = 136454830957820, Volume = 0.22, Pitch = 0.42 }, -- a deep hollow drone from the rift
+			{ Id = 9125410075, Volume = 0.05, Pitch = 0.4 }, -- a slow seething underneath
+		},
+		Gusts = {
+			{ Id = { 9116394545, 9116394876 }, Volume = 0.14, Pitch = 1.35, Vary = 0.12, Every = { 5, 10 } }, -- stars twinkling
+			{ Id = 9113200364, Volume = 0.22, Pitch = 0.4, Vary = 0.08, Every = { 14, 26 } }, -- the rift groaning far off
+		},
+	},
 }
 
 -- Guardian voice pitch per biome (bigger guardians sound deeper).
@@ -163,6 +174,7 @@ SoundConfig.GuardianPitch = {
 	VenomJungle = 0.66,
 	SunkenAbyss = 0.58,
 	StormSpires = 0.52,
+	CosmicRift = 0.46,
 }
 
 -- Hatch reveal celebration: which layers play, by the lowest rarity that gets them (EggConfig rarity Order:
