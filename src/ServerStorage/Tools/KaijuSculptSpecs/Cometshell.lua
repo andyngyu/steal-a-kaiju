@@ -1,11 +1,11 @@
 local rad = math.rad
 local H = require(script.Parent.Helpers)
 
--- Cosmic Rift / Rare / void: the cometshell, a tortoise carrying a comet. A heavy, low tortoise on four stumpy
--- pillar legs, its high domed shell a lump of cratered space rock in dark violet-grey, the front rim blazing with icy
--- white comet fire that streams back over the dome, a long glowing comet tail fanning up and away behind it, star
--- specks in the rock. Head: a heavy armoured tortoise head on a thick neck, a hooked dark beak, glowing magenta eyes
--- under a rocky brow.
+-- Cosmic Rift / Rare / void: the cometshell, a snapping turtle carrying a comet. A heavy, low turtle on four stumpy
+-- pillar legs, its high domed shell a cratered meteor of violet-grey rock split by glowing icy-blue cracks, the front
+-- rim blazing with icy comet fire that streams back over the dome, a long glowing comet tail fanning up and away
+-- behind it. Head: a snapping turtle's, big and triangular on a thick knobbly neck, a sharp hooked beak, a heavy
+-- brow ridge over glowing eyes, rough knobs over the skull and down the neck.
 local HEAD = CFrame.new(0, 1.34, -1.72) * CFrame.Angles(rad(-6), 0, 0)
 
 return {
@@ -15,25 +15,29 @@ return {
 	Gait = "Amble",
 	Emotes = { "Look", "Wiggle" },
 	Palette = {
-		Hide = { "3A3448", Material = "Slate" },
-		HideDark = { "221E2C", Material = "Slate" },
-		HideLight = { "5A5068", Material = "Slate" },
-		Back = { "18141F", Material = "Slate" },
-		Belly = { "4A4058", Material = "Slate" },
-		Belly2 = { "3E3550", Material = "Slate" },
-		Rock = { "463E58", Material = "Basalt" },
-		RockDark = { "2A2436", Material = "Basalt" },
-		RockLight = { "6A6080", Material = "Basalt" },
+		Hide = { "5A5084", Material = "Slate" },
+		HideDark = { "40386A", Material = "Slate" },
+		HideLight = { "7A70A4", Material = "Slate" },
+		Back = { "2A2448", Material = "Slate" },
+		Belly = { "ACA0D4", Material = "Slate" },
+		Belly2 = { "9A8EC4", Material = "Slate" },
+		Rock = { "6A6088", Material = "Basalt" },
+		RockDark = { "4E4670", Material = "Basalt" },
+		RockLight = { "8C82AA", Material = "Basalt" },
 		Crater = { "16121C", Material = "Basalt" },
+		Ice = { "6CCBFF", Neon = true },
+		SeamLip = { "1E1A30", Material = "Basalt" },
 		Blaze = { "6CCBFF", Neon = true },
 		BlazeHot = { "E8F8FF", Neon = true },
 		Comet = { "5AB4FF", Neon = true, Transparency = 0.15 },
-		CometFade = { "9A7AFF", Neon = true, Transparency = 0.35 },
+		CometFade = { "C4ECFF", Neon = true, Transparency = 0.4 },
 		Star = { "FFF4FF", Neon = true },
-		Beak = "1A1620",
+		Beak = "2A2438",
+		BeakEdge = "C8C0DC",
+		Knob = { "7A70A4", Material = "Slate" },
 		Tooth = "D8D0E0",
 		Mouth = "3A1438",
-		Eye = { "FF40E0", Neon = true },
+		Eye = { "8ADCFF", Neon = true },
 		Socket = "07050C",
 		Claw = "141018",
 		ClawTip = "8A82A0",
@@ -84,6 +88,10 @@ return {
 				K:block("Body", "Star", F * CFrame.new(0, 0.05, 0) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.09, 0.09, 0.09))
 			end
 		end
+		-- glowing icy-blue cracks splitting the meteor, branching across the dome
+		for _, th in { 30, -30, 70, -70, 100, -100 } do
+			H.vein(K, "Body", "Ice", shell, rad(th), 0.7, shell.total - 0.2, { width = 0.14, height = 0.1, lift = 0.1, wander = 30, step = 0.24, forks = 2, forkSteps = 3, forkTurn = 50 })
+		end
 		-- the comet head: the front rim of the dome blazing with icy fire that streams back over the top
 		for i = -3, 3 do
 			local smp = K:at(shell, 0.3)
@@ -125,12 +133,18 @@ return {
 		-- a stubby tail under the comet
 		K:chain("Body", { "Hide", "HideDark" }, Vector3.new(0, 1.08, 1.4), Vector3.new(0, -0.3, 1).Unit, Vector3.xAxis, { n = 2, len = 0.4, w0 = 0.22, w1 = 0.12, bend = 0 })
 
-		-- head: a thick scaly neck, a heavy armoured head, a hooked beak, a rocky brow
+		-- head: a snapping turtle's, on a thick knobbly neck
 		local neck = K:tube("Head", {
-			{ 0, 1.36, -1.68, rx = 0.3, ru = 0.3, rd = 0.32 },
-			{ 0, 1.26, -1.42, rx = 0.36, ru = 0.36, rd = 0.38 },
-			{ 0, 1.16, -1.06, rx = 0.44, ru = 0.42, rd = 0.44 },
-		}, { step = 0.18, core = "Hide", coreScale = 0.92, tile = H.plates(0.24, nil, 0.08), color = H.skin({ stripe = 30, band = 80, flank = 110, every = 2 }) })
+			{ 0, 1.36, -1.68, rx = 0.34, ru = 0.32, rd = 0.34 },
+			{ 0, 1.26, -1.42, rx = 0.4, ru = 0.38, rd = 0.4 },
+			{ 0, 1.16, -1.06, rx = 0.46, ru = 0.44, rd = 0.46 },
+		}, { step = 0.18, core = "Hide", coreScale = 0.92, tile = H.plates(0.24, nil, 0.08), belly = { key = "Belly", key2 = "Belly2", arc = 40, t = 0.08, wide = 1.05 }, color = H.skin({ stripe = 30, band = 80, flank = 110, every = 2 }) })
+		for s = 0.08, neck.total - 0.06, 0.14 do
+			local smp = K:at(neck, s)
+			for _, th in { 0, rad(48), rad(-48) } do
+				K:spike("Head", "Knob", K:surface(smp, th + rad(K:rand(-10, 10)), 0.02), (select(2, K:surface(smp, th, 0)) + smp.T * 0.3).Unit, smp.T, 0.12, 0.1)
+			end
+		end
 		local function hcf(px, py, pz, ax, ay, az)
 			return HEAD * CFrame.new(px, py, pz) * CFrame.Angles(rad(ax or 0), rad(ay or 0), rad(az or 0))
 		end
@@ -140,23 +154,31 @@ return {
 		local function hv(px, py, pz)
 			return HEAD:VectorToWorldSpace(Vector3.new(px, py, pz)).Unit
 		end
-		K:scaled(HEAD.Position, 1.3, function()
-		K:block("Head", "Hide", hcf(0, 0.06, -0.22), Vector3.new(0.62, 0.5, 0.56))
-		K:block("Head", "Hide", hcf(0, 0.04, -0.22, 0, 0, 45), Vector3.new(0.48, 0.48, 0.52))
-		K:block("Head", "RockDark", hcf(0, 0.32, -0.26, -8, 0, 0), Vector3.new(0.5, 0.12, 0.5))
-		-- armour scutes over the skull
-		for i, o in { { 0, 0.34, -0.04, 0.3 }, { 0.16, 0.3, -0.36, 0.22 }, { -0.16, 0.3, -0.36, 0.22 } } do
-			K:block("Head", i == 1 and "RockLight" or "Rock", hcf(o[1], o[2], o[3], -8, 0, 0), Vector3.new(o[4], 0.08, o[4]))
-		end
-		-- the hooked beak
-		K:block("Head", "Beak", hcf(0, 0.0, -0.58, -6, 0, 0), Vector3.new(0.44, 0.34, 0.32))
-		K:chain("Head", { "Beak", "Beak" }, hp(0, 0.04, -0.72), hv(0, -0.8, -0.6), hv(1, 0, 0), { n = 2, len = 0.3, w0 = 0.28, w1 = 0.12, bend = 30, depth = 1.2 })
-		K:block("Head", "Mouth", hcf(0, -0.15, -0.46), Vector3.new(0.4, 0.04, 0.32))
-		K:block("Head", "Beak", hcf(0, -0.22, -0.46, 8, 0, 0), Vector3.new(0.36, 0.12, 0.34))
-		for _, x in { 1, -1 } do
-			K:block("Head", "RockDark", hcf(0.2 * x, 0.28, -0.42, -8, -14 * x, 20 * x), Vector3.new(0.3, 0.12, 0.26))
-			H.eye(K, "Head", hcf(0.26 * x, 0.15, -0.44, 0, -44 * x, 10 * x), 0.17, 0.06)
-		end
+		K:scaled(HEAD.Position, 1.35, function()
+			-- a big triangular skull, wide at the jaw hinge and narrowing to the beak
+			K:block("Head", "Hide", hcf(0, 0.06, -0.16), Vector3.new(0.8, 0.5, 0.5))
+			K:block("Head", "Hide", hcf(0, 0.06, -0.48), Vector3.new(0.6, 0.44, 0.34))
+			K:block("Head", "HideLight", hcf(0, 0.28, -0.3, -10, 0, 0), Vector3.new(0.5, 0.1, 0.6))
+			for _, x in { 1, -1 } do
+				K:block("Head", "Hide", hcf(0.3 * x, 0.0, -0.26, 0, -24 * x, 0), Vector3.new(0.18, 0.42, 0.44))
+			end
+			-- the heavy brow ridge jutting over the eyes
+			K:block("Head", "HideDark", hcf(0, 0.3, -0.56, -14, 0, 0), Vector3.new(0.56, 0.14, 0.2))
+			for _, x in { 1, -1 } do
+				K:block("Head", "HideDark", hcf(0.2 * x, 0.3, -0.46, -10, -18 * x, 22 * x), Vector3.new(0.32, 0.16, 0.34))
+				H.eye(K, "Head", hcf(0.27 * x, 0.17, -0.66, 0, -30 * x, 10 * x), 0.2, 0.075)
+			end
+			-- the sharp hooked beak: the upper bill curving down past the lower into a point
+			K:block("Head", "Beak", hcf(0, 0.02, -0.74, -10, 0, 0), Vector3.new(0.38, 0.32, 0.3))
+			K:block("Head", "BeakEdge", hcf(0, -0.12, -0.74, -10, 0, 0), Vector3.new(0.36, 0.04, 0.28))
+			K:chain("Head", { "Beak", "Beak", "BeakEdge" }, hp(0, 0.08, -0.86), hv(0, -0.75, -0.65), hv(1, 0, 0), { n = 3, len = 0.42, w0 = 0.26, w1 = 0.08, bend = 34, depth = 1.2 })
+			K:block("Head", "Mouth", hcf(0, -0.16, -0.5), Vector3.new(0.5, 0.05, 0.42))
+			K:block("Head", "Beak", hcf(0, -0.24, -0.56, 10, 0, 0), Vector3.new(0.4, 0.14, 0.44))
+			K:block("Head", "BeakEdge", hcf(0, -0.18, -0.74, 10, 0, 0), Vector3.new(0.3, 0.04, 0.12))
+			-- rough knobs over the skull
+			for i, o in { { 0.0, 0.34, -0.06 }, { 0.2, 0.32, -0.12 }, { -0.2, 0.32, -0.12 }, { 0.12, 0.34, 0.08 }, { -0.12, 0.34, 0.08 }, { 0.36, 0.18, -0.1 }, { -0.36, 0.18, -0.1 } } do
+				K:spike("Head", "Knob", hp(o[1], o[2], o[3]), hv(o[1] * 1.6, 1, 0.3), hv(0, 0, 1), 0.1, 0.08)
+			end
 		end)
 	end,
 }
