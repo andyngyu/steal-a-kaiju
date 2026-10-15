@@ -25,6 +25,13 @@ IconConfig.Kaiju = {
 	Brrrilla = "rbxassetid://124953833658672",
 	IcebreakerRex = "rbxassetid://97949342854298",
 	AuroraSerpent = "rbxassetid://75618888906866",
+	-- Venom Jungle (2026-10-14)
+	Vinewhip = "rbxassetid://94722195991051",
+	Shroomhog = "rbxassetid://129532677474103",
+	Mantisaur = "rbxassetid://89047998078755",
+	Sabrejag = "rbxassetid://99677680684692",
+	Toxitops = "rbxassetid://82178910267176",
+	Hydravine = "rbxassetid://138103726292998",
 	Prismling = "rbxassetid://107278256092402",
 }
 
