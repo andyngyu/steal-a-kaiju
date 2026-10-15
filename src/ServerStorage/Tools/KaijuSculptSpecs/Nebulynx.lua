@@ -2,10 +2,11 @@ local rad = math.rad
 local H = require(script.Parent.Helpers)
 
 -- Cosmic Rift / Uncommon / void: the nebulynx, a lynx made of night sky. A lean, long-legged cat crouched to pounce,
--- its indigo coat swept by a big spiral nebula on each flank in teal and rose, flecked with stars, a lavender belly, a
+-- its indigo coat swept by a nebula on each flank: one continuous teal band and a rose band beside it flowing from the
+-- shoulders back along the flank and curling into a spiral over the hip, stars flecked along them, a lavender belly, a
 -- ruff round the neck, a short bobbed tail with a dark tip. Long crystal claws. Face: a sleek cat skull with a short
--- dark muzzle, glowing teal eyes under a dark brow, a lynx's cheek ruffs flaring out, tall forward-facing ears with
--- rose insides and long black tufts, long fangs.
+-- dark muzzle, glowing teal eyes under a dark brow, a lynx's cheek ruffs flaring out, triangular forward-facing ears
+-- with small dark-rose insides and short tapered black tufts at the tips, long fangs.
 local HEAD = CFrame.new(0, 1.84, -1.6) * CFrame.Angles(rad(-8), 0, 0)
 local HINGE = Vector3.new(0, -0.14, -0.12)
 local HS = 1.15
@@ -30,6 +31,8 @@ return {
 		TealLight = "7EE4DA",
 		Rose = "DC5C8C",
 		RoseLight = "F4A2BE",
+		EarInner = "5E2650",
+		Tuft = "16102C",
 		Star = { "FFF4FF", Neon = true },
 		Crystal = "D0C2FF",
 		CrystalDark = "8A72E0",
@@ -55,32 +58,9 @@ return {
 	},
 	Parents = { Jaw = "Head", EarL = "Head", EarR = "Head" },
 	Build = function(K)
-		-- the coat: a dark stripe down the spine, and on each flank a big spiral nebula in teal and rose, its arms
-		-- winding out from a bright centre; plain indigo fur round it
-		local function coat(th, ring, smp)
-			local a = math.abs(th)
-			if a < rad(24) then
-				return "FurDark"
-			end
-			if not smp then
-				return "Fur"
-			end
-			local y = (a - rad(78)) * smp.rx
-			local z = smp.p.Z - 0.15
-			local r = math.sqrt(y * y + z * z)
-			if r < 1.25 and a < rad(135) then
-				if r < 0.2 then
-					return "TealLight"
-				end
-				local s = math.sin(2 * math.atan2(y, z) - r * 4.5)
-				if s > 0.3 then
-					return r < 0.6 and "RoseLight" or "Rose"
-				elseif s > -0.35 then
-					return r < 0.6 and "TealLight" or "Teal"
-				end
-				return "FurDark"
-			end
-			return ring % 2 == 0 and "Fur" or "FurLight"
+		-- the coat: a dark stripe down the spine, plain indigo fur (the nebula is laid over it below)
+		local function coat(th, ring)
+			return math.abs(th) < rad(24) and "FurDark" or (ring % 2 == 0 and "Fur" or "FurLight")
 		end
 		local belly = { key = "Belly", key2 = "Belly2", arc = 40, t = 0.09, wide = 1.05 }
 		local body = K:tube("Body", {
@@ -96,13 +76,56 @@ return {
 		}, { step = 0.2, core = "FurDark", coreScale = 0.86, tile = H.fur(0.22, nil, 0.26, 8), belly = belly, color = function(th, ring)
 			return math.abs(th) < rad(24) and "FurDark" or (ring % 2 == 0 and "Fur" or "FurLight")
 		end })
-		-- stars flecked through the coat, more of them in the nebulae
-		for i = 1, 34 do
-			local x = i % 2 == 0 and 1 or -1
-			local smp = K:at(body, K:rand(0.2, 1.9))
-			local pos = K:surface(smp, rad(K:rand(50, 115)) * x, -0.11)
-			local s = i % 5 == 0 and 0.11 or 0.07
-			K:block("Body", "Star", CFrame.new(pos) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(s, s, s))
+		-- the nebula: two continuous bands laid over the fur on each flank, a teal one and a rose one beside it, flowing
+		-- in a wave from the shoulders back along the upper flank, then curling down and forward into a spiral mid-flank,
+		-- clear of the legs. A band is a path in (along the body, degrees round it from the spine); `off` (degrees) moves
+		-- the rose band up toward the spine and onto the outside of the spiral.
+		local SPIRAL = { u = 1.08, th = 72, r = 0.32 }
+		local function bandPoint(t, off)
+			local dr = rad(off * 0.6) * 0.46
+			local top = SPIRAL.th - math.deg(SPIRAL.r / 0.46)
+			if t < 0.42 then
+				local f = t / 0.42
+				return 0.12 + f * (SPIRAL.u - 0.12), 26 + (top - 26) * f + 16 * math.sin(f * math.pi) ^ 2 - off * 0.6
+			end
+			local f = (t - 0.42) / 0.58
+			local phi = rad(-90) + f * rad(340)
+			local r = (SPIRAL.r + dr) * (1 - f * 0.75)
+			return SPIRAL.u + math.cos(phi) * r, SPIRAL.th + math.deg(math.sin(phi) * r / 0.46)
+		end
+		local function band(x, keys, off, w)
+			local prev
+			local N = 46
+			for i = 0, N do
+				local t = i / N
+				local u, th = bandPoint(t, off)
+				local smp = K:at(body, math.clamp(u, 0.05, body.total - 0.05))
+				local pos, nrm = K:surface(smp, rad(th) * x, -0.1)
+				if prev then
+					local d = pos - prev.pos
+					if d.Magnitude > 1e-3 then
+						local fwd = d.Unit
+						local n = (nrm - fwd * nrm:Dot(fwd)).Unit
+						local cf = CFrame.fromMatrix((pos + prev.pos) / 2, n:Cross(fwd), n)
+						local ww = w * (t > 0.9 and (1 - (t - 0.9) * 6) or (t < 0.08 and (0.4 + t * 7.5) or 1))
+						K:block("Body", keys[1], cf, Vector3.new(ww, 0.05, d.Magnitude + 0.05))
+						K:block("Body", keys[2], cf * CFrame.new(0, 0.02, 0), Vector3.new(ww * 0.42, 0.05, d.Magnitude + 0.05))
+					end
+				end
+				prev = { pos = pos }
+			end
+		end
+		for _, x in { 1, -1 } do
+			band(x, { "Rose", "RoseLight" }, 24, 0.25)
+			band(x, { "Teal", "TealLight" }, 0, 0.3)
+			-- stars flecked along the nebula
+			for i = 1, 12 do
+				local u, th = bandPoint(K:rand(0.05, 0.95), K:rand(-8, 30))
+				local smp = K:at(body, math.clamp(u, 0.05, body.total - 0.05))
+				local pos = K:surface(smp, rad(th) * x, -0.15)
+				local s = i % 4 == 0 and 0.1 or 0.06
+				K:block("Body", "Star", CFrame.new(pos) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(s, s, s))
+			end
 		end
 		-- a ruff round the neck
 		for k = 0, 9 do
@@ -170,12 +193,12 @@ return {
 				end
 				-- long fangs
 				H.fang(K, "Head", "Tooth", hp(0.08 * x, -0.15, -0.72), hv(0, -1, -0.05), 0.22, 0.05)
-				-- tall triangular ears facing forward, rose inside, a long black tuft at the tip
+				-- triangular ears facing forward, a small dark-rose inside, a short tapered black tuft growing from the tip
 				local g = x == 1 and "EarL" or "EarR"
-				local base, up = hp(0.24 * x, 0.3, -0.06), hv(0.28 * x, 1, 0.05)
-				K:plate(g, { "Fur", "FurDark", "FurDark" }, base, up, hv(x, 0, 0), { h = 0.5, w = 0.38, t = 0.07, n = 3, lean = 6, shift = 0.06 })
-				K:block(g, "Rose", CFrame.fromMatrix(base + up * 0.2 + hv(0, 0, -1) * 0.05, hv(x, 0, 0):Cross(up).Unit * x, up), Vector3.new(0.03, 0.26, 0.18))
-				K:chain(g, { "FurDark", "FurDark", "FurDark" }, base + up * 0.48, hv(0.1 * x, 1, 0.08), hv(0, 0, 1), { n = 3, len = 0.32, w0 = 0.06, w1 = 0.035, bend = -10 })
+				local base, up = hp(0.24 * x, 0.3, -0.06), hv(0.32 * x, 1, 0.05)
+				K:plate(g, { "Fur", "Fur", "FurDark" }, base, up, hv(x, 0, 0), { h = 0.4, w = 0.38, t = 0.07, n = 3, lean = 6, shift = 0.04 })
+				K:block(g, "EarInner", CFrame.fromMatrix(base + up * 0.12 + hv(0, 0, -1) * 0.045, hv(x, 0, 0):Cross(up).Unit * x, up), Vector3.new(0.03, 0.15, 0.11))
+				K:chain(g, { "Tuft", "Tuft" }, base + up * 0.33, (up + hv(0, 0, 0.3)).Unit, hv(0, 0, 1), { n = 2, len = 0.13, w0 = 0.06, w1 = 0.025, bend = -16 })
 			end
 			local JAW = HEAD * CFrame.new(HINGE) * CFrame.Angles(rad(-14), 0, 0)
 			K:block("Jaw", "Fur", JAW * CFrame.new(0, -0.07, -0.34), Vector3.new(0.36, 0.13, 0.5))
