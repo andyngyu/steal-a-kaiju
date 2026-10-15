@@ -32,6 +32,13 @@ IconConfig.Kaiju = {
 	Sabrejag = "rbxassetid://99677680684692",
 	Toxitops = "rbxassetid://82178910267176",
 	Hydravine = "rbxassetid://138103726292998",
+	-- Sunken Abyss (2026-10-15)
+	Lurkfin = "rbxassetid://138272700751672",
+	Barnaclaw = "rbxassetid://93266460071625",
+	Hammerjaw = "rbxassetid://72006520021399",
+	Krakling = "rbxassetid://135214021314241",
+	Megajaw = "rbxassetid://96805971919315",
+	Tidewyrm = "rbxassetid://81650973350437",
 	Prismling = "rbxassetid://107278256092402",
 }
 
