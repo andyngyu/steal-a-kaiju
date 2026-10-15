@@ -200,7 +200,9 @@ function KaijuMotion.Body(st, t)
 	return y, pitch, roll, yaw
 end
 
-local LATERAL = { LegBL = 0, LegFL = PI / 2, LegBR = PI, LegFR = PI * 1.5 }
+-- LegML / LegMR: a six-legged bug's middle legs (Quasarab); in the diagonal gaits they step with the opposite pair,
+-- so the legs move in two alternating tripods
+local LATERAL = { LegBL = 0, LegFL = PI / 2, LegBR = PI, LegFR = PI * 1.5, LegMR = PI * 0.25, LegML = PI * 1.25 }
 
 function KaijuMotion.Limbs(st, t)
 	local gait, mb, ph, seed, s = st.gait, st.moveBlend, st.phase, st.seed, st.scale
@@ -239,7 +241,7 @@ function KaijuMotion.Limbs(st, t)
 				local air = math.max(0, math.sin(ph)) * mb
 				pitch = front and air * 0.55 or -air * 0.9 -- front legs reach to land, back legs kick out
 			else
-				local pair = (n == "LegFL" or n == "LegBR") and 0 or PI -- diagonal pairs move together
+				local pair = (n == "LegFL" or n == "LegBR" or n == "LegMR") and 0 or PI -- diagonal pairs move together
 				pitch = math.sin(ph + pair) * (gait == "Crawl" and 0.45 or 0.5) * mb
 			end
 			if emote == "PlayBow" and front then
