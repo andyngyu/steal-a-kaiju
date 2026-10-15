@@ -13,10 +13,10 @@ return {
 	Gait = "Amble",
 	Emotes = { "Look", "Wiggle" },
 	Palette = {
-		Hide = { "23506A", Material = "Slate" },
-		HideDark = { "15324A", Material = "Slate" },
-		HideLight = { "4E8496", Material = "Slate" },
-		Back = { "0E2034", Material = "Slate" },
+		Hide = { "58348A", Material = "Slate" },
+		HideDark = { "382262", Material = "Slate" },
+		HideLight = { "8A5CB8", Material = "Slate" },
+		Back = { "1A1636", Material = "Slate" },
 		Under = "E8A0A8",
 		Under2 = "D08890",
 		Sucker = "F2C8C8",
@@ -31,7 +31,7 @@ return {
 	},
 	Joints = {
 		Head = { 0, 1.9, -0.1 },
-		Jaw = { 0, 1.5, -1.0 },
+		Jaw = { 0, 1.5, -0.76 },
 		LegFL = { 0.5, 1.5, -0.5 },
 		LegFR = { -0.5, 1.5, -0.5 },
 		LegBL = { 0.55, 1.45, 0.4 },
@@ -86,19 +86,18 @@ return {
 		K:block("Body", "Hide", CFrame.new(0, 1.42, 0) * CFrame.Angles(0, rad(45), 0), Vector3.new(1.5, 0.56, 1.5))
 		K:block("Body", "Under", CFrame.new(0, 1.1, 0) * CFrame.Angles(0, rad(22), 0), Vector3.new(1.3, 0.1, 1.3))
 
-		-- the mantle, swept up and back from the eyes
+		-- the mantle: a tall bulbous dome, rounded at the front and widest just above the eyes, tapering up and back
 		local mantle = K:tube("Head", {
-			{ 0, 1.8, -0.1, rx = 0.94, ru = 0.84, rd = 0.8 },
-			{ 0, 2.5, 0.42, rx = 1.16, ru = 1.06, rd = 1.0 },
-			{ 0, 3.1, 1.08, rx = 1.0, ru = 0.94, rd = 0.9 },
-			{ 0, 3.42, 1.66, rx = 0.62, ru = 0.58, rd = 0.56 },
-			{ 0, 3.5, 2.02, rx = 0.24, ru = 0.22, rd = 0.22 },
-		}, { step = 0.32, ref = Vector3.xAxis, core = "HideDark", coreScale = 0.9, tile = { w = 0.56, t = 0.12, lift = 4, jitter = 2, sink = 0.5, overlap = 1.1 }, color = function(th, ring)
+			{ 0, 1.98, -0.66, rx = 0.5, ru = 0.46, rd = 0.42 },
+			{ 0, 2.24, -0.36, rx = 1.08, ru = 1.0, rd = 0.94 },
+			{ 0, 2.74, 0.1, rx = 1.3, ru = 1.24, rd = 1.16 },
+			{ 0, 3.26, 0.66, rx = 1.22, ru = 1.16, rd = 1.1 },
+			{ 0, 3.68, 1.26, rx = 0.92, ru = 0.88, rd = 0.84 },
+			{ 0, 3.94, 1.82, rx = 0.52, ru = 0.5, rd = 0.48 },
+			{ 0, 4.04, 2.2, rx = 0.16, ru = 0.15, rd = 0.15 },
+		}, { step = 0.3, ref = Vector3.xAxis, core = "HideDark", coreScale = 0.9, tile = { w = 0.56, t = 0.12, lift = 4, jitter = 2, sink = 0.5, overlap = 1.1 }, color = function(th, ring)
 			local a = math.deg(math.abs(th))
-			if ring % 3 == 0 then
-				return "Back"
-			end
-			return a < 60 and "HideDark" or (a < 130 and "Hide" or "HideLight")
+			return a < 34 and "Back" or (a < 78 and "HideDark" or (a < 128 and "Hide" or "HideLight"))
 		end })
 		-- sunk glowing spots mottling the mantle
 		for s = 0.5, mantle.total - 0.4, 0.34 do
@@ -115,21 +114,23 @@ return {
 		end
 		-- a ridge of knobs down the top of the mantle
 		K:ridge("Head", mantle, { from = 0.5, to = mantle.total - 0.2, every = 0.28, height = 0.18, thick = 0.14, key = "Back", tip = "HideDark", lean = 20, sink = 0.85 })
+		-- round off the front of the dome
+		K:block("Head", "HideDark", CFrame.new(0, 2.02, -0.74), Vector3.new(0.9, 0.84, 0.3))
+		K:block("Head", "HideDark", CFrame.new(0, 2.02, -0.74) * CFrame.Angles(0, 0, rad(45)), Vector3.new(0.74, 0.74, 0.28))
 		for _, x in { 1, -1 } do
-			-- the eyes: bulging, under heavy bony brows, glowing with a dark slit
-			local E = CFrame.lookAt(Vector3.new(0.72 * x, 2.12, -0.82), Vector3.new(1.5 * x, 2.06, -1.7))
-			K:block("Head", "Hide", E * CFrame.new(0, 0, 0.12), Vector3.new(0.6, 0.56, 0.4))
-			K:block("Head", "Socket", E * CFrame.new(0, 0, -0.06), Vector3.new(0.46, 0.42, 0.1))
-			K:block("Head", "Eye", E * CFrame.new(0, 0, -0.1), Vector3.new(0.36, 0.32, 0.08))
-			K:block("Head", "Socket", E * CFrame.new(0, 0, -0.13), Vector3.new(0.3, 0.06, 0.04))
-			K:block("Head", "Brow", E * CFrame.new(0.04 * x, 0.32, -0.04) * CFrame.Angles(rad(-14), 0, rad(-14 * x)), Vector3.new(0.66, 0.16, 0.42))
-			K:spike("Head", "Brow", E * Vector3.new(0.26 * x, 0.38, 0.1), (Vector3.new(0.4 * x, 0.8, 0.3)).Unit, Vector3.zAxis, 0.24, 0.1)
+			-- the eyes on the sides of the dome, bulging, under heavy bony brows, glowing with a dark slit
+			local pos = Vector3.new(1.06 * x, 2.26, -0.36)
+			local E = CFrame.lookAt(pos, pos + Vector3.new(0.85 * x, -0.05, -0.55))
+			K:block("Head", "Hide", E * CFrame.new(0, 0, 0.16), Vector3.new(0.66, 0.6, 0.44))
+			K:block("Head", "Socket", E * CFrame.new(0, 0, -0.06), Vector3.new(0.5, 0.46, 0.1))
+			K:block("Head", "Eye", E * CFrame.new(0, 0, -0.1), Vector3.new(0.4, 0.36, 0.08))
+			K:block("Head", "Socket", E * CFrame.new(0, 0, -0.13), Vector3.new(0.34, 0.07, 0.04))
+			K:block("Head", "Brow", E * CFrame.new(0, 0.36, -0.02) * CFrame.Angles(rad(-16), 0, 0), Vector3.new(0.76, 0.18, 0.5))
+			K:spike("Head", "Brow", E * Vector3.new(0, 0.42, 0.16), (Vector3.new(0.5 * x, 0.8, 0.3)).Unit, Vector3.zAxis, 0.26, 0.1)
 		end
-		-- the hooked beak between the front tentacles (upper in the head, lower on the jaw)
-		-- a dark face between the eyes, the beak under it
-		K:block("Head", "HideDark", CFrame.new(0, 1.9, -0.9) * CFrame.Angles(rad(-10), 0, 0), Vector3.new(0.9, 0.7, 0.3))
-		K:block("Head", "Mouth", CFrame.new(0, 1.48, -1.0), Vector3.new(0.5, 0.36, 0.2))
-		H.curve(K, "Head", { "BeakLight", "Beak", "Beak" }, { Vector3.new(0, 1.8, -1.0), Vector3.new(0, 1.74, -1.28), Vector3.new(0, 1.5, -1.4), Vector3.new(0, 1.26, -1.3) }, 0.36, 0.08, 0.1)
-		H.curve(K, "Jaw", { "BeakLight", "Beak" }, { Vector3.new(0, 1.28, -1.0), Vector3.new(0, 1.22, -1.18), Vector3.new(0, 1.34, -1.28) }, 0.28, 0.07, 0.1)
+		-- the hooked beak underneath the dome, between the front tentacles (upper in the head, lower on the jaw)
+		K:block("Head", "Mouth", CFrame.new(0, 1.56, -0.74), Vector3.new(0.5, 0.34, 0.24))
+		H.curve(K, "Head", { "BeakLight", "Beak", "Beak" }, { Vector3.new(0, 1.84, -0.8), Vector3.new(0, 1.76, -1.06), Vector3.new(0, 1.52, -1.16), Vector3.new(0, 1.3, -1.06) }, 0.36, 0.08, 0.1)
+		H.curve(K, "Jaw", { "BeakLight", "Beak" }, { Vector3.new(0, 1.3, -0.76), Vector3.new(0, 1.24, -0.94), Vector3.new(0, 1.36, -1.04) }, 0.28, 0.07, 0.1)
 	end,
 }
