@@ -4,10 +4,12 @@ local H = GK.H
 
 -- Cosmic Rift guardian: the Void Colossus, a titan knuckle-walking out of the rift. Its body is deep violet obsidian
 -- plates split by black-lipped cracks blazing with magenta void light. In its chest a black hole: a black sphere ringed
--- by a thick, blazing magenta accretion disk. Chunks of rock orbit it on two tilted paths, some glowing inside, crystal
--- shards erupt from its back and fists. Its head is a horned skull of pale bone: a heavy jutting brow over deep sockets
--- with burning magenta eyes, bony cheeks, slit nostrils, a fanged jaw glowing with void light, two great crystal horns
--- curving up and forward and a crystal crest. (The ape body plan builds a gorilla face; it is cleared and replaced.)
+-- by a thick, slightly tilted accretion disk that runs smoothly from white-hot at its inner edge to deep magenta at its
+-- rim. Chunks of rock orbit it on two tilted paths, some glowing inside, crystal shards erupt from its back and fists.
+-- Its head is a horned skull of pale bone: a heavy jutting brow over deep black sockets rimmed with bone, a small
+-- burning magenta eye far inside each, bony cheeks, slit nostrils, a fanged jaw glowing with void light, two great
+-- crystal horns curving up and forward and a crystal crest. (The ape body plan builds a gorilla face; it is cleared and
+-- replaced.)
 local HEAD = H.APE_HEAD
 local HS = 1.2
 local HINGE = Vector3.new(0, -0.24, -0.24)
@@ -36,8 +38,13 @@ return {
 		SeamLip = { "08060C", Material = "Slate" },
 		Star = { "FFF4FF", Neon = true },
 		Hole = "020104",
-		Disc = { "FF3ACC", Neon = true },
-		DiscHot = { "FFB8F2", Neon = true },
+		-- the accretion disk, white-hot inside to deep magenta at the rim
+		Disc1 = { "FFF0FC", Neon = true },
+		Disc2 = { "FFC6F2", Neon = true },
+		Disc3 = { "FF92E6", Neon = true },
+		Disc4 = { "FF5AD6", Neon = true },
+		Disc5 = { "B8189E", Neon = true },
+		Disc6 = "8A1A7C",
 		Rock = { "5A5078", Material = "Basalt" },
 		RockDark = { "3A3254", Material = "Basalt" },
 		Crystal = "B8A4FF",
@@ -82,19 +89,24 @@ return {
 
 		-- the black hole in its chest: a black sphere ringed by a thick, tilted, blazing accretion disk
 		local chestN = Vector3.new(0, -0.3, -1).Unit
-		local c = Vector3.new(0, 2.28, -1.46)
+		local c = Vector3.new(0, 2.14, -1.46)
 		K:block("Body", "Skin", CFrame.lookAt(c - chestN * 0.18, c - chestN), Vector3.new(1.5, 1.3, 0.3))
 		for i, ang in { { 0, 0, 0 }, { 45, 0, 0 }, { 0, 45, 0 }, { 0, 0, 45 }, { 35, 35, 0 } } do
 			K:block("Body", "Hole", CFrame.new(c + chestN * 0.12) * CFrame.Angles(rad(ang[1]), rad(ang[2]), rad(ang[3])), Vector3.new(0.6, 0.6, 0.6))
 		end
-		local D = CFrame.fromMatrix(c + chestN * 0.12, Vector3.xAxis, chestN) * CFrame.Angles(rad(22), 0, rad(-14))
-		local N = 20
-		for k = 0, N - 1 do
-			local a0, a1 = k / N * math.pi * 2, (k + 1) / N * math.pi * 2
-			for band, o in { { 0.54, 0.18, "DiscHot" }, { 0.72, 0.2, "Disc" }, { 0.88, 0.12, "Disc" } } do
-				local p0 = D * Vector3.new(math.cos(a0) * o[1], 0, math.sin(a0) * o[1])
-				local p1 = D * Vector3.new(math.cos(a1) * o[1], 0, math.sin(a1) * o[1])
-				K:block("Body", (band == 3 and k % 3 == 0) and "Star" or o[3], CFrame.lookAt((p0 + p1) / 2, p1, D.UpVector), Vector3.new(o[2], 0.1, (p1 - p0).Magnitude + 0.05))
+		-- six narrow concentric bands, each one colour, stepping from white-hot inside to deep magenta at the rim; each
+		-- band's segments are offset half a step from the last so no seams line up
+		local D = CFrame.fromMatrix(c + chestN * 0.12, Vector3.xAxis, chestN) * CFrame.Angles(rad(30), 0, rad(-12))
+		local N = 30
+		local R0, R1, BANDS = 0.46, 0.96, 6
+		for b = 1, BANDS do
+			local r = R0 + (b - 0.5) * (R1 - R0) / BANDS
+			local w = (R1 - R0) / BANDS + 0.012
+			for k = 0, N - 1 do
+				local a0, a1 = (k + b * 0.5) / N * math.pi * 2, (k + 1 + b * 0.5) / N * math.pi * 2
+				local p0 = D * Vector3.new(math.cos(a0) * r, 0, math.sin(a0) * r)
+				local p1 = D * Vector3.new(math.cos(a1) * r, 0, math.sin(a1) * r)
+				K:block("Body", "Disc" .. b, CFrame.lookAt((p0 + p1) / 2, p1, D.UpVector), Vector3.new(w, 0.1 - b * 0.006, (p1 - p0).Magnitude + 0.03))
 			end
 		end
 
@@ -147,14 +159,18 @@ return {
 			K:block("Head", "Bone", hcf(0, 0.22, -0.28), Vector3.new(0.86, 0.66, 0.74))
 			K:block("Head", "Bone", hcf(0, 0.24, -0.26, 0, 0, 45), Vector3.new(0.64, 0.64, 0.7))
 			K:block("Head", "BoneShade", hcf(0, 0.56, -0.2, -12, 0, 0), Vector3.new(0.5, 0.12, 0.6))
-			-- the heavy jutting brow ridge, sharp at the outer corners
-			K:block("Head", "BoneShade", hcf(0, 0.44, -0.68, -12, 0, 0), Vector3.new(0.96, 0.18, 0.26))
+			-- the heavy jutting brow ridge, sharp at the outer corners, overhanging the sockets
+			K:block("Head", "BoneShade", hcf(0, 0.45, -0.72, -12, 0, 0), Vector3.new(0.96, 0.18, 0.3))
+			-- the bony bridge between the sockets
+			K:block("Head", "Bone", hcf(0, 0.28, -0.78, -8, 0, 0), Vector3.new(0.12, 0.26, 0.2))
 			for _, x in { 1, -1 } do
-				K:block("Head", "Bone", hcf(0.28 * x, 0.46, -0.66, -10, -16 * x, 22 * x), Vector3.new(0.42, 0.18, 0.34))
+				K:block("Head", "Bone", hcf(0.28 * x, 0.47, -0.7, -10, -16 * x, 22 * x), Vector3.new(0.42, 0.18, 0.36))
 				K:spike("Head", "BoneShade", hp(0.5 * x, 0.46, -0.6), hv(x, 0.3, 0.2), hv(0, 0, 1), 0.22, 0.12)
-				-- deep sockets with burning eyes
-				K:block("Head", "Socket", hcf(0.22 * x, 0.25, -0.72, 0, -12 * x, 0), Vector3.new(0.32, 0.22, 0.1))
-				K:block("Head", "Eye", hcf(0.22 * x, 0.25, -0.78, 0, -12 * x, 12 * x), Vector3.new(0.26, 0.13, 0.05), "Eye")
+				-- deep black sockets set back inside a rim of bone, a small burning eye far inside each
+				K:block("Head", "Socket", hcf(0.22 * x, 0.27, -0.7, 0, -12 * x, 0), Vector3.new(0.3, 0.25, 0.18))
+				K:block("Head", "Bone", hcf(0.24 * x, 0.12, -0.8, -6, -12 * x, 0), Vector3.new(0.34, 0.08, 0.16))
+				K:block("Head", "BoneShade", hcf(0.41 * x, 0.28, -0.74, 0, -24 * x, 0), Vector3.new(0.08, 0.3, 0.2))
+				K:block("Head", "Eye", hcf(0.22 * x, 0.25, -0.795, 0, -12 * x, 10 * x), Vector3.new(0.1, 0.06, 0.03), "Eye")
 				-- bony cheekbones
 				K:block("Head", "Bone", hcf(0.38 * x, 0.06, -0.52, 0, -20 * x, -8 * x), Vector3.new(0.18, 0.24, 0.5))
 				-- great crystal horns curving up and forward
@@ -165,7 +181,8 @@ return {
 			K:block("Head", "Bone", hcf(0, 0.04, -0.86, -6, 0, 0), Vector3.new(0.56, 0.34, 0.4))
 			K:block("Head", "BoneShade", hcf(0, 0.22, -0.9, -14, 0, 0), Vector3.new(0.2, 0.08, 0.36))
 			for _, x in { 1, -1 } do
-				K:block("Head", "Socket", hcf(0.07 * x, 0.14, -1.07, -10, 0, 0), Vector3.new(0.04, 0.07, 0.04))
+				-- the nasal hollow: two dark slits leaning together into a peak, as on a skull
+				K:block("Head", "Socket", hcf(0.035 * x, 0.12, -1.065, -10, 0, 24 * x), Vector3.new(0.03, 0.12, 0.03))
 				H.fang(K, "Head", "Tooth", hp(0.2 * x, -0.12, -0.98), hv(0, -1, -0.1), 0.3, 0.08)
 			end
 			H.teeth(K, "Head", "Tooth", hp(-0.14, -0.12, -1.04), hp(0.14, -0.12, -1.04), 4, hv(0, -1, 0), hv(0, 0, 1), 0.12, 0.05)
