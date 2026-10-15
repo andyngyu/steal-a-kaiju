@@ -39,6 +39,13 @@ IconConfig.Kaiju = {
 	Krakling = "rbxassetid://135214021314241",
 	Megajaw = "rbxassetid://96805971919315",
 	Tidewyrm = "rbxassetid://81650973350437",
+	-- Storm Spires (2026-10-15)
+	Sparkit = "rbxassetid://86165599996139",
+	Voltbeak = "rbxassetid://102119022884902",
+	Thunderram = "rbxassetid://124262867726623",
+	Stormgriff = "rbxassetid://93653647840317",
+	Voltkirin = "rbxassetid://71478183104873",
+	RaijinWyrm = "rbxassetid://115343724671150",
 	Prismling = "rbxassetid://107278256092402",
 }
 
