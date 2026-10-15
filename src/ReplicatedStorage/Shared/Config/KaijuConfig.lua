@@ -80,6 +80,14 @@ local species: { [string]: Kaiju } = {
 	Megajaw = k("Megajaw", "Legendary", "SunkenAbyss", "Quadruped", 8100, 180, "5A6C78", "E6ECE6"),
 	Tidewyrm = k("Tidewyrm", "Mythic", "SunkenAbyss", "Serpent", 19800, 300, "1E8088", "E8506E"),
 
+	-- Storm Spires (income x3 Sunken Abyss's per rarity)
+	Sparkit = k("Sparkit", "Common", "StormSpires", "Quadruped", 675, 20, "3E4048", "F0B448"),
+	Voltbeak = k("Voltbeak", "Uncommon", "StormSpires", "Lizard", 1485, 40, "3E4A60", "FFC93A"),
+	Thunderram = k("Thunderram", "Rare", "StormSpires", "Quadruped", 3780, 75, "3A3E46", "C27A3A"),
+	Stormgriff = k("Stormgriff", "Epic", "StormSpires", "Quadruped", 9450, 120, "5A6070", "C08A4A"),
+	Voltkirin = k("Voltkirin", "Legendary", "StormSpires", "Quadruped", 24300, 180, "3A3C44", "E0B040"),
+	RaijinWyrm = k("Raijin Wyrm", "Mythic", "StormSpires", "Serpent", 59400, 300, "5A606C", "D8A830"),
+
 	-- Secret (placeholder species so Secret eggs have something to hatch into)
 	Prismling = k("Prismling", "Secret", "Any", "Lizard", 5000, 600, "FFFFFF", "FF4DFF"),
 }
