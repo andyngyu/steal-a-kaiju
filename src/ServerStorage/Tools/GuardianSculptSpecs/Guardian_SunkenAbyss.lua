@@ -18,12 +18,12 @@ return {
 	RootSize = { 8.8, 7.0, 11.0 },
 	HipHeight = 1.86,
 	Palette = {
-		Hide = { "1E4A5C", Material = "Slate" },
-		HideDark = { "10283A", Material = "Slate" },
-		HideLight = { "4E8492", Material = "Slate" },
-		Back = { "0A1828", Material = "Slate" },
-		Belly = "D2D8C8",
-		Belly2 = "B8C2B2",
+		Hide = { "15293A", Material = "Slate" },
+		HideDark = { "0A1622", Material = "Slate" },
+		HideLight = { "34566A", Material = "Slate" },
+		Back = { "050A12", Material = "Slate" },
+		Belly = "7A909A",
+		Belly2 = "627882",
 		Barnacle = { "CFC8B2", Material = "Slate" },
 		BarnacleDark = { "8C846E", Material = "Slate" },
 		BarnacleMouth = "141A1E",
@@ -36,7 +36,9 @@ return {
 		Chain = { "6A3E26", Material = "CorrodedMetal" },
 		Anchor = { "4A3A30", Material = "CorrodedMetal" },
 		LureStalk = { "23506A", Material = "Slate" },
-		Lure = { "3FE0FF", Neon = true },
+		Lure = { "7FF4FF", Neon = true },
+		LureCore = { "E8FFFF", Neon = true },
+		LureHalo = { "3FE0FF", Neon = true, Transparency = 0.55 },
 		Glow = { "1AA6D8", Neon = true },
 		SeamLip = { "08141C", Material = "Slate" },
 		Tooth = "EEF0E6",
@@ -267,34 +269,50 @@ return {
 				H.fang(K, "Head", "Tooth", hp((0.62 - k * 0.04) * x, -0.16, z), hv(0.15 * x, -1, -0.1), 0.26 + k * 0.05, 0.07)
 			end
 		end
-		H.teeth(K, "Head", "Tooth", hp(-0.44, -0.16, -1.32), hp(0.44, -0.16, -1.32), 5, hv(0, -1, -0.15), hv(0, 0, 1), 0.3, 0.07)
-		-- the lure: a stalk arching up from the brow and out over the face, a glowing bulb in a cage of fin rays
-		local stalk = { hp(0, 0.74, -0.4), hp(0, 1.4, -0.9), hp(0, 1.4, -1.7), hp(0, 0.86, -2.2), hp(0, 0.5, -2.24) }
-		H.curve(K, "Head", { "LureStalk", "LureStalk", "LureStalk", "Fin" }, stalk, 0.14, 0.07, 0.16)
-		local bulb = hp(0, 0.3, -2.24)
-		K:block("Head", "Lure", CFrame.new(bulb) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.3, 0.3, 0.3))
-		for k = 0, 3 do
-			local a = k / 4 * math.pi * 2
-			local d = (hv(math.cos(a), 0, math.sin(a)) + Vector3.new(0, -0.5, 0)).Unit
-			K:chain("Head", { "Membrane", "Spine" }, bulb + Vector3.new(0, 0.18, 0), d, Vector3.yAxis, { n = 2, len = 0.34, w0 = 0.05, w1 = 0.035, bend = 0 })
+		-- needle teeth across the front of the upper jaw, raking down and out at different angles
+		for k = -3, 3 do
+			local d = hv(k * 0.12 + K:rand(-0.15, 0.15), -1, -0.25 + K:rand(-0.2, 0.2))
+			H.fang(K, "Head", "Tooth", hp(k * 0.15, -0.16, -1.32), d, 0.34 + (k % 2) * 0.14, 0.065)
 		end
-		-- the huge underbite jaw, jutting past the upper jaw, fangs pointing up and out
-		local JAW = HEAD * CFrame.new(HINGE) * CFrame.Angles(rad(-24), 0, 0)
-		local function jcf(px, py, pz)
-			return JAW * CFrame.new(px, py, pz)
+		-- the lure: a long stalk arching up from the brow and down in front of the face, a big glowing bulb in a halo,
+		-- caged by fin rays: the brightest thing on the model
+		local stalk = { hp(0, 0.74, -0.4), hp(0, 1.8, -1.0), hp(0, 1.96, -2.2), hp(0, 1.3, -3.1), hp(0, 0.66, -3.3) }
+		H.curve(K, "Head", { "LureStalk", "LureStalk", "LureStalk", "Fin" }, stalk, 0.16, 0.08, 0.16)
+		local bulb = hp(0, 0.3, -3.3)
+		K:block("Head", "LureHalo", CFrame.new(bulb) * CFrame.Angles(rad(35), rad(45), rad(20)), Vector3.new(0.72, 0.72, 0.72))
+		K:block("Head", "Lure", CFrame.new(bulb) * CFrame.Angles(rad(45), rad(45), 0), Vector3.new(0.42, 0.42, 0.42))
+		K:block("Head", "Lure", CFrame.new(bulb), Vector3.new(0.44, 0.44, 0.44))
+		K:block("Head", "LureCore", CFrame.new(bulb), Vector3.new(0.24, 0.24, 0.24))
+		for k = 0, 5 do
+			local a = k / 6 * math.pi * 2
+			local d = (hv(math.cos(a), 0, math.sin(a)) + Vector3.new(0, -0.6, 0)).Unit
+			K:chain("Head", { "Membrane", "Spine" }, bulb + Vector3.new(0, 0.28, 0), d, Vector3.yAxis, { n = 2, len = 0.42, w0 = 0.05, w1 = 0.035, bend = 0 })
 		end
-		K:block("Jaw", "Hide", jcf(0, -0.2, -0.86), Vector3.new(1.7, 0.44, 1.7))
-		K:block("Jaw", "Belly", jcf(0, -0.43, -0.82), Vector3.new(1.5, 0.06, 1.5))
-		K:block("Jaw", "Gum", jcf(0, 0.03, -0.9), Vector3.new(1.5, 0.05, 1.5))
-		K:block("Jaw", "Mouth", jcf(0, 0.05, -0.8), Vector3.new(1.2, 0.05, 1.2))
-		local up = JAW:VectorToWorldSpace(Vector3.yAxis)
+		-- the massive underbite: a huge lower jaw jutting well past the head, wider than the skull, its lip curling up in
+		-- front of the upper jaw, crowded with long needle teeth pointing every way
+		local JAW = HEAD * CFrame.new(HINGE) * CFrame.Angles(rad(-12), 0, 0)
+		local function jcf(px, py, pz, ax)
+			return JAW * CFrame.new(px, py, pz) * CFrame.Angles(rad(ax or 0), 0, 0)
+		end
+		K:block("Jaw", "Hide", jcf(0, -0.26, -1.1), Vector3.new(2.1, 0.56, 2.2))
+		K:block("Jaw", "HideDark", jcf(0, -0.3, -1.1, 0), Vector3.new(1.8, 0.6, 2.3))
+		K:block("Jaw", "Hide", jcf(0, 0.0, -2.28, -28), Vector3.new(2.0, 0.6, 0.5))
+		K:block("Jaw", "Belly", jcf(0, -0.56, -1.08), Vector3.new(1.8, 0.06, 2.0))
+		K:block("Jaw", "Gum", jcf(0, 0.03, -1.16), Vector3.new(1.86, 0.05, 2.0))
+		K:block("Jaw", "Mouth", jcf(0, 0.05, -1.0), Vector3.new(1.4, 0.05, 1.5))
+		K:block("Jaw", "Glow", jcf(0, 0.06, -0.4), Vector3.new(0.4, 0.05, 0.3))
 		for _, x in { 1, -1 } do
-			for k, z in { -0.4, -0.7, -1.0, -1.3, -1.56 } do
-				local out = JAW:VectorToWorldSpace(Vector3.new(0.25 * x, 1, -0.15)).Unit
-				H.fang(K, "Jaw", "Tooth", JAW * Vector3.new((0.76 - k * 0.04) * x, 0.02, z), out, 0.3 + (k % 2) * 0.14, 0.08)
+			-- down the sides: long needles splaying up and out
+			for k, z in { -0.5, -0.82, -1.14, -1.46, -1.78 } do
+				local out = JAW:VectorToWorldSpace(Vector3.new((0.25 + K:rand(0, 0.35)) * x, 1, K:rand(-0.35, 0.15))).Unit
+				H.fang(K, "Jaw", "Tooth", JAW * Vector3.new(0.92 * x, 0.04, z), out, 0.44 + (k % 2) * 0.22, 0.075)
 			end
 		end
-		H.teeth(K, "Jaw", "Tooth", JAW * Vector3.new(-0.56, 0.02, -1.66), JAW * Vector3.new(0.56, 0.02, -1.66), 6, JAW:VectorToWorldSpace(Vector3.new(0, 1, -0.3)).Unit, JAW:VectorToWorldSpace(Vector3.zAxis), 0.34, 0.08)
+		-- across the jutting front lip: the longest needles, raking up and forward at different angles
+		for k = -4, 4 do
+			local d = JAW:VectorToWorldSpace(Vector3.new(k * 0.08 + K:rand(-0.2, 0.2), 1, -0.35 + K:rand(-0.3, 0.2))).Unit
+			H.fang(K, "Jaw", "Tooth", JAW * Vector3.new(k * 0.2, 0.22, -2.36), d, 0.6 + (k % 2 == 0 and 0.25 or 0), 0.08)
+		end
 		GK.lids(K, Color3.fromHex("0A1828"))
 	end,
 }
