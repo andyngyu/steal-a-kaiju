@@ -4,11 +4,11 @@ local H = GK.H
 
 -- Storm Spires guardian: Stormbringer, a storm titan. A towering charcoal tyrant, near-black down the back and slate
 -- underneath, split by glowing yellow-white lightning seams that fork down its flanks, neck and tail. A row of iron
--- lightning rods stands up its spine, wound with copper coils and tipped with sparks, electric blue arcing from rod to
--- rod. A churning thundercloud mantle heaps over its shoulders with bolts dropping out of it; iron armour on the
+-- lightning rods stands up its spine, wound with copper coils and tipped with sparks, thick yellow-white bolts jumping
+-- from rod to rod. A churning thundercloud mantle heaps over its shoulders with bolts dropping out of it; iron armour on the
 -- shoulders and thighs; broken shackles on its wrists trailing lengths of chain; a lightning-rod spike on the tail.
 -- Head: a massive horned bull-dragon skull under an iron brow, small yellow eyes, sparks crackling at the nostrils,
--- two great bone horns sweeping out and forward to glowing tips with lightning arcing between them, a smaller pair
+-- two great bone horns sweeping out and forward to glowing tips with a thick bolt between them, a smaller pair
 -- swept back, and a jaw full of fangs around a throat glowing with lightning.
 local HEAD = H.REX_HEAD
 local HS = 1.14
@@ -46,6 +46,8 @@ return {
 		CloudLight = "7A8292",
 		Spark = { "FFE680", Neon = true },
 		Arc = { "4AC8FF", Neon = true },
+		Bolt = { "FFC93A", Neon = true },
+		BoltHot = { "FFEFA8", Neon = true },
 		Horn = "D8D0BC",
 		HornDark = "8A8270",
 		Tooth = "EEEADC",
@@ -88,7 +90,7 @@ return {
 						H.cracks(K, g, "Crack", samples, { rad(100) * x }, 0.2, samples.total - to - 0.1, 0.3, 0.09, 0.14)
 					end
 				end
-				-- the lightning rods up the spine, electric blue arcing from tip to tip
+				-- the lightning rods up the spine, thick yellow-white bolts jumping from tip to tip
 				local tips = {}
 				for _, seg in { { "Head", neck, 0.3, 0.7, 0.62 }, { "Body", torso, 0.42, 1.25, 0.86 }, { "Tail", tail, 0.46, 0.8, 0.55 } } do
 					local g, samples, every, len, to = seg[1], seg[2], seg[3], seg[4], seg[5]
@@ -102,7 +104,7 @@ return {
 				end
 				for i = 1, #tips - 1 do
 					if tips[i].g == tips[i + 1].g then
-						H.bolt(K, tips[i].g, "Arc", tips[i].p, tips[i + 1].p, Vector3.xAxis, 4, 0.07, 0.12)
+						H.zap(K, tips[i].g, i % 2 == 0 and { "BoltHot", "Bolt" } or { "Bolt", "BoltHot" }, tips[i].p, tips[i + 1].p, Vector3.xAxis, 3, 0.13, 0.12)
 					end
 				end
 			end,
@@ -161,7 +163,7 @@ return {
 					H.fang(K, "Head", "Tooth", hp(0.3 * x, -0.16, -1.5), hv(0.05 * x, -1, -0.1), 0.34, 0.09)
 				end
 				H.teeth(K, "Head", "Tooth", hp(-0.18, -0.15, -1.8), hp(0.18, -0.15, -1.8), 3, hv(0, -1, 0.1), hv(0, 0, 1), 0.12, 0.07)
-				H.bolt(K, "Head", "Arc", tips[1], tips[-1], hv(0, 1, 0), 7, 0.06, 0.16)
+				H.zap(K, "Head", { "BoltHot", "Bolt" }, tips[1], tips[-1], hv(0, 1, 0), 5, 0.18, 0.18)
 				-- the lower jaw, half open on a throat glowing with lightning
 				local JAW = HEAD * CFrame.new(H.REX_HINGE) * CFrame.Angles(rad(-18), 0, 0)
 				local function jcf(px, py, pz)
