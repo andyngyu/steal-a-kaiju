@@ -471,6 +471,8 @@ function KaijuSculpt.Build(name)
 	local spec = specs[name]
 	assert(spec, "no sculpt spec for " .. name)
 	local model = KaijuSculpt.BuildModel(name, spec)
+	-- finer body groups for the animation engine (Tools.KaijuRegroup: reparenting only, no brick moves)
+	fresh(ServerStorage.Tools.KaijuRegroup).Apply(model)
 	local folder = ServerStorage.Assets.Kaiju
 	local old = folder:FindFirstChild(name)
 	if old then
