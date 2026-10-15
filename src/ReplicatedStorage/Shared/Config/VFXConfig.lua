@@ -61,6 +61,7 @@ VFXConfig.Guardian = {
 		VenomJungle = { Ring = hex("C8FF8A"), Dust = hex("7A8A56"), Rock = hex("4A5A32") },
 		SunkenAbyss = { Ring = hex("7FF4FF"), Dust = hex("8FB0B4"), Rock = hex("2A4A5A") },
 		StormSpires = { Ring = hex("FFE680"), Dust = hex("8A909C"), Rock = hex("3A3F4A") },
+		CosmicRift = { Ring = hex("FF6AE8"), Dust = hex("8A7AB0"), Rock = hex("3A3254"), Sparks = hex("E040FF") },
 	},
 }
 
@@ -100,7 +101,6 @@ VFXConfig.Weather = {
 		-- overcast and darker: a grey hazed sky, greyed light, but clear air so the spires still read
 		Lighting = { Tint = hex("E6E8EC"), Saturation = -0.2, Brightness = -0.04, Haze = -0.02, AtmoColor = hex("8C9098"), AtmoDecay = hex("4E525A"), AtmoHaze = 2.8, AtmoGlare = 0 },
 	},
-	-- the locked biome (ready for when it opens)
 	CosmicRift = {
 		Stardust = { Rate = 40, Color = hex("E8D8FF") },
 		-- a deep violet sky (stars and planets show against it), the ground still clearly lit, clear air
