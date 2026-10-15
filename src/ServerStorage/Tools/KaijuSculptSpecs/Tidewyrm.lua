@@ -169,19 +169,29 @@ return {
 		move("Neck", CFrame.new(pw) * CFrame.Angles(LIFT, 0, 0) * CFrame.new(-pw), true)
 		local hw = HEAD_J * SCALE
 		move("Head", CFrame.new(hw) * CFrame.Angles(-LIFT * 0.8, 0, 0) * CFrame.new(-hw), true)
-		-- the manta wings: spread wide and flat from the raised shoulders, teal on top with a cyan glowing leading
-		-- edge, pale underneath, a row of glowing spots
+		-- the manta wings: spread wide from the raised shoulders and angled up 25 degrees so they show from the side,
+		-- teal on top with a cyan glowing leading edge, pale underneath, four raised ribs fanning across each wing with a
+		-- cyan glow line running along every rib
 		local sh = K.tidewyrmShoulder
+		local SPAN, CHORD, DIHEDRAL = 3.1, 2.4, rad(25)
 		for _, x in { 1, -1 } do
 			local base = TILT * (sh.p + Vector3.new(0.7 * x, 0.1, 0))
-			local out = Vector3.new(x, 0.1, 0).Unit
+			local out = Vector3.new(x * math.cos(DIHEDRAL), math.sin(DIHEDRAL), 0)
 			local back = Vector3.zAxis
-			fin("Seg1", { "Wing", "Glow" }, base, out, back, 3.1, 2.4, 0.12, 11)
-			fin("Seg1", { "WingUnder", "WingUnder" }, base - Vector3.new(0, 0.09, 0), out, back, 3.0, 2.3, 0.06, 11)
-			for k = 1, 5 do
-				local p = base + out * 3.1 * (k / 6) + back * (0.15 + k * 0.12) + Vector3.new(0, 0.08, 0)
-				K:block("Seg1", "WingDark", CFrame.new(p), Vector3.new(0.18, 0.04, 0.18))
-				K:block("Seg1", "Glow", CFrame.new(p + Vector3.new(0, 0.01, 0)), Vector3.new(0.09, 0.04, 0.09))
+			local n = back:Cross(out).Unit * x -- the wing's upper side
+			fin("Seg1", { "Wing", "Glow" }, base, out, back, SPAN, CHORD, 0.12, 11)
+			fin("Seg1", { "WingUnder", "WingUnder" }, base - n * 0.09, out, back, SPAN * 0.97, CHORD * 0.96, 0.06, 11)
+			for i = 0, 3 do
+				-- each rib runs from the wing root out toward the trailing edge, arched a little off the surface
+				local fe = 0.98 - i * 0.17
+				local zf = -CHORD * 0.5 + fe * CHORD * 0.9
+				local zb = CHORD * 0.5 + fe * CHORD * 0.25
+				local ze = zf + (zb - zf) * (0.2 + i * 0.2)
+				local S = base + back * (-0.75 + i * 0.42) + n * 0.07
+				local E = base + out * SPAN * fe + back * ze + n * 0.07
+				local M = S:Lerp(E, 0.5) + n * 0.12
+				H.curve(K, "Seg1", { "WingDark", "WingDark", "Wing" }, { S, M, E }, 0.14, 0.06, 0.34)
+				H.curve(K, "Seg1", { "Glow" }, { S + n * 0.07, M + n * 0.07, E + n * 0.06 }, 0.05, 0.03, 0.34)
 			end
 		end
 	end,
