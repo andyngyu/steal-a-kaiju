@@ -60,6 +60,7 @@ VFXConfig.Guardian = {
 		FrostfangPeaks = { Ring = hex("BFEFFF"), Dust = hex("FFFFFF"), Rock = hex("9CB8D6") },
 		VenomJungle = { Ring = hex("C8FF8A"), Dust = hex("7A8A56"), Rock = hex("4A5A32") },
 		SunkenAbyss = { Ring = hex("7FF4FF"), Dust = hex("8FB0B4"), Rock = hex("2A4A5A") },
+		StormSpires = { Ring = hex("FFE680"), Dust = hex("8A909C"), Rock = hex("3A3F4A") },
 	},
 }
 
@@ -94,12 +95,12 @@ VFXConfig.Weather = {
 		-- bright teal water light, the sky an aqua haze as if seen from under the sea
 		Lighting = { Tint = hex("D6F6F0"), Saturation = 0.14, Brightness = 0.02, Haze = 0.06, AtmoColor = hex("8EE0DA"), AtmoDecay = hex("2F8F98"), AtmoHaze = 2.0, AtmoGlare = 0 },
 	},
-	-- the locked biomes (ready for when they open)
 	StormSpires = {
 		Rain = { Rate = 150, Color = hex("C8D2E6") },
 		-- overcast and darker: a grey hazed sky, greyed light, but clear air so the spires still read
 		Lighting = { Tint = hex("E6E8EC"), Saturation = -0.2, Brightness = -0.04, Haze = -0.02, AtmoColor = hex("8C9098"), AtmoDecay = hex("4E525A"), AtmoHaze = 2.8, AtmoGlare = 0 },
 	},
+	-- the locked biome (ready for when it opens)
 	CosmicRift = {
 		Stardust = { Rate = 40, Color = hex("E8D8FF") },
 		-- a deep violet sky (stars and planets show against it), the ground still clearly lit, clear air
