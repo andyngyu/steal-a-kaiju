@@ -16,9 +16,9 @@ return {
 	Gait = "Crawl",
 	Emotes = { "Look", "Chomp" },
 	Palette = {
-		Hide = { "3E5E70", Material = "Slate" },
-		HideDark = { "243C4C", Material = "Slate" },
-		HideLight = { "7A98A6", Material = "Slate" },
+		Hide = { "5A6C78", Material = "Slate" },
+		HideDark = { "38464F", Material = "Slate" },
+		HideLight = { "95A6AE", Material = "Slate" },
 		Back = { "132536", Material = "Slate" },
 		Belly = "E6ECE6",
 		Belly2 = "CED8D2",
@@ -42,10 +42,10 @@ return {
 	Joints = {
 		Head = { 0, 1.9, -1.4 },
 		Jaw = HEAD * HINGE,
-		LegFL = { 0.9, 1.5, -0.8 },
-		LegFR = { -0.9, 1.5, -0.8 },
-		LegBL = { 0.84, 1.46, 1.0 },
-		LegBR = { -0.84, 1.46, 1.0 },
+		LegFL = { 0.92, 1.56, -0.8 },
+		LegFR = { -0.92, 1.56, -0.8 },
+		LegBL = { 0.92, 1.56, 1.0 },
+		LegBR = { -0.92, 1.56, 1.0 },
 		Tail = { 0, 1.64, 1.7 },
 	},
 	Parents = { Jaw = "Head" },
@@ -66,7 +66,7 @@ return {
 		end
 		local skin = H.skin({ stripe = 34, band = 70, flank = 106, every = 3, upper = "HideDark" })
 		local smooth = { w = 0.64, t = 0.11, lift = 2, jitter = 0.6, sink = 0.55, overlap = 1.06 }
-		local belly = { key = "Belly", key2 = "Belly2", arc = 62, t = 0.11, wide = 1.12 }
+		local belly = { key = "Belly", key2 = "Belly2", arc = 82, t = 0.11, wide = 1.12 }
 		local body = K:tube("Body", {
 			{ 0, 1.86, -1.3, rx = 0.98, ru = 0.88, rd = 0.92 },
 			{ 0, 1.98, -0.3, rx = 1.26, ru = 1.14, rd = 1.1 },
@@ -118,28 +118,39 @@ return {
 			local rope = { pos + d * o[3] * 0.8, pos + d * o[3] * 0.9 + smp.T * 0.4 + Vector3.new(0, -0.2, 0), pos + d * o[3] * 0.6 + smp.T * 0.9 + Vector3.new(0, -0.6, 0) }
 			H.curve(K, "Body", { "Rope" }, rope, 0.05, 0.04, 0.12)
 		end
-		-- four stocky fin-legs on broad flat flipper feet, pectoral fins flaring off the front pair
+		-- four massive fin-legs: thick limbs planted wide, a broad fin flange down the back of each, flat flipper feet
 		for _, x in { 1, -1 } do
-			for _, L in { { "LegF", -0.8, 0.46, 0.38 }, { "LegB", 1.0, 0.5, 0.4 } } do
+			for _, L in { { "LegF", -0.8, 0.7, 0.58 }, { "LegB", 1.0, 0.74, 0.6 } } do
 				local g = L[1] .. (x == 1 and "L" or "R")
+				local hip = Vector3.new(0.92 * x, 1.56, L[2])
+				local knee = Vector3.new(1.56 * x, 1.0, L[2] - 0.08)
+				local ankle = Vector3.new(1.66 * x, 0.34, L[2] - 0.2)
 				H.quadLeg(K, g, {
-					{ 0.9 * x, 1.5, L[2], L[3] },
-					{ 1.42 * x, 1.0, L[2] - 0.1, L[4] },
-					{ 1.5 * x, 0.3, L[2] - 0.24, L[4] * 0.8 },
-				}, { step = 0.34, cores = { "Hide", "HideDark" }, tiles = { smooth, nil }, color = skin, foot = { size = Vector3.new(0.86, 0.2, 1.0), key = "HideDark" }, yaw = 18, toes = 3, claw = { len = 0.22, w = 0.08, curl = 20 } })
+					{ hip.X, hip.Y, hip.Z, L[3] },
+					{ knee.X, knee.Y, knee.Z, L[4] },
+					{ ankle.X, ankle.Y, ankle.Z, L[4] * 0.82 },
+				}, { step = 0.34, cores = { "Hide", "HideDark" }, tiles = { smooth, smooth }, color = skin, foot = { size = Vector3.new(1.16, 0.24, 1.36), key = "HideDark" }, yaw = 18, toes = 4, claw = { len = 0.26, w = 0.1, curl = 20 } })
+				-- the fin flange: a broad fin running down the back of the leg from hip to ankle
+				local back = Vector3.new(0.25 * x, 0, 1).Unit
+				for i, f in { 0.15, 0.45, 0.75 } do
+					local p = i < 3 and hip:Lerp(knee, f * 1.4) or knee:Lerp(ankle, (f - 0.6) * 2)
+					K:chain(g, { "Fin", "FinDark" }, p, (back + Vector3.new(0, -0.35, 0)).Unit, Vector3.yAxis, { n = 2, len = 0.95 - i * 0.18, w0 = 0.5, w1 = 0.12, bend = 0, depth = 0.16 })
+				end
+				-- a thick muscle mass where the leg meets the body
+				K:block(g, "Hide", CFrame.lookAt(hip:Lerp(knee, 0.25), knee) * CFrame.Angles(0, 0, rad(45)), Vector3.new(L[3] * 1.7, L[3] * 1.7, 0.9))
 				if L[1] == "LegF" then
-					K:chain(g, { "FinDark", "Fin", "FinDark" }, Vector3.new(1.3 * x, 1.2, -0.7), Vector3.new(0.6 * x, -0.3, 1).Unit, Vector3.yAxis, { n = 3, len = 1.3, w0 = 0.7, w1 = 0.14, bend = -10 * x, depth = 0.14 })
+					K:chain(g, { "FinDark", "Fin", "FinDark" }, Vector3.new(1.4 * x, 1.24, -0.7), Vector3.new(0.6 * x, -0.3, 1).Unit, Vector3.yAxis, { n = 3, len = 1.4, w0 = 0.8, w1 = 0.14, bend = -10 * x, depth = 0.14 })
 				end
 			end
 		end
 		-- a rusted anchor chain wrapped round the front left leg, the end dragging
 		for k = 0, 7 do
 			local a = k / 8 * math.pi * 2
-			local c = Vector3.new(1.38 + math.cos(a) * 0.42, 0.9 + k * 0.04, -0.9 + math.sin(a) * 0.42)
+			local c = Vector3.new(1.58 + math.cos(a) * 0.56, 0.86 + k * 0.04, -0.88 + math.sin(a) * 0.56)
 			K:block("LegFL", "Chain", CFrame.new(c) * CFrame.Angles(0, -a, k % 2 == 0 and 0 or rad(90)), Vector3.new(0.1, 0.22, 0.32))
 		end
 		for k = 0, 3 do
-			K:block("LegFL", "Chain", CFrame.new(1.8 + k * 0.06, 0.7 - k * 0.18, -0.6 + k * 0.2) * CFrame.Angles(rad(30), 0, k % 2 == 0 and 0 or rad(90)), Vector3.new(0.1, 0.22, 0.32))
+			K:block("LegFL", "Chain", CFrame.new(2.12 + k * 0.06, 0.7 - k * 0.18, -0.6 + k * 0.2) * CFrame.Angles(rad(30), 0, k % 2 == 0 and 0 or rad(90)), Vector3.new(0.1, 0.22, 0.32))
 		end
 
 		-- the head (origin at the back of the skull, facing -Z): a great conical snout
