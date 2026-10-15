@@ -131,6 +131,17 @@ SoundConfig.Ambience = {
 			{ Id = { 9125337823, 9120311866 }, Volume = 0.12, Pitch = 1.25, Vary = 0.12, Every = { 5, 11 } }, -- toxic pools plopping
 		},
 	},
+	-- stand-in deep-sea bed built from the library sounds above (swap for real underwater ambience when it's picked)
+	SunkenAbyss = {
+		Beds = {
+			{ Id = 9125410075, Volume = 0.2, Pitch = 0.55 }, -- slow deep bubbling
+			{ Id = 136454830957820, Volume = 0.14, Pitch = 0.5 }, -- a low current moaning past
+		},
+		Gusts = {
+			{ Id = { 9125337823, 9120311866 }, Volume = 0.16, Pitch = 0.6, Vary = 0.12, Every = { 4, 9 } }, -- bubbles rising
+			{ Id = 9113200364, Volume = 0.18, Pitch = 0.45, Every = { 16, 28 } }, -- something huge moving far below
+		},
+	},
 }
 
 -- Guardian voice pitch per biome (bigger guardians sound deeper).
@@ -139,6 +150,7 @@ SoundConfig.GuardianPitch = {
 	LavaLagoon = 0.86,
 	FrostfangPeaks = 0.74,
 	VenomJungle = 0.66,
+	SunkenAbyss = 0.58,
 }
 
 -- Hatch reveal celebration: which layers play, by the lowest rarity that gets them (EggConfig rarity Order:
