@@ -925,7 +925,7 @@ end
 --            GameAudio stomp on them
 --   carrying an egg home (attribute CarryingEgg; GuardianService welds the egg in): rexes hold it in their jaws (jaw
 --            held a little open, head up), Frostfang (HoldStyle "Arms") cradles it with both arms held forward
-local GUARDIAN_GAIT = { FrostfangPeaks = "ape" } -- everyone else runs like a rex
+local GUARDIAN_GAIT = { FrostfangPeaks = "ape", CosmicRift = "ape" } -- everyone else runs like a rex
 local RISE_SECONDS, SINK_SECONDS = 1.1, 1.2 -- GuardianService's copy rise / sink times
 local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38 -- arms forward / inward while carrying an egg (GuardianService matches)
 

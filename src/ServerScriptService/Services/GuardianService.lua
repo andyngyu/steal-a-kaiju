@@ -408,9 +408,9 @@ local function catch(g, player, hrp)
 	g.pauseUntil = os.clock() + POST_CATCH_PAUSE
 end
 
--- How a guardian carries an egg home: Pebble Plains / Lava Lagoon in their jaws, Frostfang in its arms. The arm pose
+-- How a guardian carries an egg home: most in their jaws, the two apes (Frostfang, Cosmic Rift) in their arms. The arm pose
 -- (radians: forward, inward) is the one Gameplay.KaijuFX holds the arms in.
-local HOLD_STYLE = { FrostfangPeaks = "Arms" } -- everyone else: "Mouth"
+local HOLD_STYLE = { FrostfangPeaks = "Arms", CosmicRift = "Arms" } -- everyone else: "Mouth"
 local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38
 
 -- Root-space box of the bricks welded to a rig joint part.
