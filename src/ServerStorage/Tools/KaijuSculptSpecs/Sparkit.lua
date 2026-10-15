@@ -2,11 +2,11 @@ local rad = math.rad
 local H = require(script.Parent.Helpers)
 
 -- Storm Spires / Common / storm: the sparkit, a static-charged weasel-lizard. A long, low, quick body on four short
--- legs, bristling with amber fur that stands on end down the back and neck, yellow-white sparks crackling between the
--- tufts. Charcoal stripe down the spine, slate scales on the legs, belly and face. The tail is a lightning bolt:
--- kinked charcoal segments edged in yellow-white, ending in a glowing bolt blade. Face: a narrow scaly snout, swept-back
--- bristling ears, a heavy brow over yellow eyes, needle teeth and two long fangs sparking at the tips, an arc of
--- electric blue between them, and static whiskers crackling off the muzzle.
+-- legs, bristling with amber fur that stands on end down the back and neck, yellow sparks crackling between the
+-- tufts. A charcoal stripe down the spine, charcoal scales on the legs, belly and face. The tail is a lightning bolt:
+-- thick kinked segments glowing yellow and white-hot. Face: a narrow scaly snout, swept-back bristling ears, a heavy
+-- brow over yellow eyes, needle teeth and two long fangs sparking at the tips with a spark jumping between them, and
+-- static whiskers crackling off the muzzle.
 local HEAD = CFrame.new(0, 1.44, -1.36) * CFrame.Angles(rad(-8), 0, 0)
 local SKULL = { 0.58, 0.4, 0.5 }
 local TAIL = {
@@ -25,19 +25,20 @@ return {
 	Gait = "Trot",
 	Emotes = { "Look", "PlayBow", "Paw" },
 	Palette = {
-		Hide = { "4A5262", Material = "Slate" },
-		HideDark = { "2C323E", Material = "Slate" },
-		HideLight = { "7A8496", Material = "Slate" },
-		Back = { "1C2028", Material = "Slate" },
-		Belly = "C8CCD4",
-		Belly2 = "B0B6C0",
+		Hide = { "3E4048", Material = "Slate" },
+		HideDark = { "26282E", Material = "Slate" },
+		HideLight = { "5C5F68", Material = "Slate" },
+		Back = { "17181C", Material = "Slate" },
+		Belly = "B4B0A6",
+		Belly2 = "9E9A90",
 		Fur = "D88A24",
 		FurDark = "9A5A16",
 		FurLight = "F0B448",
 		FurTip = "FFE2A0",
 		Spark = { "FFE680", Neon = true },
 		Arc = { "4AC8FF", Neon = true },
-		Bolt = { "2A2E38", Material = "Slate" },
+		Bolt = { "FFC93A", Neon = true },
+		BoltHot = { "FFEFA8", Neon = true },
 		Tooth = "EDE8DA",
 		Mouth = "3A1A2A",
 		Eye = { "FFD84A", Neon = true },
@@ -103,15 +104,11 @@ return {
 		for i = 1, #tips - 1, 2 do
 			local a, b = tips[i], tips[i + 1]
 			if a.g == b.g then
-				H.bolt(K, a.g, "Spark", a.p, b.p, a.R, 3, 0.035, 0.06)
+				H.zap(K, a.g, { "Bolt", "BoltHot" }, a.p, b.p, a.R, 3, 0.08, 0.07)
 			end
 		end
-		-- static streaks of electric blue down the lower flanks
-		for _, x in { 1, -1 } do
-			H.cracks(K, "Body", "Arc", body, { rad(98) * x }, 0.2, body.total - 0.2, 0.22, 0.04, 0.06)
-		end
 
-		-- the lightning-bolt tail: kinked charcoal boards edged in yellow-white, a glowing blade at the end
+		-- the lightning-bolt tail: thick kinked segments glowing yellow and white-hot, a block at every kink
 		K:tube("Tail", {
 			{ 0, 1.16, 0.84, rx = 0.24, ru = 0.24, rd = 0.22 },
 			{ 0, 1.3, 1.08, rx = 0.17, ru = 0.17, rd = 0.16 },
@@ -122,14 +119,15 @@ return {
 			local perp = along:Cross(Vector3.xAxis).Unit
 			local f = (i - 1) / (#TAIL - 2)
 			local h = 0.32 - f * 0.12
-			local len = (b - a).Magnitude + h * 0.5
+			local len = (b - a).Magnitude + h * 0.3
 			local mid = (a + b) / 2
-			K:block("Tail", "Bolt", CFrame.fromMatrix(mid, Vector3.xAxis, perp), Vector3.new(0.16, h, len))
-			K:block("Tail", "Spark", CFrame.fromMatrix(mid + perp * (h / 2 - 0.02), Vector3.xAxis, perp), Vector3.new(0.18, 0.06, len))
-			K:block("Tail", "Arc", CFrame.fromMatrix(mid - perp * (h / 2 - 0.02), Vector3.xAxis, perp), Vector3.new(0.17, 0.04, len * 0.8))
+			K:block("Tail", i % 2 == 1 and "Bolt" or "BoltHot", CFrame.fromMatrix(mid, Vector3.xAxis, perp), Vector3.new(0.24, h, len))
+			if i > 1 then
+				K:block("Tail", "Bolt", CFrame.fromMatrix(a, Vector3.xAxis, perp) * CFrame.Angles(rad(45), 0, 0), Vector3.new(0.26, h * 0.95, h * 0.95))
+			end
 		end
 		local last = (TAIL[#TAIL] - TAIL[#TAIL - 1]).Unit
-		K:chain("Tail", { "Spark", "Spark" }, TAIL[#TAIL] - last * 0.1, last, Vector3.xAxis, { n = 2, len = 0.5, w0 = 0.2, w1 = 0.12, bend = 0, depth = 0.8 })
+		H.point(K, "Tail", "BoltHot", TAIL[#TAIL] + last * 0.12, last, 0.18)
 
 		-- four short quick legs, slate below the fur
 		local function legFur(th, ring)
@@ -170,7 +168,7 @@ return {
 			-- static whiskers crackling off the muzzle
 			for k = 0, 1 do
 				local p0 = R.p(0.15 * x, 0.06 - k * 0.07, R.zEnd + 0.3)
-				H.bolt(K, "Head", k == 0 and "Spark" or "Arc", p0, p0 + R.v(0.9 * x, 0.15 - k * 0.3, 0.45) * 0.5, R.v(0, 1, 0), 3, 0.03, 0.05)
+				H.zap(K, "Head", { k == 0 and "BoltHot" or "Bolt" }, p0, p0 + R.v(0.9 * x, 0.15 - k * 0.3, 0.45) * 0.5, R.v(0, 1, 0), 3, 0.06, 0.05)
 			end
 			-- a fur ruff swept back off the cheeks, a bristling crest over the skull
 			for k = 0, 2 do
@@ -180,9 +178,9 @@ return {
 			K:chain(g, { "HideDark", "FurDark", "FurTip" }, R.p(0.2 * x, R.top - 0.04, -0.14), R.v(0.55 * x, 0.6, 0.9), R.v(0, 0, 1), { n = 3, len = 0.42, w0 = 0.18, w1 = 0.08, bend = 0, depth = 0.45 })
 			K:chain(g, { "Fur", "FurTip" }, R.p(0.24 * x, R.top - 0.08, -0.04), R.v(0.8 * x, 0.35, 0.9), R.v(0, 0, 1), { n = 2, len = 0.26, w0 = 0.12, w1 = 0.06, bend = 0, depth = 0.5 })
 			-- a glowing static gland under each eye
-			K:block("Head", "Arc", R.cf(0.25 * x, R.eyeY - 0.13, -0.3, 0, -24 * x, 0), Vector3.new(0.05, 0.08, 0.16))
+			K:block("Head", "Bolt", R.cf(0.25 * x, R.eyeY - 0.13, -0.3, 0, -24 * x, 0), Vector3.new(0.05, 0.08, 0.16))
 		end
-		H.bolt(K, "Head", "Arc", fangTips[1], fangTips[-1], R.v(0, 0, 1), 3, 0.03, 0.04)
+		H.zap(K, "Head", { "BoltHot", "Bolt" }, fangTips[1], fangTips[-1], R.v(0, 0, 1), 3, 0.06, 0.04)
 		for k = -1, 1 do
 			K:chain("Head", { "FurDark", "FurTip" }, R.p(k * 0.1, R.top - 0.02, -0.2), R.v(k * 0.25, 0.7, 1), R.v(1, 0, 0), { n = 2, len = 0.3, w0 = 0.1, w1 = 0.06, bend = 0, depth = 0.6 })
 		end
