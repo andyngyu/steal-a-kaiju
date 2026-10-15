@@ -88,6 +88,14 @@ local species: { [string]: Kaiju } = {
 	Voltkirin = k("Voltkirin", "Legendary", "StormSpires", "Quadruped", 24300, 180, "3A3C44", "E0B040"),
 	RaijinWyrm = k("Raijin Wyrm", "Mythic", "StormSpires", "Serpent", 59400, 300, "5A606C", "D8A830"),
 
+	-- Cosmic Rift (income x3 Storm Spires's per rarity)
+	Starmite = k("Starmite", "Common", "CosmicRift", "Quadruped", 2025, 20, "4E3A82", "B8A4FF"),
+	Nebulynx = k("Nebulynx", "Uncommon", "CosmicRift", "Quadruped", 4455, 40, "3E3476", "2EB4B0"),
+	Cometshell = k("Cometshell", "Rare", "CosmicRift", "Quadruped", 11340, 75, "5A5084", "6CCBFF"),
+	Quasarab = k("Quasarab", "Epic", "CosmicRift", "CrabBug", 28350, 120, "263C96", "C8D4FF"),
+	Astrodon = k("Astrodon", "Legendary", "CosmicRift", "Quadruped", 72900, 180, "4E3A86", "D8AC4C"),
+	AstralWyrm = k("Astral Wyrm", "Mythic", "CosmicRift", "Quadruped", 178200, 300, "241C3A", "E050C8"),
+
 	-- Secret (placeholder species so Secret eggs have something to hatch into)
 	Prismling = k("Prismling", "Secret", "Any", "Lizard", 5000, 600, "FFFFFF", "FF4DFF"),
 }
