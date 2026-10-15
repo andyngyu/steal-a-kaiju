@@ -15,9 +15,9 @@ return {
 	Gait = "Knuckle",
 	Emotes = { "Look", "ChestBeat" },
 	Palette = {
-		Hide = { "4E6E80", Material = "Slate" },
-		HideDark = { "2E4A5C", Material = "Slate" },
-		HideLight = { "8AA6B4", Material = "Slate" },
+		Hide = { "5C7E88", Material = "Slate" },
+		HideDark = { "34505C", Material = "Slate" },
+		HideLight = { "A8BEC2", Material = "Slate" },
 		Back = { "18293A", Material = "Slate" },
 		Belly = "E4EAE4",
 		Belly2 = "CCD4CE",
@@ -141,23 +141,28 @@ return {
 		end
 		K:block("Head", "Hide", hcf(0, 0.08, -0.3), Vector3.new(0.96, 0.72, 0.8))
 		-- the hammer: a wide flat blade swept slightly back at the ends
-		K:block("Head", "Hide", hcf(0, 0.28, -0.84), Vector3.new(1.6, 0.32, 0.7))
-		K:block("Head", "HideDark", hcf(0, 0.46, -0.82), Vector3.new(0.5, 0.06, 0.6))
-		K:block("Head", "HideLight", hcf(0, 0.11, -0.84), Vector3.new(1.5, 0.04, 0.6))
+		-- the hammer: a wide flat T reaching well past the shoulders, the wings swept slightly back, navy on top,
+		-- steel underneath, a glowing eye in a socket at each tip
+		K:block("Head", "Hide", hcf(0, 0.28, -0.84), Vector3.new(2.2, 0.36, 0.76))
+		K:block("Head", "Back", hcf(0, 0.47, -0.84), Vector3.new(2.0, 0.05, 0.66))
+		K:block("Head", "HideLight", hcf(0, 0.09, -0.84), Vector3.new(2.1, 0.04, 0.66))
 		for _, x in { 1, -1 } do
-			K:block("Head", "Hide", hcf(1.12 * x, 0.28, -0.72, 0, -14 * x, 0), Vector3.new(0.86, 0.3, 0.6))
-			K:block("Head", "HideLight", hcf(0.62 * x, 0.45, -0.8, 0, -6 * x, 0), Vector3.new(0.5, 0.05, 0.5))
-			K:block("Head", "HideLight", hcf(1.1 * x, 0.12, -0.72, 0, -14 * x, 0), Vector3.new(0.78, 0.04, 0.5))
-			K:block("Head", "HideDark", hcf(1.56 * x, 0.28, -0.6, 0, -14 * x, 0), Vector3.new(0.18, 0.36, 0.58))
-			-- the eye at the end of the hammer, looking out and forward, under a heavy brow
-			H.eye(K, "Head", hcf(1.66 * x, 0.3, -0.66, 0, -70 * x, 0), 0.15, 0.055)
-			K:block("Head", "Back", hcf(1.56 * x, 0.47, -0.66, 0, -14 * x, 16 * x), Vector3.new(0.34, 0.11, 0.54))
+			K:block("Head", "Hide", hcf(1.62 * x, 0.28, -0.7, 0, -14 * x, 0), Vector3.new(1.3, 0.34, 0.64))
+			K:block("Head", "Back", hcf(1.6 * x, 0.46, -0.7, 0, -14 * x, 0), Vector3.new(1.2, 0.05, 0.54))
+			K:block("Head", "HideLight", hcf(1.6 * x, 0.1, -0.7, 0, -14 * x, 0), Vector3.new(1.2, 0.04, 0.54))
+			-- the rounded tip, a heavy brow, the eye looking out and forward
+			K:block("Head", "HideDark", hcf(2.26 * x, 0.28, -0.52, 0, -14 * x, 0), Vector3.new(0.34, 0.44, 0.66))
+			K:block("Head", "HideDark", hcf(2.26 * x, 0.28, -0.52, 0, -14 * x, 45), Vector3.new(0.34, 0.34, 0.6))
+			K:block("Head", "Back", hcf(2.24 * x, 0.52, -0.56, 0, -14 * x, 14 * x), Vector3.new(0.42, 0.12, 0.62))
+			K:block("Head", "Socket", hcf(2.3 * x, 0.3, -0.86, 0, -30 * x, 0), Vector3.new(0.36, 0.22, 0.12))
+			H.eye(K, "Head", hcf(2.3 * x, 0.3, -0.93, 0, -30 * x, 0), 0.26, 0.1)
 		end
 		-- glowing sensory pores along the front edge of the hammer, each in a dark pit
-		for k = -7, 7 do
-			local x = k * 0.2
-			local z = -1.2 + math.abs(x) * 0.24
-			local F = hcf(x, 0.26, z, 0, -14 * (x > 0 and 1 or x < 0 and -1 or 0), 0)
+		for k = -10, 10 do
+			local x = k * 0.21
+			local ax = math.abs(x)
+			local z = ax < 0.95 and -1.23 or (-1.04 + (ax - 1.55) * 0.25)
+			local F = hcf(x, 0.26, z, 0, ax < 0.95 and 0 or -14 * (x > 0 and 1 or -1), 0)
 			K:block("Head", "SeamLip", F, Vector3.new(0.09, 0.09, 0.06))
 			K:block("Head", "Glow", F * CFrame.new(0, 0, -0.01), Vector3.new(0.045, 0.045, 0.06))
 		end
