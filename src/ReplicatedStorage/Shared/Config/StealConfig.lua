@@ -19,9 +19,13 @@ return table.freeze({
 	end,
 	HoldGraceSeconds = 0.35, -- network slack when the server checks a finished hold
 	HoldSpeedMultiplier = 0.35, -- a thief can barely move while holding a steal
-	HoldReachSlack = 3, -- extra studs allowed while holding (a thief may shuffle a little)
+	HoldReachSlack = 4, -- extra studs allowed while holding (a thief may shuffle a little)
 	CooldownSeconds = 5, -- between two steals by the same thief
-	Reach = 10, -- studs from the thief to the item (egg: its surface; kaiju: where it stands), checked by the server
+	Reach = 11.5, -- studs from the thief to the item's edge (egg: its surface; kaiju: its footprint), checked by the server
+	-- The client shows the steal prompt this many studs short of Reach (lag between where you are and where the
+	-- server thinks you are), so a prompt you can see is one the server accepts. Gameplay.StealFX keeps the prompt on
+	-- the item's edge nearest you at your height, so big kaiju are as easy to grab as small ones.
+	ClientReachMargin = 1.5,
 	CarrySpeedMultiplier = 0.7, -- a thief runs slower while carrying stolen goods
 	CarriedKaijuHeight = 3.4, -- a stolen kaiju shrinks to about this tall over the thief's head
 	-- A carrier can't cover more ground than their (server-side) WalkSpeed allows: path length so far must stay under
@@ -32,11 +36,19 @@ return table.freeze({
 	ProtectAfterTheftSeconds = 60, -- after a theft the victim's base can't be stolen from for this long
 	IntruderAlertSeconds = 20, -- gap between "someone is in your base" alerts for the same intruder
 
-	Tackle = table.freeze({
-		Reach = 10, -- studs between the tackler and the thief
-		CooldownSeconds = 1.5,
-		StunSeconds = 2.5, -- the thief is ragdolled and can't grab anything for this long
-		Knockback = 48,
+	-- The bat (Services.BatService; Steal a Brainrot style, replaced the old Tackle prompt on 16 Oct 2026). Every player
+	-- carries one. A swing hits the closest player in front of you: they're knocked back, ragdolled and stunned, drop a
+	-- carried nest egg on the spot, and stolen goods they carry (or a steal they're holding) go back home.
+	Bat = table.freeze({
+		CooldownSeconds = 0.9, -- between two swings
+		WindUpSeconds = 0.17, -- the hit lands this long after the swing starts (the strike in Gameplay.BatFX's swing)
+		Reach = 8.5, -- studs from the swinger to the target (flat distance between root parts)
+		ConeDegrees = 110, -- how wide in front of the swinger a hit counts (anyone closer than CloseReach always counts)
+		CloseReach = 3.5,
+		StunSeconds = 2, -- ragdolled and can't grab, steal or swing for this long
+		ImmuneSeconds = 0.75, -- after getting up, a short window where you can't be hit again
+		Knockback = 60, -- studs/s away from the swinger
+		Lift = 0.5, -- share of the knockback sent upwards
 	}),
 
 	Lock = table.freeze({

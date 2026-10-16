@@ -187,6 +187,7 @@ local function updateHeld(player, data)
 					FoodService:Select(player, "")
 				end
 			end)
+			hum:UnequipTools() -- one thing in hand: the bat (BatService) goes back in the backpack
 			tool.Parent = char
 		end
 	end

@@ -65,6 +65,10 @@ SoundConfig.Sounds = {
 	Knockback = { Id = 9114373678, Volume = 0.5, Pitch = 0.85, Group = "SFX" },
 	Escaped = { Id = 15675043410, Volume = 0.45, Pitch = 1.15, Group = "UI" },
 
+	---------------------------------------------------------------- the bat (3D; Gameplay.BatFX plays these)
+	BatSwing = { Id = { 9120972321, 9120972444, 9120972323 }, Volume = 0.55, Vary = 0.08, Group = "SFX", MinDist = 8, MaxDist = 70 },
+	BatHit = { Id = { 9125380872, 9125380595, 9125380867 }, Volume = 0.8, Vary = 0.06, Group = "SFX", MinDist = 12, MaxDist = 120, MaxSeconds = 0.9 },
+
 	---------------------------------------------------------------- kaiju emotes (3D, from the kaiju; pitch drops for bigger kaiju)
 	Roar = { Id = { 9113972711, 9113973009, 9125467833 }, Volume = 0.6, Pitch = 1.25, Vary = 0.06, Group = "Kaiju", MinDist = 8, MaxDist = 90 },
 	ChestBeat = { Id = { 9113789512, 9113789511 }, Volume = 0.55, Vary = 0.05, Group = "Kaiju", MinDist = 8, MaxDist = 80 },

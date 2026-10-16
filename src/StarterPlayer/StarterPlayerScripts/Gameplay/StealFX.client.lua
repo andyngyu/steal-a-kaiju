@@ -3,12 +3,17 @@
 --                  base isn't locked or protected, the item isn't hatching, freshly hatched or being stolen by someone
 --                  else, and you aren't carrying anything. Holding it sends Remotes.Steal (ownerUserId, itemId,
 --                  "Begin"), letting go early sends (.., "Cancel"), finishing sends (ownerUserId, itemId); the hold
---                  time grows with the item's rarity, size and level (StealConfig.HoldTime, set on the prompt)
+--                  time grows with the item's rarity, size and level (StealConfig.HoldTime, set on the prompt).
+--                  Each prompt sits on the edge of its item nearest you, at your height (attributes StealRadius /
+--                  StealBottom / StealHeight from StealService), so a big kaiju is as easy to reach as an egg.
+--                  While you hold one: every other prompt is switched off (nothing walking past can take the
+--                  focus), the kaiju stops walking at once (locally, until the server's Pause lands), and the
+--                  prompt's range grows by HoldReachSlack. A refused or stopped steal ends the hold at once
 --   steal bars:    an item someone is holding a steal on (attributes StealBy / StealStart / StealSeconds) shows a red
 --                  "STEALING!" bar filling up over it, for everyone
 --   thieves:       anyone holding a steal (attribute Stealing) or carrying stolen goods (CarryingStolen) gets a red
---                  "STEALING!" / "THIEF!" tag and, for everyone else, a Tackle prompt (E / ButtonX) that sends
---                  Remotes.Tackle (userId). Carried things are held up by Gameplay.CarryPose
+--                  "STEALING!" / "THIEF!" tag (stop them with the bat: Services.BatService / Gameplay.BatFX; the old
+--                  Tackle prompt is gone). Carried things are held up by Gameplay.CarryPose
 --   base lock:     a locked pen is wrapped in a red force field; each pen's LockButton shows LOCK READY / LOCKED 0:42 /
 --                  LOCK IN 1:05 / PROTECTED 0:30 to its owner (others only see LOCKED / PROTECTED), and its prompt is
 --                  the owner's only
@@ -21,7 +26,7 @@ local StealConfig = require(Config:WaitForChild("StealConfig"))
 local PenGeometry = require(ReplicatedStorage.Shared:WaitForChild("Util"):WaitForChild("PenGeometry"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local stealRemote = remotes:WaitForChild("Steal")
-local tackleRemote = remotes:WaitForChild("Tackle")
+local gameEvent = remotes:WaitForChild("GameEvent")
 
 local player = Players.LocalPlayer
 local runtime = workspace:WaitForChild("Runtime")
@@ -79,6 +84,141 @@ end
 -- ---------- steal prompts ----------
 
 local stealPrompts = {} -- [prompt] = { ownerId, model }
+local allPrompts = {} -- [prompt] = true: every ProximityPrompt in the workspace, so a held steal can quiet the rest
+local hold = nil -- the steal being held: { prompt, quiet = { [prompt] = true }, freeze }
+local cooldownUntil = 0 -- os.clock(): the server refuses another steal this soon (StealConfig.CooldownSeconds)
+
+local PROMPT_RANGE = StealConfig.Reach - StealConfig.ClientReachMargin
+local HOLD_RANGE = PROMPT_RANGE + StealConfig.HoldReachSlack
+
+local function trackPrompt(d)
+	if d:IsA("ProximityPrompt") and not allPrompts[d] then
+		allPrompts[d] = true
+		d.AncestryChanged:Connect(function()
+			if not d:IsDescendantOf(workspace) then
+				allPrompts[d] = nil
+			end
+		end)
+	end
+end
+workspace.DescendantAdded:Connect(trackPrompt)
+for _, d in workspace:GetDescendants() do
+	trackPrompt(d)
+end
+
+-- A kaiju stops walking the moment you start holding. Done locally so there's no wait for the server; its Pause lands
+-- a moment later with the same spot and replaces this. Returns what to undo if the server never takes the steal.
+local function freezeKaiju(model)
+	if not model:GetAttribute("KaijuId") then
+		return nil
+	end
+	local from, to = model:GetAttribute("WanderFrom"), model:GetAttribute("WanderTo")
+	local s, e = model:GetAttribute("MoveStart"), model:GetAttribute("MoveEnd")
+	if not (from and to and s and e) then
+		return nil
+	end
+	local now = serverNow()
+	local here = e > s and from:Lerp(to, math.clamp((now - s) / (e - s), 0, 1)) or to
+	local f = {
+		model = model,
+		saved = { WanderFrom = from, WanderTo = to, MoveStart = s, MoveEnd = e },
+		set = { WanderFrom = here, WanderTo = here, MoveStart = now, MoveEnd = now },
+	}
+	for k, v in f.set do
+		model:SetAttribute(k, v)
+	end
+	return f
+end
+
+local function unfreezeKaiju(f)
+	if not (f and f.model.Parent) then
+		return
+	end
+	for k, v in f.set do
+		if f.model:GetAttribute(k) ~= v then
+			return -- the server has spoken since (Pause or a new route): its values stand
+		end
+	end
+	for k, v in f.saved do
+		f.model:SetAttribute(k, v) -- the server never took the steal: back on its real route
+	end
+end
+
+-- Every other prompt off while a steal is held, so a kaiju or player wandering closer can't steal the focus
+-- (Roblox shows only the nearest prompt per key and drops a hold when focus moves).
+local function quietOthers()
+	for p in allPrompts do
+		if p ~= hold.prompt and p.Enabled then
+			hold.quiet[p] = true
+			p.Enabled = false
+		end
+	end
+end
+
+-- endIt: also stop the hold on screen (the server refused or stopped it).
+local function releaseHold(endIt)
+	local h = hold
+	if not h then
+		return
+	end
+	hold = nil
+	for p in h.quiet do
+		if p.Parent then
+			p.Enabled = true -- steal prompts are re-checked by the 0.2 s pass below
+		end
+	end
+	unfreezeKaiju(h.freeze)
+	if endIt and h.prompt.Parent then
+		h.prompt.Enabled = false -- the 0.2 s pass turns it back on when it can be used
+	end
+end
+
+gameEvent.OnClientEvent:Connect(function(name)
+	if name == "StealStarted" then
+		cooldownUntil = os.clock() + StealConfig.CooldownSeconds
+	elseif (name == "StealDenied" or name == "StealCancelled") and hold then
+		releaseHold(true)
+	end
+end)
+
+-- Keeps each nearby steal prompt on its item's edge nearest you (the same footprint the server measures reach from),
+-- at your own height within the item's height: big kaiju no longer put it far overhead, out of range or off screen.
+local function placePrompts()
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		return
+	end
+	local me = hrp.Position
+	for prompt, info in stealPrompts do
+		local att = prompt.Parent
+		local radius = prompt:GetAttribute("StealRadius")
+		if not (radius and att and att:IsA("Attachment")) then
+			continue
+		end
+		local centre
+		if prompt:GetAttribute("StealKaiju") then
+			centre = info.model:GetPivot().Position
+		else
+			local pp = info.model.PrimaryPart
+			if not pp then
+				continue
+			end
+			centre = pp.Position
+		end
+		local flat = Vector3.new(me.X - centre.X, 0, me.Z - centre.Z)
+		local d = flat.Magnitude
+		if d > radius + HOLD_RANGE + 20 then
+			continue
+		end
+		local edge = d > 0.01 and flat * (math.min(d, radius) / d) or Vector3.zero -- standing under it: right where you are
+		local bottom = centre.Y + (prompt:GetAttribute("StealBottom") or 0)
+		local height = prompt:GetAttribute("StealHeight") or 0
+		local y = math.clamp(me.Y, bottom + 0.5, bottom + math.max(height - 0.5, 0.5))
+		att.WorldPosition = Vector3.new(centre.X + edge.X, y, centre.Z + edge.Z)
+		prompt.MaxActivationDistance = (hold and hold.prompt == prompt) and HOLD_RANGE or PROMPT_RANGE
+	end
+end
 
 -- The pen item (a direct child of Runtime.Kaiju / Runtime.Eggs) a prompt belongs to.
 local function ownerAndId(prompt)
@@ -108,10 +248,17 @@ local function addStealPrompt(prompt)
 	local done = false
 	prompt.PromptButtonHoldBegan:Connect(function()
 		done = false
+		releaseHold(false)
+		hold = { prompt = prompt, quiet = {}, freeze = freezeKaiju(model) }
+		quietOthers()
+		prompt.MaxActivationDistance = HOLD_RANGE
 		stealRemote:FireServer(ownerId, id, "Begin")
 	end)
 	prompt.Triggered:Connect(function()
 		done = true
+		if hold and hold.prompt == prompt then
+			releaseHold(false)
+		end
 		stealRemote:FireServer(ownerId, id)
 	end)
 	prompt.PromptButtonHoldEnded:Connect(function()
@@ -119,10 +266,16 @@ local function addStealPrompt(prompt)
 			if not done then
 				stealRemote:FireServer(ownerId, id, "Cancel")
 			end
+			if hold and hold.prompt == prompt then
+				releaseHold(false)
+			end
 		end)
 	end)
 	prompt.Destroying:Connect(function()
 		stealPrompts[prompt] = nil
+		if hold and hold.prompt == prompt then
+			releaseHold(false)
+		end
 	end)
 end
 
@@ -211,7 +364,7 @@ end
 
 -- ---------- thieves ----------
 
-local thieves = {} -- [player] = { tag, prompt }
+local thieves = {} -- [player] = { tag }
 
 local function untrack(other)
 	local t = thieves[other]
@@ -248,22 +401,6 @@ local function track(other)
 	outlinedLabel(tag, item, Color3.new(1, 1, 1), Enum.Font.FredokaOne, 0.4, 2)
 	tag.Parent = head
 	table.insert(t, tag)
-	if other ~= player then
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "TacklePrompt"
-		prompt.ActionText = "Tackle"
-		prompt.ObjectText = "Thief: " .. other.DisplayName
-		prompt.HoldDuration = 0
-		prompt.KeyboardKeyCode = Enum.KeyCode.E
-		prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
-		prompt.MaxActivationDistance = StealConfig.Tackle.Reach
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = hrp
-		prompt.Triggered:Connect(function()
-			tackleRemote:FireServer(other.UserId)
-		end)
-		table.insert(t, prompt)
-	end
 	thieves[other] = t
 end
 
@@ -414,6 +551,10 @@ end
 local acc = 0
 RunService.RenderStepped:Connect(function(dt)
 	local now = serverNow()
+	placePrompts()
+	if hold then
+		quietOthers() -- anything that switched itself on since
+	end
 	for model, b in bars do
 		local start, seconds = model:GetAttribute("StealStart"), model:GetAttribute("StealSeconds")
 		if start and seconds then
@@ -430,8 +571,10 @@ RunService.RenderStepped:Connect(function(dt)
 			updatePlot(plot, now)
 		end
 	end
-	-- no steal prompts on locked or protected bases, on hatching, fresh or contested items, or while carrying
+	-- no steal prompts on locked or protected bases, on hatching, fresh or contested items, while carrying, during the
+	-- server's cooldown after a steal, or (other than the one held) while holding one
 	local handsFull = player:GetAttribute("CarryingStolen") ~= nil or player:GetAttribute("CarryingEgg") ~= nil
+		or os.clock() < cooldownUntil
 	local freshAfter = now - StealConfig.NewHatchProtectionSeconds
 	local closedCache = {}
 	for prompt, info in stealPrompts do
@@ -443,6 +586,6 @@ RunService.RenderStepped:Connect(function(dt)
 		local busy = model:GetAttribute("HatchStartedAt") ~= nil
 			or (model:GetAttribute("SpawnedAt") or -math.huge) > freshAfter
 			or (by ~= nil and by ~= player.UserId)
-		prompt.Enabled = not (handsFull or busy or closedCache[ownerId])
+		prompt.Enabled = not (handsFull or busy or closedCache[ownerId]) and (hold == nil or hold.prompt == prompt)
 	end
 end)
