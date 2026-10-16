@@ -14,6 +14,7 @@ Config.Rollout = {
 	"Pebblesaur", "Chompling", "Bonkey", "Tuskit", "Rumblerex", "Thunderback", -- Pebble Plains
 	"Magmite", "CinderToad", "Scorchback", "BlazeBonkey", "MoltenRex", "InfernoSerpent", -- Lava Lagoon
 	"Snowpup", "GlacierCrab", "Frostrhino", "Brrrilla", "IcebreakerRex", "AuroraSerpent", -- Frostfang Peaks
+	"Vinewhip", "Shroomhog", "Mantisaur", "Sabrejag", "Toxitops", "Hydravine", -- Venom Jungle
 }
 
 -- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
@@ -94,6 +95,7 @@ Config.Springs = {
 	Claw = { Hz = 3, Damping = 0.6, Inertia = 0.5 },
 	Tongue = { Hz = 6, Damping = 0.6, Inertia = 0.3 },
 	Cloud = { Hz = 1.1, Damping = 0.6, Inertia = 0.6 },
+	Frill = { Hz = 2.2, Damping = 0.5, Inertia = 0.8 },
 }
 
 -- Head life, shared fields: Yaw / Pitch / Tilt: noise look-around range. Hz: look-around speed. Base: resting pitch.
@@ -291,6 +293,16 @@ Config.Creatures = {
 	BlazeBonkey = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	MoltenRex = { Profile = "Rex" },
 	Snowpup = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Howl" } },
+	Shroomhog = { Profile = "HeavyQuad", Actions = { "Paw", "SporePuff", "Wiggle" } },
+	Mantisaur = { -- reared up on four legs, scythes held ready, a twitchy mantis head
+		Profile = "Arthropod", Gait = "Crawl", Planted = { "LegFL", "LegFR", "LegBL", "LegBR" }, LegTap = false,
+		Shift = { Roll = 1.5, Slide = 0.02, Hz = 0.12, Yaw = 5 },
+		Head = { Yaw = 26, Pitch = 8, Tilt = 14, Hz = 0.1, Mode = "Snap", Hold = { 0.6, 2 }, SnapHz = 5, SnapDamping = 0.6, Stabilize = 0.8 },
+		Claws = { ClickEvery = { 3, 6 }, Click = 6, Hold = 8 },
+		Tail = { Sway = 5, Hz = 0.15, Lift = 1 },
+		Actions = { "ClawSnap", "Roar", "ScytheSharpen" },
+	},
+	Toxitops = { Profile = "HeavyQuad", Actions = { "FrillFlare", "Paw", "Wiggle" }, Frill = { Breath = 3 } },
 	Frostrhino = { Profile = "HeavyQuad", Actions = { "Paw", "HornToss", "Snort" }, Tail = { Sway = 14, Hz = 0.5, Lift = 1 } },
 	Brrrilla = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	IcebreakerRex = { Profile = "Rex", Actions = { "Roar", "TailSwing", "Stomp" } },
@@ -837,6 +849,49 @@ Config.Actions = {
 				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 8, From = 0.1, To = 0.9 }, Grow = 0.3 },
 			},
 			Events = { { 0, "Sound", "Eat" } },
+		},
+	},
+	FrillFlare = {
+		Toxitops = { -- the frill flares out and pulses bright, then a head toss
+			Duration = 2.6, Calm = 1,
+			Tracks = {
+				{ "Frill", "pitch", { 0, 0, 0.1, 6, 0.26, -20, 0.66, -18, 0.8, 3, 0.9, -1, 1, 0 } },
+				{ "Frill", "roll", nil, Osc = { Hz = 9, Amp = 2, From = 0.26, To = 0.64 } },
+				{ "Head", "pitch", { 0, 0, 0.1, 4, 0.26, -6, 0.66, -6, 0.74, 20, 0.86, -3, 1, 0 } },
+				{ "Head", "yaw", nil, Osc = { Hz = 3, Amp = 5, From = 0.26, To = 0.64 } },
+				{ "Body", "pitch", { 0, 0, 0.26, -2, 0.66, -2, 0.74, 3, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.2, 1, 0.66, 1, 0.8, 0, 1, 0 } },
+				{ "Tail*", "yaw", nil, Osc = { Hz = 3, Amp = 10, From = 0.26, To = 0.8 }, Grow = 0.3 },
+			},
+			Events = { { 0.24, "Flash", "VeinGlow,Sac,SacCore" }, { 0.26, "Sound", "Roar" }, { 0.45, "Flash", "VeinGlow,Sac,SacCore" }, { 0.74, "Sound", "TailSwing" } },
+		},
+	},
+	SporePuff = {
+		HeavyQuad = { -- shakes itself and puffs out a cloud of glowing spores
+			Duration = 1.8, Calm = 0.8,
+			Tracks = {
+				{ "Body", "roll", nil, Osc = { Hz = 8, Amp = 4, From = 0.1, To = 0.55, Decay = true } },
+				{ "Body", "y", { 0, 0, 0.1, -0.04, 0.5, -0.04, 0.6, 0.05, 0.75, 0, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.1, -10, 0.55, -10, 0.62, 8, 0.85, 0, 1, 0 } },
+				{ "Ear*", "roll", nil, Osc = { Hz = 8, Amp = 14, From = 0.1, To = 0.55 }, Mirror = true },
+				{ "Body", "glow", { 0, 0, 0.5, 0.2, 0.6, 1, 0.9, 0, 1, 0 } },
+			},
+			Events = { { 0.58, "Flash", "Spore,Gill,Gill2" }, { 0.6, "Burst" }, { 0.62, "Breath", 2 }, { 0.6, "Sound", "Hop" } },
+		},
+	},
+	ScytheSharpen = {
+		Arthropod = { -- the scythes cross and rasp against each other, head tilted to watch
+			Duration = 2.2, Calm = 0.9,
+			Tracks = {
+				{ "Claw*", "pitch", { 0, 0, 0.15, 22, 0.85, 20, 1, 0 } },
+				{ "Claw*", "yaw", { 0, 0, 0.15, 14, 0.85, 14, 1, 0 }, Mirror = true },
+				{ "ClawL", "pitch", nil, Osc = { Hz = 4, Amp = 9, From = 0.18, To = 0.82 } },
+				{ "ClawR", "pitch", nil, Osc = { Hz = 4, Amp = 9, From = 0.18, To = 0.82, Phase = 3.14 } },
+				{ "Head", "roll", { 0, 0, 0.15, 16, 0.85, 14, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.15, -10, 0.85, -8, 1, 0 } },
+				{ "Body", "pitch", { 0, 0, 0.15, 3, 0.85, 3, 1, 0 } },
+			},
+			Events = { { 0.3, "Sound", "ClawSnap" }, { 0.62, "Sound", "ClawSnap" }, { 0.45, "Flash", "Edge,Venom" } },
 		},
 	},
 	Howl = {
