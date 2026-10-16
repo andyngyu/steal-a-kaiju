@@ -25,6 +25,8 @@ local BaseConfig = require(Config.BaseConfig)
 local KaijuConfig = require(Config.KaijuConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
 local KaijuMotion = require(script.Parent:WaitForChild("KaijuMotion"))
+-- kaiju the new animation engine (ReplicatedStorage.KaijuAnimation) animates: here they only get popups and hatch effects
+local AnimConfig = require(ReplicatedStorage:WaitForChild("KaijuAnimation"):WaitForChild("Config"))
 local Settings = require(script.Parent:WaitForChild("Settings"))
 local gameEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameEvent")
 
@@ -642,13 +644,16 @@ local function setupKaiju(model)
 		nextPopup = os.clock() + rng:NextNumber(0, BaseConfig.IncomePopupSeconds),
 	}
 	KaijuMotion.Setup(st, model)
+	st.external = AnimConfig.Handles(model)
 	-- Gameplay.MarketFX stamps EatAt (client-only) when thrown food lands on this kaiju
 	model:GetAttributeChangedSignal("EatAt"):Connect(function()
-		KaijuMotion.Force(st, "Eat")
+		if not st.external then
+			KaijuMotion.Force(st, "Eat")
+		end
 	end)
 	-- someone is holding Steal on it (StealService sets StealBy): it struggles until they stop
 	model:GetAttributeChangedSignal("StealBy"):Connect(function()
-		if model:GetAttribute("StealBy") then
+		if model:GetAttribute("StealBy") and not st.external then
 			task.spawn(function()
 				while model.Parent and model:GetAttribute("StealBy") do
 					KaijuMotion.Force(st, "Wiggle")
@@ -681,6 +686,20 @@ local function addKaiju(model)
 	end
 end
 
+local function incomePopup(model, st, dist)
+	if os.clock() >= st.nextPopup then
+		st.nextPopup = os.clock() + BaseConfig.IncomePopupSeconds
+		local cps = model:GetAttribute("CashPerSecond")
+		if cps and dist < POPUP_RANGE and model.PrimaryPart then
+			-- the owner's x2 Cash pass (CashMultiplier) multiplies what the kaiju really earns
+			local owner = Players:GetPlayerByUserId(model:GetAttribute("OwnerUserId") or 0)
+			local mult = owner and owner:GetAttribute("CashMultiplier")
+			cps *= type(mult) == "number" and mult > 0 and mult or 1
+			cashPopup(model.PrimaryPart, st.rig.size.Y + 2.4, cps * BaseConfig.IncomePopupSeconds)
+		end
+	end
+end
+
 local function updateKaiju(model, st, dt, t, camPos)
 	local from, to = model:GetAttribute("WanderFrom"), model:GetAttribute("WanderTo")
 	local ms, me = model:GetAttribute("MoveStart"), model:GetAttribute("MoveEnd")
@@ -693,6 +712,17 @@ local function updateKaiju(model, st, dt, t, camPos)
 	local dist = (pos - camPos).Magnitude
 	st.dist = dist
 	if dist > ANIM_RANGE then
+		return
+	end
+	if st.external then
+		-- the new engine moves and poses it; the grand hatch slam and the cash popups stay here
+		if st.popStart and (os.clock() - st.popStart) / st.popLen >= 1 then
+			st.popStart = nil
+			if st.grand then
+				slam(model, st, pos)
+			end
+		end
+		incomePopup(model, st, dist)
 		return
 	end
 	local moving = alpha < 1 and now >= ms
@@ -733,18 +763,7 @@ local function updateKaiju(model, st, dt, t, camPos)
 		end
 	end
 	pose(st.rig, CFrame.new(pos + Vector3.new(0, y, 0)) * CFrame.Angles(0, st.yaw + extraYaw, 0) * CFrame.Angles(pitch, 0, roll))
-
-	if os.clock() >= st.nextPopup then
-		st.nextPopup = os.clock() + BaseConfig.IncomePopupSeconds
-		local cps = model:GetAttribute("CashPerSecond")
-		if cps and dist < POPUP_RANGE and model.PrimaryPart then
-			-- the owner's x2 Cash pass (CashMultiplier) multiplies what the kaiju really earns
-			local owner = Players:GetPlayerByUserId(model:GetAttribute("OwnerUserId") or 0)
-			local mult = owner and owner:GetAttribute("CashMultiplier")
-			cps *= type(mult) == "number" and mult > 0 and mult or 1
-			cashPopup(model.PrimaryPart, st.rig.size.Y + 2.4, cps * BaseConfig.IncomePopupSeconds)
-		end
-	end
+	incomePopup(model, st, dist)
 end
 
 -- ---------- eggs ----------
