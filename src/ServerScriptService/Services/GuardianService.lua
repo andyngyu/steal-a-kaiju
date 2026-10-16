@@ -80,7 +80,7 @@ local GRAB_DIP = 0.45
 local GRAB_RISE = 0.45
 -- Snatching it back: the egg rides at jaw / chest height (14-18 studs up), so its prompt reaches this far across the
 -- ground (not counting the height) and needs no hold - the guardian is walking away with it.
-local GRAB_REACH_FLAT = 20
+local GRAB_REACH_FLAT = 30
 -- where copies rise, around the resident's spot (the lane runs along X)
 local COPY_OFFSETS = {
 	Vector3.new(0, 0, 18),
@@ -560,15 +560,19 @@ local function attachEgg(g)
 	end
 	local target = g.root.CFrame * CFrame.new(spot)
 	egg:PivotTo(target)
-	-- grab range measured from a player standing on the ground: GRAB_REACH_FLAT across, plus the egg's height over a
-	-- player's root (prompt distance is 3D). EggService:TryPickup allows the same (GrabReach).
+	-- The egg rides 14-18 studs up, so its prompt hangs under it at a standing player's height (attachment GrabPoint):
+	-- the button sits where the player is (easy to tap on mobile) and the range is GRAB_REACH_FLAT across the ground.
+	-- EggService:TryPickup measures the same flat distance (GrabReach) and puts the prompt back on the shell.
 	local feetY = g.root.Position.Y - g.root.Size.Y / 2 - g.humanoid.HipHeight
-	local rise = math.max(0, target.Position.Y - (feetY + 3))
-	local reach = math.sqrt(GRAB_REACH_FLAT ^ 2 + rise ^ 2)
-	egg:SetAttribute("GrabReach", reach)
+	egg:SetAttribute("GrabReach", GRAB_REACH_FLAT)
 	local prompt = egg.PrimaryPart:FindFirstChild("Prompt")
 	if prompt then
-		prompt.MaxActivationDistance = reach
+		local grabPoint = Instance.new("Attachment")
+		grabPoint.Name = "GrabPoint"
+		grabPoint.Parent = egg.PrimaryPart
+		grabPoint.WorldPosition = Vector3.new(target.Position.X, feetY + 3, target.Position.Z)
+		prompt.Parent = grabPoint
+		prompt.MaxActivationDistance = GRAB_REACH_FLAT
 		prompt.HoldDuration = 0
 	end
 	local weld = Instance.new("Weld")

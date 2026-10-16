@@ -298,8 +298,10 @@ function EggService:TryPickup(player, egg)
 	local dist = (hrp.Position - egg.PrimaryPart.Position).Magnitude - egg.PrimaryPart.Size.X / 2
 	local maxDist = EggConfig.Pickup.MaxDistance
 	if state == "Guardian" then
-		-- up in a guardian's jaws / arms: its prompt reaches further (GuardianService sets GrabReach), plus slack since
-		-- the guardian keeps walking while the request travels
+		-- up in a guardian's jaws / arms: measured across the ground (its prompt hangs at player height, GuardianService
+		-- sets GrabReach), plus slack since the guardian keeps walking while the request travels
+		local d = hrp.Position - egg.PrimaryPart.Position
+		dist = Vector3.new(d.X, 0, d.Z).Magnitude - egg.PrimaryPart.Size.X / 2
 		maxDist = math.max(maxDist, (egg:GetAttribute("GrabReach") or 0) + 6)
 	end
 	if dist > maxDist then
@@ -331,6 +333,18 @@ function EggService:TryPickup(player, egg)
 		egg:SetAttribute("FullScale", nil)
 		egg:ScaleTo(fullScale) -- a guardian shrank it to fit its jaws / arms
 	end
+	local grabPoint = egg.PrimaryPart:FindFirstChild("GrabPoint")
+	if grabPoint then
+		-- the prompt hung at player height while a guardian held it: back on the shell, with its normal settings
+		local prompt = grabPoint:FindFirstChild("Prompt")
+		if prompt then
+			prompt.Parent = egg.PrimaryPart
+			prompt.MaxActivationDistance = EggConfig.Pickup.PromptDistance + egg.PrimaryPart.Size.X / 2
+			prompt.HoldDuration = EggConfig.Pickup.HoldSeconds
+		end
+		grabPoint:Destroy()
+	end
+	egg:SetAttribute("GrabReach", nil)
 	egg:SetAttribute("State", "Carried")
 	setPrompt(egg, false)
 	EggModel.SetPhysics(egg, false)
