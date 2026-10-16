@@ -741,6 +741,110 @@ local function setGlow(model, st, on)
 	end
 end
 
+-- Growing eggs: an incubating pen egg starts at GROW_START of its full size and grows in GROW_STEPS steps (each one a
+-- quick swell with a little overshoot) up to full size when it's ready. Its full size is set by its Size roll - the
+-- size the kaiju hatches at - so a GIANT egg grows into a big egg and a small one stays small.
+-- Client-only and cosmetic: the parts are resized locally (originals kept) and put back the moment the egg stops
+-- incubating (ready, hatching, stolen, gone); the server model never changes.
+local GROW_START = 0.55
+local GROW_STEPS = 8
+local GROW_SWELL = 0.35 -- seconds per step
+
+local function growTarget(model, now)
+	local placed, hatch = model:GetAttribute("PlacedAt"), model:GetAttribute("HatchAt")
+	if not (placed and hatch and hatch > placed) then
+		return 1
+	end
+	local p = math.clamp((now - placed) / (hatch - placed), 0, 1)
+	return GROW_START + (1 - GROW_START) * math.floor(p * GROW_STEPS) / GROW_STEPS
+end
+
+-- resize the egg's parts to g x their full size (positions are scaled by pose through st.growScale)
+local function setGrowScale(st, g)
+	local gr = st.grow
+	if not gr then
+		local rig = st.rig
+		gr = { offsets = table.clone(rig.offsets), sizes = {}, meshes = {}, applied = 1 }
+		for i, p in rig.parts do
+			gr.sizes[i] = p.Size
+			local m = p:FindFirstChildOfClass("SpecialMesh")
+			if m and m.MeshType == Enum.MeshType.FileMesh then
+				gr.meshes[i] = { m, m.Scale, m.Offset }
+			end
+		end
+		st.grow = gr
+	end
+	if math.abs(g - gr.applied) < 1e-3 then
+		return
+	end
+	local rig = st.rig
+	for i, p in rig.parts do
+		local off = gr.offsets[i]
+		rig.offsets[i] = off - off.Position + off.Position * g
+		p.Size = gr.sizes[i] * g
+		local m = gr.meshes[i]
+		if m then
+			m[1].Scale = m[2] * g
+			m[1].Offset = m[3] * g
+		end
+	end
+	gr.applied = g
+	st.growScale = g
+end
+
+-- back to full size for good (keeps any size the server set since)
+local function endGrow(st)
+	local gr = st.grow
+	if not gr then
+		return
+	end
+	local rig = st.rig
+	local untouched = true
+	for i, p in rig.parts do
+		if (p.Size - gr.sizes[i] * gr.applied).Magnitude > 0.01 then
+			untouched = false -- the server resized it meanwhile: leave its sizes alone
+			break
+		end
+	end
+	for i, p in rig.parts do
+		rig.offsets[i] = gr.offsets[i]
+		if untouched then
+			p.Size = gr.sizes[i]
+			local m = gr.meshes[i]
+			if m then
+				m[1].Scale = m[2]
+				m[1].Offset = m[3]
+			end
+		end
+	end
+	st.grow, st.growScale, st.growFrom, st.growTo, st.growAt = nil, nil, nil, nil, nil
+end
+
+local function updateGrow(model, st)
+	local incubating = model:GetAttribute("State") == "Pen" and not model:GetAttribute("Ready")
+		and not model:GetAttribute("HatchStartedAt") and model.Parent == eggFolder
+	if not incubating then
+		endGrow(st)
+		return
+	end
+	local target = growTarget(model, serverNow())
+	if st.growTo ~= target then
+		st.growFrom = st.growScale or (st.growTo == nil and target or st.growTo)
+		st.growTo = target
+		st.growAt = os.clock()
+	end
+	local k = math.clamp((os.clock() - st.growAt) / GROW_SWELL, 0, 1)
+	-- ease out with a small overshoot (a swell, then settle)
+	local c = 1.70158
+	local e = 1 + (c + 1) * (k - 1) ^ 3 + c * (k - 1) ^ 2
+	setGrowScale(st, st.growFrom + (st.growTo - st.growFrom) * e)
+	local bb = model.PrimaryPart and model.PrimaryPart:FindFirstChild("Countdown")
+	if bb and st.grow then
+		st.bbBase = st.bbBase or bb.StudsOffsetWorldSpace
+		bb.StudsOffsetWorldSpace = st.bbBase - Vector3.new(0, st.half * (1 - (st.growScale or 1)), 0)
+	end
+end
+
 local function updateEgg(model, st, t, camPos)
 	local rig = st.rig
 	local base = rig.base
@@ -842,7 +946,9 @@ local function updateEgg(model, st, t, camPos)
 		end
 	end
 
-	pose(rig, base * CFrame.new(0, -half, 0) * CFrame.Angles(pitch, yaw, roll) * CFrame.new(0, half + y, 0))
+	updateGrow(model, st)
+	local g = st.growScale or 1
+	pose(rig, base * CFrame.new(0, -half, 0) * CFrame.Angles(pitch, yaw, roll) * CFrame.new(0, half * g + y, 0))
 end
 
 -- ---------- guardians, pens ----------
