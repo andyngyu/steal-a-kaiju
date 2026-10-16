@@ -93,6 +93,8 @@ local function weldTo(part, root)
 	part.Anchored = false
 end
 
+local EMPTY = table.freeze({})
+
 local function fxPart(name, size, cf)
 	local p = Instance.new("Part")
 	p.Name = name
@@ -463,9 +465,11 @@ function VFX.Update(rec, dt, lod, now)
 	if not hz then
 		return
 	end
+	local flashing = false
 	for i, f in rec.flashT do
 		if f > 0 then
 			rec.flashT[i] = math.max(0, f - dt)
+			flashing = true
 		end
 	end
 	rec.pulseAcc += dt
@@ -482,7 +486,14 @@ function VFX.Update(rec, dt, lod, now)
 	end
 	local rainbow = rec.rainbow
 	local hues = rec.neonHue
-	for i, p in neon do
+	-- the pulse follows the breath, so most updates change nothing you could see: recolour every neon brick only when
+	-- the level moved a visible step (or something is flashing, shimmering or cycling)
+	local recolour = flashing or shimmer or rainbow or rec.wasFlashing or not rec.pulseK or math.abs(k - rec.pulseK) >= 0.03
+	rec.wasFlashing = flashing or shimmer ~= nil
+	if recolour then
+		rec.pulseK = k
+	end
+	for i, p in recolour and neon or EMPTY do
 		local kk = k
 		local f = flashT[i]
 		if f > 0 then

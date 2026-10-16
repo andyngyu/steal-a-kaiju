@@ -77,7 +77,7 @@ Config.Performance = {
 	ClassifyHz = 6, -- tier and visibility checks per creature per second (batched across frames)
 	BuildBudgetMs = { Desktop = 2, Mobile = 1 }, -- rig construction time per frame
 	Particles = { Desktop = 800, Mobile = 300 }, -- active particle budget
-	PulseHz = { 12, 6 }, -- neon pulse updates per second in the Full and Reduced tiers
+	PulseHz = { 8, 4 }, -- neon pulse updates per second in the Full and Reduced tiers (a recolour only when it shows)
 }
 
 -- Rarity personality. Tempo: idle speed. Fidget: how often micro motions happen (glances, flicks, taps). ActionGap:

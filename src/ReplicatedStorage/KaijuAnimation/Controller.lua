@@ -41,7 +41,7 @@ local particleFactor = 1
 local nextClassify = 0
 local actionStarts = {}
 local shakeAmp, shakeOffset = 0, CFrame.identity
-local stats = { Full = 0, Reduced = 0, Far = 0, Off = 0, Pending = 0, Ms = 0, Particles = 0, Builds = 0, BuildMs = 0 }
+local stats = { Full = 0, Reduced = 0, Far = 0, Off = 0, Pending = 0, Ms = 0, Particles = 0, Builds = 0, BuildMs = 0, MotionMs = 0, VFXMs = 0, MoveMs = 0 }
 Controller.Stats = stats
 
 -- KaijuMotion (Gameplay) voices actions through GameAudio; Settings for camera shake and reduced effects
@@ -718,6 +718,10 @@ end
 
 ----------------------------------------------------------------------------------------------------- the loop
 
+-- Walking roots are moved together once a frame (one BulkMoveTo, CFrame events only): each anchored root carries a whole
+-- welded rig, and a property write per root costs far more.
+local moveParts, moveCFs = {}, {}
+
 -- A live kaiju walks its server wander path (WanderFrom to WanderTo between MoveStart and MoveEnd), turning smoothly.
 -- Only the root's CFrame is written, and only while it moves or turns.
 local function updateMove(rec, dt)
@@ -751,7 +755,8 @@ local function updateMove(rec, dt)
 	if (pos - rec.pos).Magnitude > 1e-4 or math.abs(turn) > 1e-5 then
 		rec.pos = pos
 		local cf = CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
-		rec.root.CFrame = cf
+		table.insert(moveParts, rec.root)
+		table.insert(moveCFs, cf)
 		rec.rootCF = cf
 		rec.centerWorld = cf * rec.centreOffset
 	end
@@ -850,8 +855,12 @@ local function update(rec, dt, lod)
 		rec.centerWorld = rec.rootCF * rec.centreOffset
 	end
 	scheduleActions(rec)
+	local t0 = os.clock()
 	Motion.Step(rec, dt, lod)
+	local t1 = os.clock()
 	VFX.Update(rec, dt, lod, clock)
+	stats.motionAcc = (stats.motionAcc or 0) + t1 - t0
+	stats.vfxAcc = (stats.vfxAcc or 0) + os.clock() - t1
 end
 
 local function step(rawDt)
@@ -890,8 +899,18 @@ local function step(rawDt)
 			end
 		end
 	end
+	local tm = os.clock()
+	if #moveParts > 0 then
+		workspace:BulkMoveTo(moveParts, moveCFs, Enum.BulkMoveMode.FireCFrameChanged)
+		table.clear(moveParts)
+		table.clear(moveCFs)
+	end
 	local ms = (os.clock() - t0) * 1000
 	stats.Ms = stats.Ms + (ms - stats.Ms) * 0.05
+	stats.MoveMs += ((os.clock() - tm) * 1000 - stats.MoveMs) * 0.05
+	stats.MotionMs += ((stats.motionAcc or 0) * 1000 - stats.MotionMs) * 0.05
+	stats.VFXMs += ((stats.vfxAcc or 0) * 1000 - stats.VFXMs) * 0.05
+	stats.motionAcc, stats.vfxAcc = 0, 0
 end
 
 -- Big models reach the client over several frames: wait for every part (the server stamps PartCount), like KaijuFX.
@@ -1154,8 +1173,8 @@ local function probe(rec, seconds)
 end
 
 function Controller.Status()
-	return string.format("Full %d  Reduced %d  Far %d  Off %d  |  building %d  |  %.2f ms per frame  |  particles about %d",
-		stats.Full, stats.Reduced, stats.Far, stats.Off, stats.Pending, stats.Ms, stats.Particles)
+	return string.format("Full %d  Reduced %d  Far %d  Off %d  |  building %d  |  %.2f ms per frame (pose %.2f, effects %.2f, walking %.2f)  |  particles about %d",
+		stats.Full, stats.Reduced, stats.Far, stats.Off, stats.Pending, stats.Ms, stats.MotionMs, stats.VFXMs, stats.MoveMs, stats.Particles)
 end
 
 function Controller.Command(cmd, a, b)
