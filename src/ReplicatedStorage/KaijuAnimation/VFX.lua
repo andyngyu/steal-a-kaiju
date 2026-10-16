@@ -235,7 +235,7 @@ function VFX.Setup(rec, parent, eyeSets)
 	local B = Config.VFX.Biome[rec.biome or ""]
 	if B and BIOME_PARTICLES[B.Kind] then
 		local props, life = BIOME_PARTICLES[B.Kind](Color3.fromHex(B.Color), s)
-		emitter(rec, holder, props, B.Rate, life)
+		rec.biomeEmitter = emitter(rec, holder, props, B.Rate, life)
 		if B.FrostBreath then
 			rec.frostBreath = true
 		end
@@ -385,6 +385,12 @@ function VFX.Event(rec, kind, arg, amount)
 		local foot = j and j.foot or Vector3.new(rec.centreOffset.X, 0, rec.centreOffset.Z)
 		rec.groundAtt.WorldPosition = rec.rootCF * foot
 		rec.dustEmitter:Emit(math.floor((amount or 1) * 14 + 0.5))
+		return true
+	elseif kind == "Biome" then
+		-- a burst of the creature's own biome particles (bubbles, spores, embers...)
+		if rec.biomeEmitter then
+			rec.biomeEmitter:Emit(math.floor((tonumber(arg) or 1) * 12 + 0.5))
+		end
 		return true
 	elseif kind == "Breath" then
 		-- a puff of breath (frost, a snort) in front of the first head

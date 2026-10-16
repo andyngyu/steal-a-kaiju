@@ -449,6 +449,13 @@ end
 
 function PROFILES.Serpent(rec, P, t, ex, micro)
 	waveLayer(rec, P.Wave, t, ex)
+	local R = P.WingRipple
+	if R then
+		-- manta wings ripple slowly from root to tip
+		for _, w in rec.wings do
+			w.az += w.side * R.Amp * RAD * ex * sin(TAU * R.Hz * t - R.Lag * (w.chain - 1) + rec.seed)
+		end
+	end
 	local N = P.Neck
 	local n = rec.necks[1]
 	if N and n then

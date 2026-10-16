@@ -36,6 +36,7 @@ local function compile(def)
 			grow = tr.Grow or 0,
 			height = tr.Height == true,
 			spread = tr.Spread or 0,
+			lag = tr.Lag or 0, -- Osc phase lag per chain link, so the motion travels from root to tip
 		}
 		if tr.Osc then
 			local o = tr.Osc
@@ -143,7 +144,7 @@ function Actions.Bind(rec)
 						sign = -1
 					end
 					local gain = 1 + t.grow * ((j.chain or 1) - 1)
-					table.insert(list, { j = j, t = t, gain = gain, sign = sign, phase = t.spread * (j.tentacle or 0) })
+					table.insert(list, { j = j, t = t, gain = gain, sign = sign, phase = t.spread * (j.tentacle or 0) - t.lag * ((j.chain or 1) - 1) })
 				end
 			end
 			if #list > 0 then
