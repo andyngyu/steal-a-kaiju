@@ -4,7 +4,8 @@
 --   batched pass (ClassifyHz): distance and on-screen checks, tiers with caps (own kaiju first), states, particle budget
 --   actions: random from the creature's list, never more than ActionShare of the visible creatures in any second
 --   Command(...): debug control (the Studio tools call it through KaijuAnimationClient's Debug BindableFunction)
--- Live kaiju are only taken over for species in Config.Rollout (empty in Phase 1: only the Studio Gallery registers).
+-- Every live kaiju, shopkeeper, stolen copy and rigged guardian is animated here (Config.Handles; Config.SpecFor gives a
+-- species with no Config.Creatures entry a profile from its Gait).
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -463,7 +464,7 @@ function Controller.Register(model, info)
 	if byModel[model] then
 		return byModel[model]
 	end
-	local spec = Config.Creatures[info.name]
+	local spec = Config.SpecFor(info.name, model)
 	if not spec or not model.PrimaryPart then
 		return nil
 	end
@@ -496,6 +497,11 @@ function Controller.Register(model, info)
 	table.insert(pending, rec)
 	if info.liveGuardian then
 		rec.liveGuardian = true
+	end
+	if info.keeper then
+		-- a shopkeeper: every customer is "its" player on their own screen, so it watches and greets whoever walks up
+		rec.keeper = true
+		rec.ownerId = player and player.UserId or 0
 	end
 	if info.carried then
 		-- over a thief's head: panics the whole way (States.Carried), never walks or plays idle actions
@@ -961,11 +967,8 @@ local function whenComplete(model, fn)
 	end)
 end
 
--- Live pen kaiju of the rolled-out species (Config.Rollout); KaijuFX skips exactly these (Config.Handles).
+-- Live pen kaiju; KaijuFX skips exactly these (Config.Handles).
 function Controller.WatchLive()
-	if #Config.Rollout == 0 then
-		return
-	end
 	task.spawn(function()
 		local ReplicatedStorage = game:GetService("ReplicatedStorage")
 		local ok, KaijuConfig = pcall(function()
@@ -1008,7 +1011,7 @@ function Controller.WatchCarried()
 				return
 			end
 			local species = m:GetAttribute("Species")
-			if not (species and Config.Creatures[species] and table.find(Config.Rollout, species)) then
+			if not species then
 				return
 			end
 			whenComplete(m, function()
@@ -1032,6 +1035,35 @@ function Controller.WatchCarried()
 	for _, p in Players:GetPlayers() do
 		watchPlayer(p)
 	end
+end
+
+-- The market's shopkeepers (Config.KeeperFolder): standing kaiju that idle, act and greet customers; KaijuFX skips them.
+function Controller.WatchKeepers()
+	task.spawn(function()
+		if not game:IsLoaded() then
+			game.Loaded:Wait()
+		end
+		local market = workspace:WaitForChild("Map"):WaitForChild("Market", 60)
+		local folder = market and market:WaitForChild("Keepers", 30)
+		if not folder then
+			return
+		end
+		local function add(m)
+			if not (m:IsA("Model") and Config.Handles(m)) then
+				return
+			end
+			whenComplete(m, function()
+				if m.Parent == folder and m.PrimaryPart then
+					-- no rarity extras: shopkeepers keep their plain look
+					Controller.Register(m, { name = m:GetAttribute("Species") or m.Name, rarity = "Common", live = true, keeper = true })
+				end
+			end)
+		end
+		folder.ChildAdded:Connect(add)
+		for _, m in folder:GetChildren() do
+			add(m)
+		end
+	end)
 end
 
 -- Live guardians (Runtime.Guardians) of the rolled-out biomes (Config.GuardianRollout); KaijuFX skips exactly these.
@@ -1076,6 +1108,7 @@ function Controller.Start()
 	Controller.WatchLive()
 	Controller.WatchCarried()
 	Controller.WatchGuardians()
+	Controller.WatchKeepers()
 	RunService.PreSimulation:Connect(step)
 	-- camera shake: added after the camera scripts run, removed again before they run next frame
 	RunService:BindToRenderStep("KaijuAnimShakeUndo", Enum.RenderPriority.Camera.Value - 2, function()

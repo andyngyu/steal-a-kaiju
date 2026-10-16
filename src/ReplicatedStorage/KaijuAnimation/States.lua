@@ -99,8 +99,8 @@ States.Register("OwnerNearby", {
 States.Register("StrangerNearby", {
 	Priority = 45,
 	Detect = function(rec, ctx)
-		if rec.liveGuardian then
-			return false -- a live guardian's moods come from GuardianService
+		if rec.liveGuardian or rec.keeper then
+			return false -- a live guardian's moods come from GuardianService; shopkeepers greet everyone
 		end
 		local o = nearest(rec, ctx, false, Config.States.StrangerNearby.Range + rec.radius)
 		if o then

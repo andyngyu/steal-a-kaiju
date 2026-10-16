@@ -9,17 +9,25 @@
 -- follower (Tail with Tail2) becomes name1 (Tail1); L is the +X side of the model, which faces -Z.
 local Config = {}
 
--- Live kaiju species animated by this engine (Gameplay.KaijuFX keeps animating the rest), rolled out biome by biome.
-Config.Rollout = {
-	"Pebblesaur", "Chompling", "Bonkey", "Tuskit", "Rumblerex", "Thunderback", -- Pebble Plains
-	"Magmite", "CinderToad", "Scorchback", "BlazeBonkey", "MoltenRex", "InfernoSerpent", -- Lava Lagoon
-	"Snowpup", "GlacierCrab", "Frostrhino", "Brrrilla", "IcebreakerRex", "AuroraSerpent", -- Frostfang Peaks
-	"Vinewhip", "Shroomhog", "Mantisaur", "Sabrejag", "Toxitops", "Hydravine", -- Venom Jungle
-	"Lurkfin", "Barnaclaw", "Hammerjaw", "Krakling", "Megajaw", "Tidewyrm", -- Sunken Abyss
-	"Sparkit", "Voltbeak", "Thunderram", "Stormgriff", "Voltkirin", "RaijinWyrm", -- Storm Spires
-	"Starmite", "Nebulynx", "Cometshell", "Quasarab", "Astrodon", "AstralWyrm", -- Cosmic Rift
-	"Prismling", -- Secret
+-- Every kaiju is animated by this engine. A species with no entry in Config.Creatures (a new one, say) gets a profile
+-- from its model's Gait attribute (the asset builders stamp it), so it never stands frozen.
+Config.GaitProfiles = {
+	Biped = "Rex", Knuckle = "Ape", Trot = "AgileQuad", Amble = "HeavyQuad", Crawl = "LowCrawler",
+	Hop = "Hopper", Scuttle = "Arthropod", Slither = "Serpent",
 }
+Config.FallbackProfile = "HeavyQuad"
+local fallbackSpecs = {}
+
+-- A creature's entry: Config.Creatures[name], else a plain one from the model's Gait.
+function Config.SpecFor(name, model)
+	local spec = Config.Creatures[name]
+	if spec then
+		return spec
+	end
+	local profile = Config.GaitProfiles[model and model:GetAttribute("Gait") or ""] or Config.FallbackProfile
+	fallbackSpecs[profile] = fallbackSpecs[profile] or { Profile = profile }
+	return fallbackSpecs[profile]
+end
 
 -- Live guardians (Runtime.Guardians, GuardianService) of these biomes are animated by this engine.
 Config.GuardianRollout = { "PebblePlains", "LavaLagoon", "FrostfangPeaks", "VenomJungle", "SunkenAbyss", "StormSpires", "CosmicRift" }
@@ -34,9 +42,20 @@ function Config.GuardianFor(biomeId)
 	return nil
 end
 
--- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species) or a
--- live guardian (a rigged one of a rolled-out biome).
+-- The market's shopkeepers (Map.Market.Keepers, built by Tools.MarketBuilder), or nil before the map has loaded.
+function Config.KeeperFolder()
+	local map = workspace:FindFirstChild("Map")
+	local market = map and map:FindFirstChild("Market")
+	return market and market:FindFirstChild("Keepers")
+end
+
+-- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju or shopkeeper of a rolled-out
+-- species) or a live guardian (a rigged one of a rolled-out biome).
 function Config.Handles(model)
+	local keepers = Config.KeeperFolder()
+	if keepers and model.Parent == keepers then
+		return true
+	end
 	local runtime = workspace:FindFirstChild("Runtime")
 	if not runtime then
 		return false
@@ -46,10 +65,7 @@ function Config.Handles(model)
 		return model:GetAttribute("Rigged") == true and table.find(Config.GuardianRollout, biome) ~= nil and Config.GuardianFor(biome) ~= nil
 	end
 	local folder = runtime:FindFirstChild("Kaiju")
-	if not folder or model.Parent ~= folder then
-		return false
-	end
-	return table.find(Config.Rollout, model:GetAttribute("Species") or model.Name) ~= nil
+	return folder ~= nil and model.Parent == folder
 end
 
 Config.Global = {
