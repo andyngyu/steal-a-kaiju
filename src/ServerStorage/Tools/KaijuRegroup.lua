@@ -358,6 +358,13 @@ R.Rules = {
 	MoltenRex = function(m) return tail3(m, "Tail") end,
 	Snowpup = function(m) return tail3(m, "Tail") end,
 	IcebreakerRex = function(m) return tail3(m, "Tail") end,
+	Mantisaur = function(m) return tail3(m, "Tail") end,
+	-- Toxitops: the petal frill fanned behind its head becomes its own group, hinged at its base, so it can flare
+	Toxitops = function(m)
+		local a = tail3(m, "Tail")
+		local b = move(m, findGroup(m, "Head"), "Frill", named({ "Petal", "Petal2", "PetalDark", "VeinGlow", "Groove", "Sac", "SacCore" }), { joint = Vector3.new(0, 2.2, -1.8) })
+		return a or b
+	end,
 	Vinewhip = function(m) return tail3(m, "Tail") end,
 	Sabrejag = function(m) return tail3(m, "Tail") end,
 	Lurkfin = function(m) return tail3(m, "Tail") end,
