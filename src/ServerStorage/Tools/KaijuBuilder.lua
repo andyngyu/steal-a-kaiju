@@ -19,7 +19,8 @@
 -- group (Body, Head, LegL, ...) with attribute Joint (Vector3, build space) for limb animation. spec.Parents nests a
 -- group inside another ({ Jaw = "Head" }) so it follows that group's motion. Model attribute RootOffset = Root's
 -- build-space position (joints relative to the pivot = Joint - RootOffset, times the model's scale).
--- Motion attributes for Gameplay.KaijuMotion: Gait (spec.Gait), Emotes (spec.Emotes joined with commas), Wag (spec.Wag).
+-- Motion attributes: Gait (spec.Gait; ReplicatedStorage.KaijuAnimation picks a profile from it for a species it has no
+-- entry for), Emotes (spec.Emotes joined with commas), Wag (spec.Wag).
 local ServerStorage = game:GetService("ServerStorage")
 
 local KaijuBuilder = {}

@@ -4,7 +4,8 @@
 -- Model = name under ServerStorage.Assets.Kaiju; until it exists a blocky placeholder is built from Archetype/Color/Accent.
 -- Species is rolled when an egg lands in a pen (from eggs of the same biome + rarity), so HatchSeconds is per species.
 -- Scale is a per-species art tweak only; rarity (EggConfig KaijuScale) and the size roll handle how big a kaiju looks.
--- How each kaiju moves (gait/emotes) lives on the brick models (Tools.KaijuSpecs -> Gameplay.KaijuMotion).
+-- How each kaiju moves lives in ReplicatedStorage.KaijuAnimation (Config.Creatures; a species with no entry there gets a
+-- profile from its model's Gait attribute, stamped by the asset builders).
 local hex = Color3.fromHex
 
 -- Global pet income buff: every species' CashPerSecond below is multiplied by this (selling and Index rewards follow
