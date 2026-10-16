@@ -1,4 +1,4 @@
--- AuraFX: player auras, client-only and cosmetic (remade from scratch again 16 Oct 2026; styles in
+-- AuraFX: player auras, client-only and cosmetic (remade from scratch 16 Oct 2026, themed on each trail's name; styles in
 -- Shared.Config.AuraConfig). Every player wearing a trail (attribute EquippedTrail, set by TrailService) gets that
 -- trail's aura, built from layered effects: particle layers using VFX Studio textures (animated flipbook flames and
 -- smoke, body-aura flame sheets, lightning flashes, sweeping crescents, vortexes, sparks, glints, lens flares, themed
@@ -452,6 +452,66 @@ function P.Cloud(a, el, s, k)
 	}, { Tex = "SmokeSoft", Rate = { 0, 8 }, Burst = 6, LE = 0 }
 end
 
+function P.Breath(a, el, s, k) -- a puff of breath blown out in front of the face (comes in pulses)
+	return a.headAtt, {
+		EmissionDirection = Enum.NormalId.Front,
+		LightInfluence = 0.3,
+		Size = seq({ { 0, 0.5 * s * k }, { 1, 2.6 * s * k } }),
+		Transparency = seq({ { 0, 0.9 }, { 0.15, el.Alpha or 0.35 }, { 1, 1 } }),
+		Lifetime = range(0.8, 1.3),
+		Speed = range(5 * s, 9 * s),
+		SpreadAngle = Vector2.new(14, 10),
+		Acceleration = Vector3.new(0, 0.6 * s, 0),
+		Drag = 2.5,
+		Rotation = range(0, 360),
+		RotSpeed = range(-60, 60),
+		ZOffset = 0.3,
+	}, { Tex = "SmokeSoft", Rate = { 0, 0 }, Burst = 10, LE = 0.35 }
+end
+
+function P.Implode(a, el, s, k) -- streaks pulled in towards the body from all round (a void sucking in light)
+	return a.core, {
+		Shape = SPHERE,
+		ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
+		ShapeInOut = Enum.ParticleEmitterShapeInOut.Inward,
+		ShapePartial = 1,
+		Orientation = STREAK,
+		Brightness = el.Brightness or 3,
+		Size = seq({ { 0, 0 }, { 0.3, 0.45 * s * k }, { 1, 0.1 * s * k } }),
+		Squash = seq({ { 0, -1 }, { 1, 2 } }),
+		Transparency = seq({ { 0, 1 }, { 0.2, 0 }, { 1, 0.6 } }),
+		Lifetime = range(0.35, 0.5),
+		Speed = range(3 * s, 5 * s),
+	}, { Tex = "Needle", Rate = { 3, 24 }, Burst = 20, LE = 0.8 }
+end
+
+function P.Roar(a, el, s, k) -- a shockwave blasting off the body (comes in pulses)
+	return a.midAtt, {
+		LockedToPart = true,
+		Brightness = el.Brightness or 2.5,
+		Size = seq({ { 0, 1.5 * s * k }, { 1, 9 * s * k } }),
+		Transparency = seq({ { 0, 0.15 }, { 0.6, 0.5 }, { 1, 1 } }),
+		Lifetime = range(0.4, 0.5),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		ZOffset = 0.8,
+	}, { Tex = "Air", Rate = { 0, 0 }, Burst = 2, LE = 0.6 }
+end
+
+function P.Grit(a, el, s, k) -- little pebbles and grit whipped round (for swirls)
+	return a.core, {
+		LightInfluence = 1,
+		Size = seq({ { 0, 0.3 * s * k }, { 1, 0.22 * s * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.1, 0 }, { 0.8, 0 }, { 1, 1 } }),
+		Lifetime = range(0.5, 0.9),
+		Speed = range(0.3, 1),
+		SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, -3, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(-300, 300),
+	}, { Tex = "Debris", Flip = "Still", Rate = { 4, 10 }, Burst = 4, LE = 0 }
+end
+
 function P.Pop(a, el, s, k) -- power-up only: a flash at the centre
 	return a.midAtt, {
 		LockedToPart = true,
@@ -467,7 +527,7 @@ end
 
 local E = {}
 
-function E.FX(a, el)
+function E.FX(a, el, parentOverride)
 	local preset = P[el.Preset]
 	if not preset then
 		warn("[AuraFX] unknown FX preset", el.Preset)
@@ -475,6 +535,7 @@ function E.FX(a, el)
 	end
 	local s, k = a.s, el.Size or 1
 	local parent, props, d = preset(a, el, s, k)
+	parent = parentOverride or (el.At and a.at[el.At]) or parent
 	local tex = TEX[el.Tex or d.Tex] or TEX[d.Tex]
 	local pe = Instance.new("ParticleEmitter")
 	pe.Name = "Aura" .. el.Preset
@@ -494,7 +555,27 @@ function E.FX(a, el)
 	pe.Parent = parent
 	own(a, pe)
 	local rate = el.Rate or d.Rate or { 0, 0 }
-	table.insert(a.layers, { pes = { pe }, moving = rate[1], farming = rate[2], burst = el.Burst or d.Burst })
+	local layer = { pes = { pe }, moving = rate[1], farming = rate[2], burst = el.Burst or d.Burst }
+	if el.Pulse then -- { moving, farming } seconds between puffs (nil = none), PulseCount particles each
+		layer.pulse, layer.pulseCount, layer.nextPulse = el.Pulse, el.PulseCount or 6, 0
+	end
+	table.insert(a.layers, layer)
+	return layer
+end
+
+-- emitters riding round the body on a rising spiral (a whirlwind of leaves, pebbles, glints)
+function E.Swirl(a, el)
+	local count = el.Count or { 1, 3 }
+	local n = math.max(count[1], count[2])
+	local group = { count = count, list = {}, r = (el.Radius or 1.9) * a.s, speed = el.Speed or 2.4, rise = el.Rise or 0.5 }
+	for i = 1, n do
+		local at = att(a, a.core, "AuraSwirl")
+		local layer = E.FX(a, el, at)
+		if layer then
+			table.insert(group.list, { att = at, layer = layer, phase = (i - 1) / n })
+		end
+	end
+	table.insert(a.swirlGroups, group)
 end
 
 ---------------------------------------------------------------- 3D pieces floating round the body
@@ -703,6 +784,7 @@ local function build(other, char, trailId)
 		pieceGroups = {},
 		ribbonGroups = {},
 		arcGroups = {},
+		swirlGroups = {},
 		farm = 0,
 		still = 0,
 		powered = false,
@@ -715,8 +797,10 @@ local function build(other, char, trailId)
 	a.sheetAtt = att(a, a.core, "AuraSheet", Vector3.new(0, a.halfH * 0.12, 0))
 	a.feetAtt = att(a, a.core, "AuraFeet", Vector3.new(0, feet - a.midY + 0.1, 0))
 	a.cloudAtt = att(a, a.core, "AuraCloud", Vector3.new(0, top - a.midY + 2 * s, 0))
+	a.headAtt = att(a, a.core, "AuraHead", Vector3.new(0, top - a.midY - 0.55 * s, -0.6 * s)) -- the mouth, facing forward
 	-- flames and smoke come off a box a little wider than the body, so they frame the silhouette
 	a.flameBox = own(a, anchoredPart("AuraFlameBox", Vector3.new(3.6 * s, (top - feet) * 0.75, 2.6 * s)))
+	a.at = { Core = a.core, Mid = a.midAtt, Sheet = a.sheetAtt, Feet = a.feetAtt, Head = a.headAtt, Cloud = a.cloudAtt, Flame = a.flameBox }
 	a.arcHost = own(a, anchoredPart("AuraArcs", Vector3.one * 0.2))
 	a.arcHost.CFrame = CFrame.identity
 
@@ -850,11 +934,39 @@ local function update(a, dt, t, camPos, reduced)
 	end
 	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 
-	-- particle layers
+	-- swirls: emitters riding a rising spiral round the body
+	for _, g in a.swirlGroups do
+		local want = near and lerp(g.count[1], g.count[2], f) or 0
+		if reduced then
+			want = math.min(want, 1)
+		end
+		for i, sw in g.list do
+			sw.layer.off = i > want + 0.001
+			if not sw.layer.off then
+				local u = (t * g.rise + sw.phase) % 1
+				local ang = t * g.speed + sw.phase * math.pi * 2
+				local r = g.r * (0.75 + 0.35 * u)
+				sw.att.Position = Vector3.new(math.cos(ang) * r, (u * 2 - 1) * a.halfH * 0.9, math.sin(ang) * r)
+			end
+		end
+	end
+
+	-- particle layers (and their pulses: breath puffs, roars)
 	for _, L in a.layers do
-		local rate = lerp(L.moving, L.farming, f) * mult
+		local rate = L.off and 0 or lerp(L.moving, L.farming, f) * mult
 		for _, pe in L.pes do
 			pe.Rate = rate
+		end
+		if L.pulse and near and t >= L.nextPulse then
+			local every = f > 0.5 and L.pulse[2] or L.pulse[1]
+			if every then
+				L.nextPulse = t + every * rng:NextNumber(0.85, 1.15) * (reduced and 2 or 1)
+				for _, pe in L.pes do
+					pe:Emit(math.max(1, math.ceil(L.pulseCount * scale)))
+				end
+			else
+				L.nextPulse = t + 0.25
+			end
 		end
 	end
 

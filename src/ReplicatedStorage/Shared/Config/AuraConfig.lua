@@ -1,5 +1,6 @@
 -- AuraConfig: the player aura that comes with each trail (drawn by StarterPlayerScripts.Gameplay.AuraFX).
--- Remade from scratch again on 16 Oct 2026, this time with textures from the VFX Studio plugin library only.
+-- Remade from scratch on 16 Oct 2026 with textures from the VFX Studio plugin library only, each aura themed on its
+-- name (Pebble Dust = dust + pebbles, Frost Breath = icy breath, Magma Roar = fire + roar shockwaves...).
 -- Auras are layered EFFECTS: animated flipbook flames and smoke, body-aura flame sheets, lightning flashes, spinning
 -- crescents, vortexes, sparks, glints, lens flares, drifting leaves and ice flecks, plus glowing 3D pieces floating
 -- round you, procedural lightning, energy ribbons, a light and an outline. Nothing is drawn flat on the ground.
@@ -97,7 +98,14 @@ Type = "FX" is one particle layer: Preset picks the behaviour, Tex any texture a
   Drip      hot drops running off you
   Cloud     puffs gathering over your head
   Pop       power-up only: a flash at the centre                      (uses Burst)
-  Every FX layer also takes Color, Size, Rate, Burst, LE (light emission 0-1), Brightness.
+  Breath    puffs of breath blown out in front of your face            Alpha (use Pulse)
+  Implode   streaks pulled in towards you from all round
+  Roar      a shockwave blasting off you                               (use Pulse)
+  Grit      little pebbles and grit (for swirls)
+  Every FX layer also takes Color, Size, Rate, Burst, LE (light emission 0-1), Brightness, At (emit from Core / Mid /
+  Sheet / Feet / Head / Cloud / Flame instead), Pulse = { moving, farming } seconds between puffs (nil = none) with
+  PulseCount particles each.
+  Swirl    an FX layer riding a rising spiral round you (whirlwinds)   any FX fields + Count, Radius, Speed, Rise
 Other types:
   Pieces   3D pieces floating round you   Shape (Rock / Crystal / Orb / Shard), Count, Color, Material, Core (a glowing
                                           inner colour for rocks), Size, Radius, Speed, Bob, Height, Lift, Spin, Trail
@@ -108,95 +116,107 @@ Other types:
 Style fields: Tier (1-8, scales the light), Glow, Rainbow, Outline (false or { Fill = "Dark" | "Light", FillMax }),
 Elements. A trail with no style gets sparks, motes, glints and ribbons in its own colour. ]]
 AuraConfig.Styles = {
-	-- Common: earthy dust, kicked-up rocks and pebbles floating round you
+	-- Pebble Dust (Common): dust clouds puffing up round your feet, a little whirl of pebbles and grit, pebbles
+	-- floating up round you and stones kicked up off the ground
 	PebbleDust = {
 		Tier = 1,
 		Glow = "D8D2C4",
 		Outline = false,
 		Elements = {
-			{ Type = "FX", Preset = "Mist", Tex = "Dust", Color = { "FFF4DE", "C8B48E" }, Alpha = 0.35, Rate = { 3, 12 } },
-			{ Type = "FX", Preset = "Mist", Tex = "SmokeBillow", Color = { "E8DCC4", "A8987A" }, Alpha = 0.55, Size = 0.8,
-				Rate = { 1, 6 } },
-			{ Type = "FX", Preset = "Debris", Color = { "9A8668", "6A5A46" }, Rate = { 1, 10 }, Burst = 14 },
-			{ Type = "Pieces", Shape = "Rock", Count = { 0, 5 }, Color = "7A6A58", Material = "Slate", Size = 1,
-				Radius = 2.1, Speed = 0.6, Bob = 0.25, Height = -0.4, Lift = 1.3, Spin = 0.6 },
-			{ Type = "FX", Preset = "Mote", Tex = "Dot", Color = { "FFF2D6", "D8C9A8" }, Rate = { 0, 10 } },
-			{ Type = "FX", Preset = "Pop", Tex = "RingBurst", Color = { "FFF4DE", "C8B48E" }, Size = 0.9, Burst = 1 },
+			{ Type = "FX", Preset = "Mist", Tex = "SmokeBillow", Color = { "D9B98A", "9A7A52" }, Alpha = 0.18, Size = 1.35,
+				Rise = 0.8, Rate = { 4, 16 }, Burst = 12 },
+			{ Type = "FX", Preset = "Mist", Tex = "SmokePuff", Color = { "E8D2A8", "A8875E" }, Alpha = 0.3, Size = 1, Rise = 1.2,
+				Rate = { 1, 8 } },
+			{ Type = "Swirl", Preset = "Grit", Color = { "A89478", "6E5E4A" }, Count = { 0, 3 }, Radius = 1.8, Speed = 3,
+				Rise = 0.6, Rate = { 8, 14 } },
+			{ Type = "Pieces", Shape = "Rock", Count = { 0, 5 }, Color = "7A6A58", Material = "Slate", Size = 0.9,
+				Radius = 2.1, Speed = 0.7, Bob = 0.25, Height = -0.4, Lift = 1.3, Spin = 0.6 },
+			{ Type = "FX", Preset = "Debris", Color = { "9A8668", "6A5A46" }, Rate = { 1, 8 }, Burst = 14 },
+			{ Type = "FX", Preset = "Mote", Tex = "Dot", Color = { "FFF2D6", "D8C9A8" }, Size = 0.8, Rate = { 0, 10 } },
+			{ Type = "FX", Preset = "Pop", Tex = "RingBurst", Color = { "FFF4DE", "C8B48E" }, Size = 0.9, LE = 0.4, Burst = 1 },
 		},
 	},
-	-- Uncommon: leaves swirling up in green wisps, fireflies and twinkles
+	-- Jungle Leaf (Uncommon): a whirlwind of jungle leaves spiralling up round you, leaves drifting down, green
+	-- wisps, fireflies and vine-green ribbons
 	JungleLeaf = {
 		Tier = 2,
 		Glow = "5CFF52",
 		Outline = {},
 		Elements = {
-			{ Type = "FX", Preset = "Wisp", Color = { "C8FF9A", "3FBF3A" }, Alpha = 0.35, Rate = { 1, 10 } },
-			{ Type = "FX", Preset = "Drift", Tex = "Leaf", Color = { "9CFF6A", "3FBF3A" }, Size = 1.1, Rate = { 2, 12 },
-				Burst = 10 },
-			{ Type = "FX", Preset = "Mote", Tex = "Glow", Color = { "F4FF9A", "8CFF6A" }, Size = 1.1, Rate = { 2, 16 } },
-			{ Type = "FX", Preset = "Glint", Tex = "StarSoft", Color = { "FFFFFF", "C8FF9A" }, Rate = { 1, 8 } },
-			{ Type = "FX", Preset = "Spark", Color = { "E8FFB0", "5CFF52" }, Size = 0.8, Rate = { 0, 14 } },
-			{ Type = "Ribbons", Count = { 0, 2 }, Color = { "C8FF9A", "5CFF52" } },
+			{ Type = "Swirl", Preset = "Drift", Tex = "Leaf", Color = { "A6FF6A", "3FBF3A", "2E8A2A" }, Size = 1.15,
+				Count = { 1, 4 }, Radius = 1.9, Speed = 2.6, Rise = 0.45, Rate = { 3, 7 }, Burst = 4 },
+			{ Type = "FX", Preset = "Drift", Tex = "Leaf", Color = { "9CFF6A", "3FBF3A" }, Fall = true, Size = 1,
+				Rate = { 1, 6 }, Burst = 10 },
+			{ Type = "FX", Preset = "Wisp", Color = { "C8FF9A", "3FBF3A" }, Alpha = 0.45, Rate = { 1, 8 } },
+			{ Type = "FX", Preset = "Mote", Tex = "Glow", Color = { "F4FF9A", "B8FF6A" }, Size = 1, Rate = { 2, 14 } },
+			{ Type = "FX", Preset = "Glint", Tex = "StarSoft", Color = { "FFFFFF", "D8FF9A" }, Size = 0.8, Rate = { 1, 6 } },
+			{ Type = "Ribbons", Count = { 0, 2 }, Color = { "C8FF9A", "3FBF3A" } },
 			{ Type = "FX", Preset = "Pop", Tex = "SparkleDust", Color = { "F4FF9A", "5CFF52" }, Burst = 2 },
 		},
 	},
-	-- Rare: freezing mist, ice crystals and ice flecks, white twinkles and lens flares
+	-- Frost Breath (Rare): you breathe out icy puffs of frost, freezing mist rolls off your feet, ice crystals float
+	-- round you, frost flecks fall and spiral, cold glints and lens flares
 	FrostBreath = {
 		Tier = 3,
 		Glow = "7FD0FF",
 		Outline = { Fill = "Light", FillMax = 0.72 },
 		Elements = {
-			{ Type = "FX", Preset = "Mist", Tex = "SmokeSoft", Color = { "FFFFFF", "CFEFFF" }, Alpha = 0.45, Rise = 0.5,
-				Glow = true, Rate = { 2, 10 } },
-			{ Type = "FX", Preset = "Wisp", Color = { "FFFFFF", "9FDCFF" }, Alpha = 0.4, Size = 0.9, Rate = { 0, 8 } },
+			{ Type = "FX", Preset = "Breath", Color = { "F4FBFF", "BFE6FF", "8FCFFF" }, Alpha = 0.45, Size = 0.85, LE = 0.15,
+				Pulse = { 2.8, 1.4 }, PulseCount = 8, Burst = 14 },
+			{ Type = "FX", Preset = "Mist", Tex = "SmokeSoft", Color = { "E6F6FF", "9FDCFF" }, Alpha = 0.35, Rise = 0.4,
+				Size = 1.2, Rate = { 2, 10 } },
 			{ Type = "Pieces", Shape = "Crystal", Count = { 0, 6 }, Color = "BFEFFF", Size = 1, Radius = 1.9, Speed = 0.9,
 				Bob = 0.3, Height = 0, Lift = 0.6, Spin = 1 },
+			{ Type = "Swirl", Preset = "Mote", Tex = "Diamond", Color = { "FFFFFF", "BFEFFF" }, Size = 0.9, Count = { 0, 2 },
+				Radius = 1.7, Speed = 2.2, Rise = 0.5, Rate = { 6, 12 } },
 			{ Type = "FX", Preset = "Drift", Tex = "Diamond", Color = { "FFFFFF", "BFEFFF" }, Glow = true, Fall = true,
-				Size = 0.6, Rate = { 3, 14 }, Burst = 12 },
-			{ Type = "FX", Preset = "Glint", Tex = "Star4", Color = { "FFFFFF", "BFEFFF" }, Rate = { 1, 12 } },
-			{ Type = "FX", Preset = "Flare", Color = { "FFFFFF", "9FDCFF" }, Rate = { 0, 1.5 }, Burst = 2 },
-			{ Type = "FX", Preset = "Spark", Color = { "FFFFFF", "7FD0FF" }, Size = 0.8, Rate = { 0, 16 } },
+				Size = 0.55, Rate = { 3, 12 }, Burst = 12 },
+			{ Type = "FX", Preset = "Glint", Tex = "Star4", Color = { "FFFFFF", "BFEFFF" }, Rate = { 1, 10 } },
+			{ Type = "FX", Preset = "Flare", Color = { "FFFFFF", "9FDCFF" }, Rate = { 0, 1.2 }, Burst = 2 },
 			{ Type = "FX", Preset = "Pop", Tex = "Rays", Color = { "FFFFFF", "9FDCFF" }, Burst = 1 },
 		},
 	},
-	-- Epic: a dark vortex behind you, plasma orbs, purple lightning
+	-- Void Plasma (Epic): a black-purple void swirling behind you that drags light into it, plasma orbs, crackling
+	-- plasma lightning
 	VoidPlasma = {
 		Tier = 4,
 		Glow = "B05CFF",
 		Outline = { Fill = "Dark", FillMax = 0.55 },
 		Elements = {
-			{ Type = "FX", Preset = "Vortex", Tex = "DarkVoid", Color = { "5A1F9E", "1A0638" }, Alpha = 0.35,
+			{ Type = "FX", Preset = "Vortex", Tex = "DarkVoid", Color = { "6A2AB8", "1A0638" }, Alpha = 0.3, Size = 1.05,
 				Rate = { 0.6, 1.6 } },
 			{ Type = "FX", Preset = "Backdrop", Color = { "3A0F6E", "0E0320" }, Alpha = 0.45, Rate = { 3, 12 } },
+			{ Type = "FX", Preset = "Implode", Color = { "F0D8FF", "B05CFF" }, Rate = { 3, 26 } },
 			{ Type = "Pieces", Shape = "Orb", Count = { 1, 4 }, Color = "D9A8FF", Size = 1, Radius = 1.8, Speed = 1.6,
 				Bob = 0.6, Height = 0.2, Lift = 0.3, Trail = true },
 			{ Type = "FX", Preset = "Bolt", Tex = "BoltBall", Color = { "F0D8FF", "B05CFF" }, Rate = { 0, 5 }, Burst = 4 },
-			{ Type = "Arcs", Color = { "F0D8FF", "B05CFF" }, Every = { nil, 0.45 }, Width = 0.12, Length = 2.2 },
-			{ Type = "FX", Preset = "Spark", Color = { "F0D8FF", "B05CFF" }, Rate = { 2, 26 } },
-			{ Type = "FX", Preset = "Mote", Tex = "Glow", Color = { "E6CCFF", "8A3DFF" }, Rate = { 3, 16 } },
+			{ Type = "Arcs", Color = { "F0D8FF", "B05CFF" }, Every = { 1.6, 0.4 }, Width = 0.12, Length = 2.2 },
+			{ Type = "FX", Preset = "Mote", Tex = "Glow", Color = { "E6CCFF", "8A3DFF" }, Rate = { 3, 14 } },
 			{ Type = "FX", Preset = "Pop", Tex = "SwirlBall", Color = { "F0D8FF", "B05CFF" }, Burst = 1 },
 		},
 	},
-	-- Legendary: a golden anime power-up flame, storm cloud, lightning flashes and a strike from the sky
+	-- Thunder Gold (Legendary): a crackling golden power-up aura, a storm cloud over your head with gold lightning
+	-- striking down onto you, electric flashes all over your body, spiralling sparks
 	ThunderGold = {
 		Tier = 5,
 		Glow = "FFD23F",
 		Outline = { Fill = "Light", FillMax = 0.8 },
 		Elements = {
-			{ Type = "FX", Preset = "Cloud", Color = { "5A6078", "2A2F44" }, Rate = { 0, 8 } },
+			{ Type = "FX", Preset = "Cloud", Color = { "8A93AE", "4A5068" }, Rate = { 0, 8 } },
 			{ Type = "FX", Preset = "Sheet", Tex = "FlameAura", Color = { "FFF6C0", "FFD23F", "FF9E1F" }, Alpha = 0.3,
 				Rate = { 0, 9 }, Burst = 3 },
-			{ Type = "FX", Preset = "Flame", Color = { "FFF6C0", "FFD23F", "FF9E1F" }, Size = 0.9, Rate = { 3, 30 } },
-			{ Type = "FX", Preset = "Bolt", Tex = "BoltFlash", Color = { "FFFFFF", "FFE45A" }, Rate = { 1, 7 }, Burst = 5 },
-			{ Type = "Arcs", Color = { "FFFFFF", "FFE45A" }, Every = { 1.2, 0.22 }, Width = 0.14, Length = 2.6, Bolts = 3 },
-			{ Type = "Strike", Color = { "FFFFFF", "FFE45A" }, Every = 2.6 },
-			{ Type = "FX", Preset = "Spark", Color = { "FFF6C0", "FFC21F" }, Rate = { 4, 34 } },
-			{ Type = "FX", Preset = "Glint", Tex = "Star4b", Color = { "FFFFFF", "FFF0A0" }, Rate = { 1, 8 } },
+			{ Type = "FX", Preset = "Bolt", Tex = "BoltFlash", Color = { "FFFFFF", "FFE45A" }, Rate = { 1, 9 }, Burst = 6 },
+			{ Type = "Arcs", Color = { "FFFFFF", "FFE45A" }, Every = { 1, 0.2 }, Width = 0.14, Length = 2.6, Bolts = 3 },
+			{ Type = "Strike", Color = { "FFFFFF", "FFE45A" }, Every = 2.2 },
+			{ Type = "Swirl", Preset = "Glint", Tex = "Star4b", Color = { "FFFFFF", "FFE45A" }, Count = { 0, 2 }, Radius = 1.6,
+				Speed = 3.4, Rise = 0.7, Rate = { 8, 14 } },
+			{ Type = "FX", Preset = "Spark", Color = { "FFF6C0", "FFC21F" }, Rate = { 4, 30 } },
 			{ Type = "FX", Preset = "Pop", Tex = "Flash", Color = { "FFFFFF", "FFE45A" }, Size = 1.2, Burst = 1 },
-			{ Type = "FX", Preset = "Flare", Color = { "FFFFFF", "FFE45A" }, Size = 1.4, Rate = { 0, 0 }, Burst = 2 },
+			{ Type = "FX", Preset = "Flare", Color = { "FFFFFF", "FFE45A" }, Size = 1.4, Rate = { 0, 0.8 }, Burst = 2 },
 		},
 	},
-	-- Mythic: a roaring fire with black smoke, magma rocks, embers and dripping lava
+	-- Magma Roar (Mythic): you burn like magma - roaring fire, black smoke, magma rocks with glowing cores, lava
+	-- dripping off you - and every few seconds you let out a fiery ROAR shockwave
 	MagmaRoar = {
 		Tier = 6,
 		Glow = "FF6A1F",
@@ -207,45 +227,55 @@ AuraConfig.Styles = {
 			{ Type = "FX", Preset = "Flame", Color = { "FFF2C0", "FF8A1F", "C42A10" }, Size = 1, Rate = { 4, 24 } },
 			{ Type = "Pieces", Shape = "Rock", Count = { 0, 4 }, Color = "2A1610", Material = "Basalt", Core = "FF6A1F",
 				Size = 0.9, Radius = 2, Speed = 0.8, Bob = 0.3, Height = -0.2, Lift = 1, Spin = 0.8 },
-			{ Type = "FX", Preset = "Spark", Color = { "FFE08A", "FF6A1F" }, Rate = { 4, 34 } },
+			{ Type = "FX", Preset = "Spark", Color = { "FFE08A", "FF6A1F" }, Rate = { 4, 30 } },
 			{ Type = "FX", Preset = "Drip", Color = { "FFE08A", "FF6A1F", "B81E00" }, Rate = { 0, 6 } },
+			{ Type = "FX", Preset = "Roar", Color = { "FFE08A", "FF6A1F" }, Pulse = { nil, 3.2 }, PulseCount = 2, Burst = 3 },
+			{ Type = "FX", Preset = "Roar", Tex = "RingBurst", Color = { "FFB060", "C42A10" }, Size = 0.8, LE = 0.4,
+				Pulse = { nil, 3.2 }, PulseCount = 1, Burst = 1 },
 			{ Type = "FX", Preset = "Pop", Tex = "FireBlast", Color = "White", Size = 1.1, LE = 0.4, Burst = 2 },
 			{ Type = "FX", Preset = "Debris", Color = { "3A2418", "1A0E08" }, Rate = { 0, 0 }, Burst = 10 },
 		},
 	},
-	-- Secret: rainbow prism shards, a rainbow vortex, chromatic stars and ribbons
+	-- Prism Rainbow (Secret): light splitting into a rainbow - prism shards turning round you, rainbow light rays and
+	-- a rainbow vortex behind you, chromatic stars spiralling up, rainbow ribbons and lens flares
 	PrismRainbow = {
 		Tier = 7,
 		Glow = "FF8AE0",
 		Rainbow = true,
 		Outline = { Fill = "Light", FillMax = 0.75 },
 		Elements = {
-			{ Type = "FX", Preset = "Vortex", Tex = "RainbowSwirl", Color = "White", Alpha = 0.45, Glow = true,
-				Rate = { 0, 1.4 } },
+			{ Type = "FX", Preset = "Vortex", Tex = "Rays", Color = "Rainbow", Alpha = 0.3, Glow = true, Size = 1.15,
+				Rate = { 0.5, 1.6 } },
+			{ Type = "FX", Preset = "Vortex", Tex = "RainbowSwirl", Color = "White", Alpha = 0.45, Glow = true, Size = 0.9,
+				Rate = { 0, 1.2 } },
 			{ Type = "Pieces", Shape = "Shard", Count = { 2, 7 }, Color = "Rainbow", Size = 1, Radius = 2, Speed = 1.1,
 				Bob = 0.4, Height = 0.1, Lift = 0.5, Spin = 2 },
+			{ Type = "Swirl", Preset = "Glint", Tex = "Chroma", Color = "White", Size = 1.1, Count = { 1, 3 }, Radius = 1.8,
+				Speed = 2.6, Rise = 0.5, Rate = { 6, 12 } },
 			{ Type = "Ribbons", Count = { 1, 3 }, Color = "Rainbow" },
-			{ Type = "FX", Preset = "Glint", Tex = "Chroma", Color = "White", Size = 1.2, Rate = { 2, 12 } },
-			{ Type = "FX", Preset = "Mote", Tex = "Glow", Color = "Rainbow", Rate = { 4, 22 } },
-			{ Type = "FX", Preset = "Spark", Color = "Rainbow", Rate = { 3, 28 } },
-			{ Type = "FX", Preset = "Flare", Color = { "FFFFFF", "FFD6F4" }, Rate = { 0, 1.2 }, Burst = 2 },
+			{ Type = "FX", Preset = "Spark", Color = "Rainbow", Rate = { 3, 24 } },
+			{ Type = "FX", Preset = "Mote", Tex = "Glow", Color = "Rainbow", Rate = { 4, 20 } },
+			{ Type = "FX", Preset = "Flare", Color = "Rainbow", Rate = { 0, 1.5 }, Burst = 2 },
 			{ Type = "FX", Preset = "Pop", Tex = "SparkleDust", Color = "Rainbow", Size = 1.2, Burst = 2 },
 		},
 	},
-	-- Secret: a black-violet power aura with dark flames, curling shadow wisps and sweeping crescents
+	-- Shadow Monarch (Secret): the shadow king - black shadows rising up off the ground round you, a black-violet
+	-- flame aura, shadow wisps circling you, sweeping violet crescents and violet lightning
 	ShadowMonarch = {
 		Tier = 8,
 		Glow = "8A3DFF",
 		Outline = { Fill = "Dark", FillMax = 0.45 },
 		Elements = {
 			{ Type = "FX", Preset = "Backdrop", Color = { "14081F", "000000" }, Alpha = 0.2, Size = 1.25, Rate = { 5, 16 } },
+			{ Type = "FX", Preset = "Wisp", Tex = "WispBlur", At = "Feet", Color = { "1A0A2E", "000000" }, Dark = true,
+				Alpha = 0.15, Size = 1.3, Rate = { 2, 14 }, Burst = 8 },
 			{ Type = "FX", Preset = "Sheet", Tex = "FlameAura2", Color = { "B88CFF", "6A2DDB", "2A1050" }, Alpha = 0.3,
 				LE = 0.35, Rate = { 0, 8 }, Burst = 3 },
-			{ Type = "FX", Preset = "Flame", Color = { "E6D4FF", "8A3DFF", "2A1050" }, Size = 1.05, Rate = { 4, 32 } },
-			{ Type = "FX", Preset = "Wisp", Tex = "WispBlur", Color = { "2A1050", "000000" }, Dark = true, Alpha = 0.25,
-				Rate = { 1, 10 } },
+			{ Type = "FX", Preset = "Flame", Color = { "E6D4FF", "8A3DFF", "2A1050" }, Size = 1.05, Rate = { 4, 30 } },
+			{ Type = "Swirl", Preset = "Wisp", Tex = "Wisp", Color = { "8A3DFF", "14081F" }, Dark = true, Alpha = 0.25,
+				Size = 0.8, Count = { 0, 3 }, Radius = 1.9, Speed = 2.2, Rise = 0.4, Rate = { 4, 8 } },
 			{ Type = "FX", Preset = "Slash", Tex = "CrescentFlip", Color = { "E6D4FF", "8A3DFF" }, Rate = { 0, 2.2 }, Burst = 3 },
-			{ Type = "FX", Preset = "Spark", Color = { "E6D4FF", "8A3DFF" }, Rate = { 3, 30 } },
+			{ Type = "FX", Preset = "Spark", Color = { "E6D4FF", "8A3DFF" }, Rate = { 3, 26 } },
 			{ Type = "Arcs", Color = { "E6D4FF", "8A3DFF" }, Every = { nil, 0.6 }, Width = 0.1, Length = 2 },
 			{ Type = "Ribbons", Count = { 0, 2 }, Color = { "E6D4FF", "8A3DFF" } },
 			{ Type = "FX", Preset = "Pop", Tex = "DarkVoid", Color = { "8A3DFF", "14081F" }, Size = 1.4, LE = 0.2, Burst = 1 },
