@@ -360,6 +360,9 @@ R.Rules = {
 	IcebreakerRex = function(m) return tail3(m, "Tail") end,
 	Mantisaur = function(m) return tail3(m, "Tail") end,
 	Hammerjaw = function(m) return tail3(m, "Tail") end,
+	Sparkit = function(m) return tail3(m, "Tail") end,
+	Voltbeak = function(m) return tail3(m, "Tail") end,
+	Voltkirin = function(m) return tail3(m, "Tail") end,
 	-- Tidewyrm: the manta wings (inside Seg1) become WingL / WingR, each with an outer link (WingL2 / WingR2) from 3 studs
 	-- out, so they can ripple from root to tip. Body bricks within 0.85 studs of the middle stay in Seg1.
 	Tidewyrm = function(m)
