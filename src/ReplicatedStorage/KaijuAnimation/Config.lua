@@ -416,6 +416,23 @@ Config.States = {
 	Hatched = { Action = "Pop", Window = 2.5 }, -- a creature spawned (SpawnedAt) less than Window seconds ago pops in
 }
 
+-- Incubating pen eggs (KaijuAnimation.Eggs; each pair runs from just placed to about to hatch). Rock: radians of the
+-- slow sway. Every: seconds between wobble bursts; Wobble: their roll (radians). From KickFrom of the way through, a
+-- KickChance share of bursts are kicks from inside: a Hop (share of the egg's height) and a Knock (radians).
+-- Heart: the gem's heartbeat (beats per second), HeartGlow its light brightness, HeartRange its reach (studs at size 1).
+Config.Eggs = {
+	Rock = { 0.012, 0.035 },
+	Every = { 4.5, 0.9 },
+	Wobble = { 0.08, 0.22 },
+	KickFrom = 0.6,
+	KickChance = 0.45,
+	Hop = 0.08,
+	Knock = 0.14,
+	Heart = { 0.5, 1.8 },
+	HeartGlow = { 0.25, 2.2 },
+	HeartRange = { 4, 8 },
+}
+
 -- Visual effects, created once per creature when it registers (never per frame).
 Config.VFX = {
 	Pulse = 0.22, -- neon accents brighten by this much on each inhale (profiles can set their own Pulse)

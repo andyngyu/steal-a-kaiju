@@ -27,6 +27,7 @@ local Format = require(ReplicatedStorage.Shared.Util.Format)
 local KaijuMotion = require(script.Parent:WaitForChild("KaijuMotion"))
 -- kaiju the new animation engine (ReplicatedStorage.KaijuAnimation) animates: here they only get popups and hatch effects
 local AnimConfig = require(ReplicatedStorage:WaitForChild("KaijuAnimation"):WaitForChild("Config"))
+local EggMotion = require(ReplicatedStorage.KaijuAnimation:WaitForChild("Eggs")) -- incubating eggs' build-up
 local Settings = require(script.Parent:WaitForChild("Settings"))
 local gameEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameEvent")
 
@@ -848,6 +849,9 @@ local function updateEgg(model, st, t, camPos)
 
 	if state == "Pen" then
 		local hatchStart = model:GetAttribute("HatchStartedAt")
+		if hatchStart or model:GetAttribute("Ready") then
+			EggMotion.Stop(st)
+		end
 		if hatchStart then
 			setGlow(model, st, false)
 			local anim = model:GetAttribute("HatchAnim") or BaseConfig.Hatch.AnimSeconds
@@ -905,13 +909,7 @@ local function updateEgg(model, st, t, camPos)
 				end
 			end
 		else
-			local left = (model:GetAttribute("HatchAt") or 0) - serverNow()
-			local soon = left < 15
-			local period = soon and 1.1 or 3.5
-			local w = (t + st.seed) % period
-			if w < 0.6 then
-				roll = math.sin(w * 26) * 0.12 * (1 - w / 0.6) * (soon and 1.8 or 1)
-			end
+			pitch, yaw, roll, y = EggMotion.Incubate(model, st, t, serverNow()) -- KaijuAnimation.Eggs: the build-up
 		end
 	else -- Nest / Ground
 		y = math.sin(t * 1.6 + st.seed) * 0.12
