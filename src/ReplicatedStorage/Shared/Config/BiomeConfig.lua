@@ -23,6 +23,8 @@ export type Guardian = {
 	MaxCatchup: number?, -- most it runs above the player's pace while closing a gap (fraction of their pace)
 	CatchupPerStud: number?, -- extra studs/s per stud of gap
 	UnderspeedBoost: number?, -- pace multiple against a player below RecommendedSpeed
+	OverspeedFalloff: number?, -- how quickly it slows against a player above RecommendedSpeed (higher = slows sooner)
+	OverspeedMinPace: number?, -- the slowest it gets against an over-speed player (fraction of its normal chase pace)
 	Scale: number,
 }
 

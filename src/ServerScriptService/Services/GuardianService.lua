@@ -24,6 +24,9 @@
 --   under-speed thieves (Speed below the biome's RecommendedSpeed, the lane sign's "Too slow"): it roars for only
 --     UNDERSPEED_WAKE, then runs at UNDERSPEED_BOOST x their pace plus a hard catch-up (UNDERSPEED_CATCHUP_PER_STUD,
 --     up to UNDERSPEED_MAX_CATCHUP x their pace), so it's on them in moments and knocks the egg off them.
+--   over-speed thieves (RunSpeed above the biome's RecommendedSpeed): the whole chase pace is scaled down by
+--     1 / (1 + OVERSPEED_FALLOFF x fraction over), never below OVERSPEED_MIN_PACE - the further over the recommended
+--     speed, the slower it runs and the less likely it is to reach them (overspeedPace below).
 -- Uses ServerStorage.Assets.Kaiju.Guardian_<BiomeId> if present, otherwise builds a placeholder.
 -- Model attributes: BiomeId, State, TargetUserId (its player while it has one), Personal (a copy), RiseAt / SinkAt
 --   (server time a copy started rising / sinking; Gameplay.KaijuFX animates both).
@@ -37,6 +40,7 @@ local Debris = game:GetService("Debris")
 
 local BiomeConfig = require(ReplicatedStorage.Shared.Config.BiomeConfig)
 local DevConfig = require(ReplicatedStorage.Shared.Config.DevConfig)
+local EggConfig = require(ReplicatedStorage.Shared.Config.EggConfig)
 local Ragdoll = require(game:GetService("ServerScriptService").Lib.Ragdoll)
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 
@@ -57,6 +61,12 @@ local UNDERSPEED_WAKE = 0.25 -- seconds of roar before it charges (instead of Gu
 local underspeed -- (defined below, before step)
 local UNDERSPEED_CATCHUP_PER_STUD = 1.5 -- closes a gap this much faster per stud behind...
 local UNDERSPEED_MAX_CATCHUP = 0.6 -- ...up to this fraction of their pace on top
+-- Against a player above the biome's RecommendedSpeed a guardian is slower, more so the further over they are:
+-- pace x 1 / (1 + OVERSPEED_FALLOFF * (RunSpeed / RecommendedSpeed - 1)), floored at OVERSPEED_MIN_PACE.
+-- e.g. 10% over -> 0.87x, 25% over -> 0.73x, 50% over -> 0.57x, double -> 0.4x (the floor).
+-- (a biome can override with Guardian.OverspeedFalloff / Guardian.OverspeedMinPace)
+local OVERSPEED_FALLOFF = 1.5
+local OVERSPEED_MIN_PACE = 0.4
 local MAX_PER_BIOME = 8
 local CAUGHT_RAGDOLL_SECONDS = 1.4 -- a caught player flops (and can't grab eggs) this long
 local FLING_SCALE = 0.5 -- fling speed toward the safe zone, as a fraction of the biome's Knockback (a ragdoll slides far)
@@ -64,6 +74,13 @@ local FLING_UP = 0.55 -- upward part of the fling, as a fraction of that
 local POST_CATCH_PAUSE = 1 -- seconds it stands over the egg after a catch before picking it up (time to come back for it)
 local FETCH_REACH = 3 -- studs past its body at which a guardian scoops up a dropped egg
 local REGRAB_ROAR = 1.2 -- seconds it roars before chasing someone who snatched the egg back off it
+-- Picking a dropped egg up: it stops, reaches down (GRAB_DIP; KaijuFX ducks the head / arms to the ground off the model
+-- attribute GrabAt), takes the egg at the bottom, then straightens up (GRAB_RISE) before setting off home.
+local GRAB_DIP = 0.45
+local GRAB_RISE = 0.45
+-- Snatching it back: the egg rides at jaw / chest height (14-18 studs up), so its prompt reaches this far across the
+-- ground (not counting the height) and needs no hold - the guardian is walking away with it.
+local GRAB_REACH_FLAT = 20
 -- where copies rise, around the resident's spot (the lane runs along X)
 local COPY_OFFSETS = {
 	Vector3.new(0, 0, 18),
@@ -317,6 +334,7 @@ local function forgetEgg(g)
 	local egg = g.egg
 	g.egg = nil
 	g.hauling = false
+	g.grabAt = nil
 	g.model:SetAttribute("CarryingEgg", nil)
 	return egg
 end
@@ -412,6 +430,8 @@ end
 -- (radians: forward, inward) is the one Gameplay.KaijuFX holds the arms in.
 local HOLD_STYLE = { FrostfangPeaks = "Arms", CosmicRift = "Arms" } -- everyone else: "Mouth"
 local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38
+-- How far a rex holds its jaw open around an egg (radians). Sent to clients as the model attribute HoldJaw.
+local HOLD_JAW = 0.75
 
 -- Root-space box of the bricks welded to a rig joint part.
 local function jointExtents(model, root, jointPart)
@@ -434,6 +454,62 @@ local function jointExtents(model, root, jointPart)
 		end
 	end
 	return mn, mx
+end
+
+-- Visible bricks welded to a rig joint part.
+local function weldedTo(model, jointPart)
+	local list = {}
+	for _, w in model:GetDescendants() do
+		if w:IsA("WeldConstraint") or w:IsA("Weld") then
+			local other = (w.Part0 == jointPart and w.Part1) or (w.Part1 == jointPart and w.Part0) or nil
+			if other and other:IsA("BasePart") and other.Transparency < 1 then
+				table.insert(list, other)
+			end
+		end
+	end
+	return list
+end
+
+-- How far a sphere (centre c, radius r) pokes into a part's box; <= 0 means clear of it.
+local function sphereDepth(part, c, r)
+	local p = part.CFrame:PointToObjectSpace(c)
+	local h = part.Size / 2
+	local q = Vector3.new(math.clamp(p.X, -h.X, h.X), math.clamp(p.Y, -h.Y, h.Y), math.clamp(p.Z, -h.Z, h.Z))
+	if q == p then
+		return r + math.min(h.X - math.abs(p.X), h.Y - math.abs(p.Y), h.Z - math.abs(p.Z))
+	end
+	return r - (p - q).Magnitude
+end
+
+-- Egg in the jaws: sitting on the lower jaw, which KaijuFX holds HOLD_JAW open. Tries spots along the jaw and shrinking
+-- egg sizes, checking the egg (with the jaw opened) against the head's actual bricks, and takes the biggest egg that fits
+-- without poking into the upper jaw / face. Returns spot (root space, rest pose) and scale.
+local function mouthSpot(g, motors, eggSize)
+	local root = g.root
+	local jm = motors.Jaw
+	local mn, mx = jointExtents(g.model, root, jm.Part1)
+	local hmn, hmx = jointExtents(g.model, root, motors.Head.Part1)
+	local head = weldedTo(g.model, motors.Head.Part1)
+	local hinge = jm.Part0.CFrame * jm.C0
+	local open = hinge * CFrame.Angles(-HOLD_JAW, 0, 0) * hinge:Inverse()
+	local scale = math.min(1, (hmx.X - hmn.X) * 0.6 / eggSize)
+	while scale > 0.2 do
+		local r = eggSize * scale / 2
+		for _, f in { 0.3, 0.2, 0.4, 0.12, 0.5, 0.6 } do -- fraction of the jaw's length back from its tip
+			local spot = Vector3.new(0, mx.Y + r * 0.75, mn.Z + (mx.Z - mn.Z) * f)
+			local posed = open * (root.CFrame * spot)
+			local worst = -math.huge
+			for _, p in head do
+				worst = math.max(worst, sphereDepth(p, posed, r * 0.9))
+			end
+			if worst <= 0.15 then
+				return spot, scale
+			end
+		end
+		scale *= 0.92
+	end
+	local r = eggSize * scale / 2
+	return Vector3.new(0, mx.Y + r * 0.6, mn.Z - r * 0.5), scale -- nothing fits: out at the tip
 end
 
 -- Where the egg sits while carried. Returns the part it's welded to, its centre in root space (rest pose), the style
@@ -463,13 +539,9 @@ local function holdSpot(g, egg)
 		-- resting on top of the hands, held out in front of the chest
 		return motors.Body.Part1, Vector3.new(0, handY + r * 0.9, handZ - r * 0.1), style, scale
 	elseif motors.Jaw and motors.Head then
-		-- held in the front of the jaws: resting on the lower jaw, sticking out past the snout
-		local jaw = motors.Jaw.Part1
-		local mn, mx = jointExtents(model, root, jaw)
-		local hmn, hmx = jointExtents(model, root, motors.Head.Part1)
-		local scale = math.min(1, (hmx.X - hmn.X) * 0.6 / size)
-		local r = size * scale / 2
-		return jaw, Vector3.new(0, mx.Y + r * 0.6, mn.Z - r * 0.5), style, scale
+		-- held between the jaws, sized and placed so it doesn't clip the head (mouthSpot)
+		local spot, scale = mouthSpot(g, motors, size)
+		return motors.Jaw.Part1, spot, style, scale
 	end
 	local r = size / 2
 	return root, Vector3.new(0, 0, -(root.Size.Z / 2 + r)), style, 1 -- unrigged placeholder: in front of it
@@ -486,12 +558,19 @@ local function attachEgg(g)
 		egg:SetAttribute("FullScale", egg:GetScale()) -- EggService puts it back to this when it's grabbed
 		egg:ScaleTo(egg:GetScale() * scale)
 	end
-	local prompt = egg.PrimaryPart:FindFirstChild("Prompt")
-	if prompt then
-		prompt.MaxActivationDistance = 12 -- scaling shrinks its reach, and the egg is up at mouth / chest height
-	end
 	local target = g.root.CFrame * CFrame.new(spot)
 	egg:PivotTo(target)
+	-- grab range measured from a player standing on the ground: GRAB_REACH_FLAT across, plus the egg's height over a
+	-- player's root (prompt distance is 3D). EggService:TryPickup allows the same (GrabReach).
+	local feetY = g.root.Position.Y - g.root.Size.Y / 2 - g.humanoid.HipHeight
+	local rise = math.max(0, target.Position.Y - (feetY + 3))
+	local reach = math.sqrt(GRAB_REACH_FLAT ^ 2 + rise ^ 2)
+	egg:SetAttribute("GrabReach", reach)
+	local prompt = egg.PrimaryPart:FindFirstChild("Prompt")
+	if prompt then
+		prompt.MaxActivationDistance = reach
+		prompt.HoldDuration = 0
+	end
 	local weld = Instance.new("Weld")
 	weld.Name = "GuardianWeld"
 	weld.Part0 = holder
@@ -504,6 +583,7 @@ local function attachEgg(g)
 	end)
 	g.hauling = true
 	g.model:SetAttribute("HoldStyle", style)
+	g.model:SetAttribute("HoldJaw", HOLD_JAW)
 	g.model:SetAttribute("CarryingEgg", egg:GetAttribute("EggId") or true)
 	log(g.zone.biome.Id, "carrying egg home", style)
 	headOff(g)
@@ -572,6 +652,19 @@ function underspeed(g, owner)
 	local recommended = g.zone.biome.RecommendedSpeed
 	local statSpeed = owner and (owner:GetAttribute("RunSpeed") or owner:GetAttribute("BaseWalkSpeed"))
 	return recommended ~= nil and type(statSpeed) == "number" and statSpeed < recommended
+end
+
+-- Pace multiplier (<= 1) for a guardian chasing a player faster than its biome's RecommendedSpeed: 1 at or below it,
+-- dropping the further over they are.
+local function overspeedPace(g, owner)
+	local recommended = g.zone.biome.RecommendedSpeed
+	local statSpeed = owner and (owner:GetAttribute("RunSpeed") or owner:GetAttribute("BaseWalkSpeed"))
+	if not (recommended and recommended > 0 and type(statSpeed) == "number" and statSpeed > recommended) then
+		return 1
+	end
+	local over = statSpeed / recommended - 1
+	local falloff = g.cfg.OverspeedFalloff or OVERSPEED_FALLOFF
+	return math.max(g.cfg.OverspeedMinPace or OVERSPEED_MIN_PACE, 1 / (1 + over * falloff))
 end
 
 local function step(g)
@@ -646,9 +739,10 @@ local function step(g)
 			local hardCatchup = math.min(math.max(0, gap) * UNDERSPEED_CATCHUP_PER_STUD, playerSpeed * UNDERSPEED_MAX_CATCHUP)
 			speed = math.max(base * 1.25, playerSpeed * (cfg.UnderspeedBoost or UNDERSPEED_BOOST) + hardCatchup) * math.min(wmult, 1.1)
 		elseif gap > FOLLOW_DISTANCE then
-			speed = math.max(base, playerSpeed + catchup)
+			speed = math.max(base, playerSpeed + catchup) * overspeedPace(g, owner)
 		else
-			speed = playerSpeed * trailPace -- on their heels: near their pace (a player who stops gets caught)
+			-- on their heels: near their pace (a player who stops gets caught); over-speed players pull away
+			speed = playerSpeed * trailPace * overspeedPace(g, owner)
 		end
 		g.humanoid.WalkSpeed = math.min(speed, MAX_CHASE_SPEED)
 		-- aim a little ahead of the player, smoothed so the heading doesn't jerk with every step they take
@@ -680,7 +774,25 @@ local function step(g)
 			local at = g.egg.PrimaryPart.Position
 			local gap = Vector3.new(at.X - g.root.Position.X, 0, at.Z - g.root.Position.Z).Magnitude
 			if gap <= g.root.Size.Z / 2 + FETCH_REACH + g.egg.PrimaryPart.Size.X / 2 then
+				if not g.grabAt then
+					-- stop, face the egg and reach down for it
+					g.grabAt = now
+					g.humanoid.WalkSpeed = 0
+					g.humanoid:MoveTo(g.root.Position)
+					local dir = Vector3.new(at.X - g.root.Position.X, 0, at.Z - g.root.Position.Z)
+					if dir.Magnitude > 0.1 then
+						g.root.CFrame = CFrame.lookAt(g.root.Position, g.root.Position + dir)
+					end
+					g.model:SetAttribute("GrabAt", serverNow())
+					g.pauseUntil = now + GRAB_DIP
+					return
+				end
+				-- at the bottom of the reach: take it, then stand back up before walking off
+				g.grabAt = nil
 				attachEgg(g)
+				g.humanoid.WalkSpeed = 0
+				g.humanoid:MoveTo(g.root.Position)
+				g.pauseUntil = os.clock() + GRAB_RISE
 			elseif now - (g.lastMoveTo or 0) > 1 then
 				g.lastMoveTo = now
 				g.humanoid:MoveTo(at)

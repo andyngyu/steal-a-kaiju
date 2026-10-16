@@ -947,6 +947,14 @@ end
 local GUARDIAN_GAIT = { FrostfangPeaks = "ape", CosmicRift = "ape" } -- everyone else runs like a rex
 local RISE_SECONDS, SINK_SECONDS = 1.1, 1.2 -- GuardianService's copy rise / sink times
 local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38 -- arms forward / inward while carrying an egg (GuardianService matches)
+-- picking up a dropped egg (model attribute GrabAt, server time; GuardianService stands still for it and takes the egg
+-- at the bottom): reach down, stay low a moment, straighten back up
+local GRAB_DOWN, GRAB_LOW, GRAB_UP = 0.4, 0.15, 0.45
+
+local function smoothstep(x)
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
 
 local guardianRigs = {}
 
@@ -1046,6 +1054,19 @@ local function animateGuardian(g, st, dt, t)
 	local holding = g:GetAttribute("CarryingEgg") ~= nil
 	st.hold = lerp(st.hold or 0, holding and 1 or 0, 1 - math.exp(-8 * dt))
 	local hold = st.hold
+	-- 0..1 how far down it's reaching for a dropped egg
+	local dip = 0
+	local grabAt = g:GetAttribute("GrabAt")
+	if grabAt then
+		local e = serverNow() - grabAt
+		if e >= 0 and e < GRAB_DOWN then
+			dip = smoothstep(e / GRAB_DOWN)
+		elseif e >= GRAB_DOWN and e < GRAB_DOWN + GRAB_LOW then
+			dip = 1
+		elseif e >= GRAB_DOWN + GRAB_LOW then
+			dip = 1 - smoothstep((e - GRAB_DOWN - GRAB_LOW) / GRAB_UP)
+		end
+	end
 
 	-- gait: a planted foot sweeps back at the ground speed (stance), then the leg swings forward, lifted. Cadence rises
 	-- with speed and climbs further rather than over-stretch a leg past ~42 degrees; past 3 steps a second the stride
@@ -1111,8 +1132,9 @@ local function animateGuardian(g, st, dt, t)
 
 	-- whole body
 	local ape = st.gait == "ape"
-	local crouch = L * 0.08 * sleep
+	local crouch = L * 0.08 * sleep + L * 0.25 * dip -- knees bend to reach the egg
 	local pitch = -(ape and 0.2 or 0.11) * run + math.sin(phL * 4 * math.pi) * 0.025 * run + 0.38 * roar - 0.07 * sleep + breathe * 0.012 * (1 - moving)
+		- (ape and 0.55 or 0.6) * dip -- tips forward over the egg
 	local roll = 0.05 * s1 * run + bank
 	local twist = 0.06 * s1 * run
 	if m.Body then
@@ -1136,10 +1158,12 @@ local function animateGuardian(g, st, dt, t)
 		if m.ArmL then
 			local free = CFrame.Angles(-swing + 1.3 * roar + beat + breathe * 0.03 * sleep, 0, -0.35 * roar)
 			m.ArmL.Transform = free:Lerp(CFrame.Angles(HOLD_ARM_PITCH + jiggle, 0, -HOLD_ARM_IN), hold)
+				:Lerp(CFrame.Angles(0.35, 0, -0.15), dip * (1 - hold)) -- reaching down for it
 		end
 		if m.ArmR then
 			local free = CFrame.Angles(swing + 1.3 * roar - beat + breathe * 0.03 * sleep, 0, 0.35 * roar)
 			m.ArmR.Transform = free:Lerp(CFrame.Angles(HOLD_ARM_PITCH + jiggle, 0, HOLD_ARM_IN), hold)
+				:Lerp(CFrame.Angles(0.35, 0, 0.15), dip * (1 - hold))
 		end
 	else
 		local pump = 0.28 * s1 * run
@@ -1155,12 +1179,14 @@ local function animateGuardian(g, st, dt, t)
 	if m.Head then
 		local lookYaw = math.clamp(-yawOffset * 0.6, -0.5, 0.5) + math.sin(t * 0.8 + st.seed) * 0.1 * (1 - moving) * (1 - sleep)
 		local headPitch = -pitch * 0.75 - 0.42 * sleep + breathe * 0.04 * sleep + 0.3 * roar - 0.12 * st.chomp + (ape and 0 or 0.1 * hold)
+			- (ape and 0.35 or 0.75) * dip -- head ducks to the ground
 		m.Head.Transform = CFrame.new(0, -bob * 0.6, 0) * CFrame.Angles(0, lookYaw, 0) * CFrame.Angles(headPitch, 0, -roll * 0.5)
 	end
 	if m.Jaw then
 		local jaw = 0.85 * roar + st.chomp * (0.2 + 0.45 * math.max(0, math.sin(t * 13))) + 0.08 * math.abs(s1) * run + math.max(0, breathe) * 0.06 * sleep
 		if not ape then
-			jaw = jaw * (1 - hold) + 0.28 * hold -- jaws parted around the egg
+			jaw = jaw * (1 - hold) + (g:GetAttribute("HoldJaw") or 0.75) * hold -- jaws open around the egg (GuardianService fits the egg to this)
+			jaw = jaw + (0.75 - jaw) * dip * (1 - hold) -- wide open going down, closing on the egg as it takes it
 		end
 		m.Jaw.Transform = CFrame.Angles(-jaw, 0, 0)
 	end

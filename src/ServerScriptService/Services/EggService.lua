@@ -296,7 +296,13 @@ function EggService:TryPickup(player, egg)
 	end
 	-- measured to the egg's surface so giant eggs aren't harder to grab
 	local dist = (hrp.Position - egg.PrimaryPart.Position).Magnitude - egg.PrimaryPart.Size.X / 2
-	if dist > EggConfig.Pickup.MaxDistance then
+	local maxDist = EggConfig.Pickup.MaxDistance
+	if state == "Guardian" then
+		-- up in a guardian's jaws / arms: its prompt reaches further (GuardianService sets GrabReach), plus slack since
+		-- the guardian keeps walking while the request travels
+		maxDist = math.max(maxDist, (egg:GetAttribute("GrabReach") or 0) + 6)
+	end
+	if dist > maxDist then
 		log(player.Name, "pickup rejected: too far", math.floor(dist))
 		return false
 	end
