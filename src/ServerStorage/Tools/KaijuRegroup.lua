@@ -359,6 +359,58 @@ R.Rules = {
 	Snowpup = function(m) return tail3(m, "Tail") end,
 	IcebreakerRex = function(m) return tail3(m, "Tail") end,
 	Mantisaur = function(m) return tail3(m, "Tail") end,
+	Hammerjaw = function(m) return tail3(m, "Tail") end,
+	-- Tidewyrm: the manta wings (inside Seg1) become WingL / WingR, each with an outer link (WingL2 / WingR2) from 3 studs
+	-- out, so they can ripple from root to tip. Body bricks within 0.85 studs of the middle stay in Seg1.
+	Tidewyrm = function(m)
+		local seg = findGroup(m, "Seg1")
+		if not seg or findGroup(m, "WingL") then
+			return false
+		end
+		local WING = { Wing = true, WingDark = true, WingUnder = true, Glow = true }
+		local inner, outer = { [1] = {}, [-1] = {} }, { [1] = {}, [-1] = {} }
+		for _, p in directParts(seg) do
+			local x = p.Position.X
+			if WING[p.Name] and math.abs(x) > 0.85 then
+				local s = x > 0 and 1 or -1
+				table.insert(math.abs(x) >= 3 and outer[s] or inner[s], p)
+			end
+		end
+		-- a joint on the wing's centre line at a given distance out (average height and depth of the bricks near it)
+		local function jointAt(parts, s, x)
+			local sum, n = Vector3.zero, 0
+			for _, p in parts do
+				if math.abs(math.abs(p.Position.X) - x) < 0.6 then
+					sum += p.Position
+					n += 1
+				end
+			end
+			local c = n > 0 and sum / n or centroid(parts)
+			return Vector3.new(s * x, c.Y, c.Z)
+		end
+		local any = false
+		for _, s in { 1, -1 } do
+			local suffix = s == 1 and "L" or "R"
+			if #inner[s] > 0 then
+				local g = newGroup(seg, "Wing" .. suffix, jointAt(inner[s], s, 1.1))
+				for _, p in inner[s] do
+					p.Parent = g
+				end
+				if #outer[s] > 0 then
+					local all = table.clone(inner[s])
+					for _, p in outer[s] do
+						table.insert(all, p)
+					end
+					local g2 = newGroup(g, "Wing" .. suffix .. "2", jointAt(all, s, 3))
+					for _, p in outer[s] do
+						p.Parent = g2
+					end
+				end
+				any = true
+			end
+		end
+		return any
+	end,
 	-- Toxitops: the petal frill fanned behind its head becomes its own group, hinged at its base, so it can flare
 	Toxitops = function(m)
 		local a = tail3(m, "Tail")
