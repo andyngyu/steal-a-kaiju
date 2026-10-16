@@ -362,8 +362,11 @@ end
 
 -- Feed (E) and feed-ten (F) prompts on a kaiju, at mid-body height. The owner's client handles them
 -- (Gameplay.MarketFX -> Remotes.FeedKaiju); the server only labels and enables them.
+-- Off (15 Oct 2026, designer's request): kaiju are fed from the Pets panel (KaijuController's FEED button ->
+-- Remotes.FeedKaiju with the chosen food), so no prompts are put on the kaiju. Set FEED_PROMPTS = true to bring them back.
+local FEED_PROMPTS = false
 local function addPrompts(model)
-	if model:GetAttribute("Showcase") or not model.PrimaryPart then
+	if not FEED_PROMPTS or model:GetAttribute("Showcase") or not model.PrimaryPart then
 		return
 	end
 	local ownerId = model:GetAttribute("OwnerUserId")
