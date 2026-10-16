@@ -1044,6 +1044,36 @@ function B.Refine(b)
 	return require(mod)(b, K, T)
 end
 
+-- Props in the run are pass-through: a player running home with an egg must never snag on a rock, spire or tree.
+-- Solid: the floor, lane walls and cliffs, lava / liquid pools and bridges (walking surfaces), the void gate's ring.
+local SOLID_GROUPS = { Cliffs = true, Walls = true, Lava = true, Liquid = true, Bridge = true, VoidGate = true }
+local function passThrough(b)
+	local lane = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Lane")
+	local model = lane and lane:FindFirstChild(b.Id)
+	local zone = model and model:FindFirstChild("Zone")
+	if not zone then
+		return 0
+	end
+	local halfZ = zone.Size.Z / 2 - 3
+	local n = 0
+	for _, folderName in { "Refined", "Decor" } do
+		local folder = model:FindFirstChild(folderName)
+		for _, p in folder and folder:GetDescendants() or {} do
+			if p:IsA("BasePart") and p.CanCollide and math.abs(p.Position.Z - zone.Position.Z) < halfZ then
+				local group = p
+				while group.Parent ~= folder do
+					group = group.Parent
+				end
+				if not SOLID_GROUPS[group.Name] then
+					p.CanCollide = false
+					n += 1
+				end
+			end
+		end
+	end
+	return n
+end
+
 local ORDER = { "Widen", "Cliffs", "Gate", "Landmark", "Dress", "Refine" }
 local REFINED_SKIP = { Widen = true, Cliffs = true, Landmark = true, Dress = true }
 
@@ -1067,6 +1097,7 @@ function B.Build(ids, sections)
 					task.wait()
 				end
 			end
+			table.insert(report, b.Id .. ".PassThrough: " .. passThrough(b) .. " props made non-collidable")
 			-- the canyon closes after the last biome (a refined biome closes it itself)
 			if not b.next and not refined and (not sections or table.find(sections, "EndCap")) then
 				local ok, res = pcall(B.EndCap, b)

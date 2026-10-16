@@ -532,6 +532,16 @@ function C.Build(only)
 			task.wait()
 		end
 	end
+	-- the grounds' props (banners, braziers, benches, hedges, lamps, statues...) are pass-through, so nobody snags on
+	-- them running to their plot; walls, towers, the gate, the keep, the hall and the stalls stay solid
+	for _, name in { "Avenue", "Gardens" } do
+		local props = root:FindFirstChild(name)
+		for _, d in props and props:GetDescendants() or {} do
+			if d:IsA("BasePart") then
+				d.CanCollide = false
+			end
+		end
+	end
 	-- the old dirt walls are replaced by the citadel walls
 	local oldWalls = map:FindFirstChild("Walls")
 	if oldWalls and (not only or table.find(only, "Walls")) then
