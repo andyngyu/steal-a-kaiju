@@ -13,6 +13,7 @@ SettingsConfig.List = {
 	{ Key = "AutoHatch", Label = "Auto Hatch", Description = "Hatch eggs as soon as they're ready", Default = false },
 	{ Key = "CarryGuide", Label = "Path Home", Description = "Arrow to your pen while you carry an egg", Default = true },
 	{ Key = "Auras", Label = "Player Auras", Description = "Glowing auras from equipped trails", Default = true },
+	{ Key = "OthersPets", Label = "Others' Pets", Description = "Show other players' kaiju in their pens", Default = true },
 }
 
 SettingsConfig.ByKey = {}
