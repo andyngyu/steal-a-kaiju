@@ -297,18 +297,71 @@ local MUTATION = {
 		flares(fx, ice, 1.5, 1.8)
 	end,
 	Molten = function(fx, m)
-		local fire = { "#FFE08A", "#FF7A1F", "#B81E00" }
-		fx.em(fx.ground, { Texture = T.Cloud, Color = CS({ "#3A1208", "#120604" }), LightEmission = 0, LightInfluence = 0.5,
-			Speed = NR(1.5, 3), SpreadAngle = Vector2.new(25, 25), EmissionDirection = TOP, Size = NS(0, fx.radius * 0.8, 1, fx.radius * 2),
-			Transparency = NS(0, 1, 0.25, 0.45, 1, 1), Rotation = NR(0, 360), RotSpeed = NR(-20, 20), Lifetime = NR(1.5, 2.2), Rate = 4, ZOffset = -1 })
-		circle(fx, T.CrackBright, fire, fx.radius * 2.6, 0, 0.35, 0.6, 4)
-		local flames = fx.em(fx.host, { Texture = T.FlameFlip, Color = CS(fire), Shape = Enum.ParticleEmitterShape.Box,
-			EmissionDirection = TOP, Speed = NR(1.5, 3), Size = NS(0, fx.radius * 0.5, 0.4, fx.radius * 0.8, 1, 0.2),
-			Transparency = NS(0, 0.2, 1, 1), Lifetime = NR(0.6, 0.9), Rate = 10, Brightness = 2,
-			FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4, FlipbookMode = Enum.ParticleFlipbookMode.OneShot })
-		fx.em(fx.host, { Texture = T.Embers, Color = CS(fire), Shape = Enum.ParticleEmitterShape.Box, EmissionDirection = TOP,
-			Speed = NR(2, 5), Acceleration = Vector3.new(0, 3, 0), Size = NS(0, 0.25, 1, 0), Lifetime = NR(1, 1.8), Rate = 18 })
-		flares(fx, fire, 1.6, 1.8)
+		-- living magma: glowing seams that breathe (Heartbeat below), real fire licking off the surface, lava drips,
+		-- a dark smoke plume behind it all, rising embers and a small eruption every few seconds. Nothing on the ground.
+		local r = fx.radius
+		local FIRE_TEX = "rbxasset://textures/particles/fire_main.dds"
+		-- dark smoke plume rising off the back (the light-balancing layer: the fire reads against it)
+		fx.em(fx.top, { Texture = T.SoftSmoke, Color = CS({ "#2E1610", "#0E0605" }), LightEmission = 0, LightInfluence = 0.6,
+			EmissionDirection = TOP, Speed = NR(1.5, 3), SpreadAngle = Vector2.new(20, 20), Acceleration = Vector3.new(0.6, 1.5, 0),
+			Size = NS(0, r * 0.5, 1, r * 1.6), Transparency = NS(0, 1, 0.2, 0.5, 1, 1), Rotation = NR(0, 360), RotSpeed = NR(-25, 25),
+			Lifetime = NR(1.8, 2.6), Rate = 3, ZOffset = -1 })
+		-- hot core flames: small, white-yellow, poking out of the surface
+		fx.em(fx.host, { Texture = FIRE_TEX, Color = CS({ "#FFF2C0", "#FFC23A", "#FF6A1F" }), Shape = Enum.ParticleEmitterShape.Box,
+			ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface, EmissionDirection = TOP, Speed = NR(0.8, 1.8),
+			Acceleration = Vector3.new(0, 4, 0), Size = NS(0, r * 0.18, 0.3, r * 0.46, 1, 0), Transparency = NS(0, 0.1, 1, 1),
+			Rotation = NR(-15, 15), Lifetime = NR(0.35, 0.55), Rate = 28, Brightness = 1.6, ZOffset = 0.3 })
+		-- outer flame tongues: bigger, orange to deep red
+		fx.em(fx.host, { Texture = FIRE_TEX, Color = CS({ "#FF9A2A", "#E8401A", "#7A1206" }), Shape = Enum.ParticleEmitterShape.Box,
+			ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface, EmissionDirection = TOP, Speed = NR(1, 2.2),
+			Acceleration = Vector3.new(0, 5, 0), Size = NS(0, r * 0.35, 0.35, r * 0.75, 1, r * 0.25), Transparency = NS(0, 0.3, 0.6, 0.5, 1, 1),
+			Rotation = NR(-20, 20), RotSpeed = NR(-30, 30), Lifetime = NR(0.55, 0.85), Rate = 15, Brightness = 1.2 })
+		-- lava drips running off the body
+		fx.em(fx.host, { Texture = T.Embers, Color = CS({ "#FFE08A", "#FF6A1F", "#B81E00" }), Shape = Enum.ParticleEmitterShape.Box,
+			ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface, Orientation = STREAK, EmissionDirection = Enum.NormalId.Bottom,
+			Speed = NR(0.2, 1), Acceleration = Vector3.new(0, -28, 0), Size = NS(0, 0.22, 0.6, 0.18, 1, 0.05), Squash = NS(0, 0, 1, 1.6),
+			Lifetime = NR(0.45, 0.75), Rate = 7, Brightness = 2 })
+		-- embers drifting up
+		fx.em(fx.host, { Texture = T.Embers, Color = CS({ "#FFE08A", "#FF7A1F" }), Shape = Enum.ParticleEmitterShape.Box,
+			EmissionDirection = TOP, Speed = NR(2, 5), SpreadAngle = Vector2.new(25, 25), Acceleration = Vector3.new(0.8, 3, 0),
+			Size = NS(0, 0.25, 1, 0), Lifetime = NR(1, 1.8), Rate = 14 })
+		-- a small eruption somewhere on the body every few seconds
+		fx.pulse(3.2, {
+			{ Texture = FIRE_TEX, Color = CS({ "#FFF2C0", "#FF8A1F", "#B81E00" }), Speed = NR(3, 7), SpreadAngle = Vector2.new(35, 35),
+				EmissionDirection = TOP, Acceleration = Vector3.new(0, 6, 0), Drag = 2, Size = NS(0, r * 0.2, 0.3, r * 0.5, 1, 0),
+				Transparency = NS(0, 0.1, 1, 1), Rotation = NR(0, 360), Lifetime = NR(0.4, 0.7), Brightness = 1.8 },
+			{ Texture = T.Embers, Color = CS({ "#FFE08A", "#FF6A1F" }), Orientation = STREAK, Speed = NR(8, 14), SpreadAngle = Vector2.new(50, 50),
+				EmissionDirection = TOP, Acceleration = Vector3.new(0, -24, 0), Size = NS(0, 0.25, 1, 0), Squash = NS(0, 0, 1, 2),
+				Lifetime = NR(0.5, 0.9), Brightness = 2 },
+		}, 6)
+		flares(fx, { "#FFF2C0", "#FF8A1F" }, 2.2, 1.6)
+		-- breathing magma: the glowing (Neon) parts pulse between deep red and hot yellow. Dark species with only a
+		-- handful of glowing bits get a few more seams (smallest parts first), up to ~10% of the model.
+		local parts, neon = {}, {}
+		for _, d in fx.model:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 1 and d ~= fx.model.PrimaryPart and d.Name ~= "MutationAura" and d.Name ~= "Aura" then
+				table.insert(parts, d)
+				if d.Material == Enum.Material.Neon then
+					table.insert(neon, d)
+				end
+			end
+		end
+		local want = math.floor(#parts * 0.1)
+		if #neon < want then
+			table.sort(parts, function(a, b)
+				return a.Size.X * a.Size.Y * a.Size.Z < b.Size.X * b.Size.Y * b.Size.Z
+			end)
+			for _, p in parts do
+				if #neon >= want then
+					break
+				end
+				if p.Material ~= Enum.Material.Neon then
+					p.Material = Enum.Material.Neon
+					table.insert(neon, p)
+				end
+			end
+		end
+		fx.magma = { parts = neon, phase = rng:NextNumber(0, math.pi * 2), speed = rng:NextNumber(1.6, 2.4) }
 	end,
 	Diamond = function(fx, m)
 		local gem = { "#FFFFFF", "#CFF8FF", "#7FDFFF" }
@@ -548,7 +601,9 @@ task.spawn(function()
 	end
 end)
 
----------------------------------------------------------------- per frame: culling, pops, rainbow
+local MAGMA_LOW, MAGMA_HIGH = Color3.fromHex("9E1C06"), Color3.fromHex("FF8C2E") -- deep ember red <-> hot orange (not yellow)
+
+---------------------------------------------------------------- per frame: culling, pops, rainbow, breathing magma
 RunService.Heartbeat:Connect(function()
 	local cam = workspace.CurrentCamera
 	if not cam then
@@ -580,6 +635,16 @@ RunService.Heartbeat:Connect(function()
 				for _, pe in p.pes do
 					pe:Emit(p.count)
 				end
+			end
+		end
+		if fx.magma then
+			-- slow breath + a little flicker; deep red-orange at the low point, hot yellow-orange at the peak
+			local mg = fx.magma
+			local breath = 0.5 + 0.5 * math.sin(now * mg.speed + mg.phase)
+			local k = math.clamp(breath + math.noise(now * 3, mg.phase) * 0.18, 0, 1)
+			local col = MAGMA_LOW:Lerp(MAGMA_HIGH, k)
+			for _, p in mg.parts do
+				p.Color = col
 			end
 		end
 		if #fx.cycles > 0 then
