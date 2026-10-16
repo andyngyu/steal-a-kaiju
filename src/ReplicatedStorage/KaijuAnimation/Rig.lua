@@ -63,6 +63,9 @@ local function roleOf(name, profileName)
 	if name == "Cloud" then
 		return "Cloud"
 	end
+	if name == "Frill" then
+		return "Frill"
+	end
 	if name == "Ring" or name == "Moons" or name == "Halo" then
 		return "Orbit"
 	end

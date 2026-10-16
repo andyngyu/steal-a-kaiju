@@ -315,6 +315,10 @@ end
 function PROFILES.HeavyQuad(rec, P, t, ex, micro)
 	tailLayer(rec, P.Tail, t, ex, micro)
 	earLayer(rec, P.Ears, t, ex, micro)
+	local frill = rec.J.Frill
+	if frill and P.Frill then
+		frill.ax -= P.Frill.Breath * RAD * ex * rec.breath -- the frill leans out a little on each inhale
+	end
 	local Tr = P.Trunk
 	local n = #rec.trunk
 	if Tr and n > 0 then
@@ -384,6 +388,7 @@ function PROFILES.Shelled(rec, P, t, ex, micro)
 end
 
 function PROFILES.Arthropod(rec, P, t, ex, micro)
+	tailLayer(rec, P.Tail, t, ex, micro)
 	local C = P.Claws
 	if C then
 		for _, c in rec.claws do
