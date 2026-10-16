@@ -171,12 +171,15 @@ local function scheduleActions(rec)
 		return
 	end
 	local walking = rec.moveBlend and rec.moveBlend > 0.1
+	if rec.queuedUntil and clock > rec.queuedUntil then
+		rec.queued, rec.queuedUntil = nil, nil
+	end
 	if rec.queued then
 		if walking and rec.queued ~= "Eat" then
 			return -- greetings wait until it stops
 		end
 		local q = rec.queued
-		rec.queued = nil
+		rec.queued, rec.queuedUntil = nil, nil
 		startAction(rec, q)
 		return
 	end
@@ -223,6 +226,16 @@ local function newJoint(name, role, motor, parent)
 		pwx = 0, pwy = 0, pwz = 0, wx = 0, wy = 0, wz = 0,
 		spin = 0, spinRate = 0, spinBoost = 0, spinAdd = 0,
 	}
+end
+
+-- Just put in this pen (delivered from a steal or equipped: PlacedAt, server time): it greets its new home, unless a
+-- hatch pop is already waiting.
+local function arrive(rec)
+	local placed = rec.model:GetAttribute("PlacedAt")
+	if placed and workspace:GetServerTimeNow() - placed < Config.States.Placed.Window and not rec.queued then
+		rec.queued = States.GreetFor(rec)
+		rec.queuedUntil = clock + Config.States.Placed.Window -- off screen until later: it doesn't greet late
+	end
 end
 
 local function finalize(rec)
@@ -437,6 +450,9 @@ local function finalize(rec)
 	if spawned and not rec.carried and workspace:GetServerTimeNow() - spawned < Config.States.Hatched.Window then
 		rec.queued = Config.States.Hatched.Action
 	end
+	if rec.live then
+		arrive(rec)
+	end
 	rec.ready = true
 	rec.job = nil
 	table.insert(creatures, rec)
@@ -499,6 +515,11 @@ function Controller.Register(model, info)
 		end
 		model:GetAttributeChangedSignal("EatAt"):Connect(function()
 			rec.forceAction = "Eat" -- food interrupts whatever it was doing
+		end)
+		model:GetAttributeChangedSignal("PlacedAt"):Connect(function()
+			if rec.ready then
+				arrive(rec) -- set just after it appeared; before the rig is ready, finalize catches it
+			end
 		end)
 		model:GetAttributeChangedSignal("StealBy"):Connect(function()
 			rec.struggle = model:GetAttribute("StealBy") ~= nil
@@ -863,12 +884,16 @@ local function update(rec, dt, lod)
 	stats.vfxAcc = (stats.vfxAcc or 0) + os.clock() - t1
 end
 
+local fpsEma = 30 -- smoothed frame rate, for Performance.FastFps
+
 local function step(rawDt)
 	local t0 = os.clock()
 	buildStep()
 	local dt = math.min(rawDt, 0.1) * slowmo
 	clock += dt
 	frame += 1
+	fpsEma += (1 / math.max(rawDt, 1e-3) - fpsEma) * 0.05
+	local fullEvery = fpsEma >= perf.FastFps and perf.FullEveryFast or perf.FullEvery
 	if t0 >= nextClassify then
 		nextClassify = t0 + 1 / perf.ClassifyHz
 		classify()
@@ -880,7 +905,7 @@ local function step(rawDt)
 			rec.acc += dt
 			local tier = rec.tier
 			if tier == 0 then
-				if rec.dist <= perf.FullNear or rec.forcedTier == 0 or (frame + rec.slot) % perf.FullEvery == 0 then
+				if rec.dist <= perf.FullNear or rec.forcedTier == 0 or (frame + rec.slot) % fullEvery == 0 then
 					update(rec, rec.acc, 0)
 					rec.acc = 0
 				end

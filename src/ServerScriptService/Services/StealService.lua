@@ -447,7 +447,7 @@ local function deliver(thief, c, hrp)
 	BaseService:RemoveItem(owner, c.id)
 	local thiefData = DataService:Get(thief)
 	if entry.Kind == "Kaiju" then
-		local model = KaijuService:Spawn(thief, c.id, entry, hrp.Position, false)
+		local model = KaijuService:Spawn(thief, c.id, entry, hrp.Position, false, nil, { PlacedAt = workspace:GetServerTimeNow() })
 		BaseService:SetItem(thief, c.id, model, entry)
 		IndexService:Record(thief, entry.Species, entry.Size or 1, entry.Mutation) -- a stolen species counts as discovered
 	else

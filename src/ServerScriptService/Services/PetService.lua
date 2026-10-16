@@ -106,6 +106,8 @@ local function equip(player, id)
 		inv[id] = entry
 		return false, "Couldn't equip that kaiju."
 	end
+	local _, placed = BaseService:GetItem(player, id)
+	if placed then placed:SetAttribute("PlacedAt", workspace:GetServerTimeNow()) end
 	return true
 end
 

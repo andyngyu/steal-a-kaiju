@@ -64,7 +64,9 @@ Config.Performance = {
 	-- Measured in the Gallery (Studio, 17 creatures, about 12,600 bricks all at full rate): about 0.35 ms of physics per
 	-- creature per update, because every brick of a moving group is moved. So full rate is kept for the closest ones.
 	FullNear = 30, -- studs: every frame inside this
-	FullEvery = 2, -- 30 to 60 studs: all layers, every 2nd frame
+	FullEvery = 2, -- 30 to 60 studs: all layers, every 2nd frame...
+	FullEveryFast = 3, -- ...every 3rd once the game runs at FastFps or more (still 18+ updates a second, and each
+	FastFps = 55, -- walking kaiju moves its whole body, so this saves a third of the mid-range cost)
 	Full = 60, -- studs from the camera: full detail (micro layers, particles) inside this
 	Reduced = 150, -- every ReducedEvery frames, no micro layers, half particles
 	Far = 300, -- FarHz updates, breathing and orbits only, no particles; beyond it (or off screen) nothing updates
@@ -414,6 +416,7 @@ Config.States = {
 	Chasing = { Chomp = 24, LookYaw = 50, LookPitch = 25 },
 	Guardian = { HoldArmPitch = 0.9, HoldArmIn = 0.38, HoldJaw = 0.75, Rise = 1.1, Sink = 1.2, GrabDown = 0.4, GrabLow = 0.15, GrabUp = 0.45 },
 	Hatched = { Action = "Pop", Window = 2.5 }, -- a creature spawned (SpawnedAt) less than Window seconds ago pops in
+	Placed = { Window = 2.5 }, -- one delivered from a steal or equipped (PlacedAt) this recently greets its new pen
 }
 
 -- Incubating pen eggs (KaijuAnimation.Eggs; each pair runs from just placed to about to hatch). Rock: radians of the
