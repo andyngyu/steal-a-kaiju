@@ -257,19 +257,44 @@ end)
 
 ---------------------------------------------------------------- music
 local musicTracks = {}
+local currentMusic
 for key, def in SoundConfig.Music do
 	local s = Instance.new("Sound")
 	s.Name = "Music_" .. key
-	s.SoundId = contentId(def.Id)
-	s.Looped = true
 	s.Volume = 0
 	s.SoundGroup = musicDuck
 	s.Parent = folder2D
-	musicTracks[key] = { sound = s, volume = def.Volume or 0.35 }
+	local track = { sound = s, volume = def.Volume or 0.35 }
+	if def.Playlist and #def.Playlist > 0 then
+		-- a playlist: songs in turn, starting at a random one; each song has its own (levelled) volume
+		local list = def.Playlist
+		s.Looped = #list == 1
+		track.index = rng:NextInteger(1, #list)
+		local function load(i)
+			s.SoundId = contentId(list[i].Id)
+			track.volume = list[i].Volume or def.Volume or 0.25
+		end
+		load(track.index)
+		s.Ended:Connect(function()
+			track.index = track.index % #list + 1
+			load(track.index)
+			task.delay(def.Gap or 2, function()
+				if currentMusic == key and not s.IsPlaying then
+					s.Volume = 0
+					s.TimePosition = 0
+					s:Play()
+					fadeTo(s, track.volume, 1.5)
+				end
+			end)
+		end)
+	else
+		s.SoundId = contentId(def.Id)
+		s.Looped = true
+	end
+	musicTracks[key] = track
 end
 
 -- Zones without a SoundConfig.Music entry are music-free (ambience only): every track fades out there.
-local currentMusic
 local function setMusic(key)
 	if key == currentMusic then
 		return
