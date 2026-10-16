@@ -386,6 +386,14 @@ function VFX.Event(rec, kind, arg, amount)
 		rec.groundAtt.WorldPosition = rec.rootCF * foot
 		rec.dustEmitter:Emit(math.floor((amount or 1) * 14 + 0.5))
 		return true
+	elseif kind == "Breath" then
+		-- a puff of breath (frost, a snort) in front of the first head
+		local h = rec.heads[1]
+		if h then
+			rec.groundAtt.WorldPosition = rec.rootCF * (h.restPos + Vector3.new(0, 0, -0.5 * rec.scale))
+			rec.dustEmitter:Emit(math.floor((tonumber(arg) or 1) * 8 + 0.5))
+		end
+		return true
 	elseif kind == "Burst" then
 		rec.burstEmitter:Emit(30)
 		return true
