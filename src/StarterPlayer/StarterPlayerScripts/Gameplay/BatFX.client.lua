@@ -5,12 +5,12 @@
 --               hotbar's bat slot sends Remotes.SwingBat "Equip" / "Unequip")
 --   idle pose:  holding the bat keeps the normal idle / walk pose (the Animate script's arm-out "toolnone" hold is
 --               stopped), so the bat points forward from the hand
---   the swing:  a full-arm swing posed in code on every client when a bat's SwungAt attribute changes: the arm winds
---               up over the shoulder (torso twisted back), then whips forward until it's fully extended with the bat
---               level (torso twisting through), holds a beat and settles. It drives the R15 shoulder / elbow / wrist /
---               waist joints (Motor6D.Transform, after the Animator each frame), and the bat is welded to the hand, so
---               arm and bat always move together. (A custom animation asset would need uploading from Studio's
---               animation editor; this needs nothing uploaded.)
+--   the swing:  the designer's BatSwing animation (asset 76001367769633, kept as the KeyframeSequence
+--               ReplicatedStorage.Assets.BatSwing). It's played from that copy in code on every client when a bat's
+--               SwungAt attribute changes: each frame its poses are blended and written to the R15 joints
+--               (Motor6D.Transform, after the Animator). That way it works in the live game without the experience
+--               (owned by the group) needing permission to load an animation asset owned by the designer's account.
+--               While it plays the bat sits in the hand at SWING_GRIP (both hands on the handle).
 --   effects:    the whoosh when anyone swings (the tool's SwungAt attribute), and on a hit (GameEvent BatHit) a wooden
 --               BONK sound, a star burst and a "BONK!" pop over the target; the camera shakes if it was you
 --               (unless Camera Shake is off in Settings)
@@ -73,7 +73,6 @@ local function handsFull()
 	return player:GetAttribute("CarryingEgg") ~= nil
 		or player:GetAttribute("CarryingStolen") ~= nil
 		or player:GetAttribute("Stealing") ~= nil
-		or player:GetAttribute("OnTreadmill") ~= nil
 		or (player:GetAttribute("StunnedUntil") or 0) > workspace:GetServerTimeNow()
 		or (char ~= nil and char:GetAttribute("RagdollUntil") ~= nil)
 end
@@ -160,57 +159,173 @@ player.CharacterAdded:Connect(onCharacter)
 if player.Character then
 	task.spawn(onCharacter, player.Character)
 end
-for _, attr in { "CarryingEgg", "CarryingStolen", "Stealing", "OnTreadmill", "StunnedUntil" } do
+for _, attr in { "CarryingEgg", "CarryingStolen", "Stealing", "StunnedUntil" } do
 	player:GetAttributeChangedSignal(attr):Connect(putAway)
 end
 
 ---------------------------------------------------------------- everyone's swings: the whoosh
--- the swing pose: keyframes of { time, shoulder pitch, elbow bend, wrist pitch, waist yaw } in degrees
--- (shoulder: + raises the arm forward and up; wrist: - tips the bat forward / down; waist: + twists the torso back)
-local SWING_KEYS = {
-	{ 0, 0, 0, 0, 0 },
-	{ 0.11, 165, 35, 20, 32 }, -- wind up: arm high over the shoulder, bat back
-	{ 0.2, 85, 0, -75, -25 }, -- strike: arm fully out in front, bat level, torso twisted through
-	{ 0.3, 80, 0, -70, -22 }, -- follow-through hold
-	{ 0.5, 0, 0, 0, 0 }, -- settle back to the idle hold
-}
-local SWING_TIME = SWING_KEYS[#SWING_KEYS][1]
-local function ease(t)
-	return t * t * (3 - 2 * t)
-end
-local function sample(t)
-	for i = 1, #SWING_KEYS - 1 do
-		local a, b = SWING_KEYS[i], SWING_KEYS[i + 1]
-		if t <= b[1] then
-			local k = ease(math.clamp((t - a[1]) / (b[1] - a[1]), 0, 1))
-			return a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k, a[4] + (b[4] - a[4]) * k, a[5] + (b[5] - a[5]) * k
+-- the swing: the BatSwing KeyframeSequence, sampled into per-joint tracks once
+local SPEED = 1.6 -- playback speed (1 = as animated; sped up so the swing feels snappy)
+-- only the upper body swings: the legs and hips keep doing whatever the walk / run / idle animation does, so you
+-- can swing on the move without the run freezing
+local UPPER_BODY = { UpperTorso = true, Head = true, RightUpperArm = true, RightLowerArm = true, RightHand = true,
+	LeftUpperArm = true, LeftLowerArm = true, LeftHand = true }
+-- the bat in the hand during the swing (the RightGrip weld's C1): fitted to the animation so the bat starts up over
+-- the right shoulder in a batting stance (both hands on the handle), comes through in front at the strike (~0.15 s)
+-- and wraps round behind the back on the follow-through
+local SWING_GRIP = CFrame.new(0, -0.3, 0, -0.6830, -0.4773, -0.5529, 0.7288, -0.3951, -0.5592, -0.0485, 0.7849, -0.6177)
+-- after the strike the bat tips down so the follow-through ends with it angled down behind you (about 35 degrees
+-- below level). The bat never turns inside the hand during the swing (that's what made it look out of sync with
+-- the arms): the right WRIST turns instead, carrying the bat with it, between END_FROM and END_AT seconds. END_GRIP
+-- is the grip that would give the same bat angle; the wrist turn is worked out from it.
+local END_GRIP = CFrame.new(0, -0.3, 0, -0.9964, -0.0377, 0.0763, -0.0413, -0.5693, -0.8211, -0.0744, 0.8213, -0.5657)
+local END_FROM, END_AT = 0.17, 0.4
+local tracks = {} -- [part name] = { times = {...}, cfs = {...} }
+local SWING_TIME = 0
+do
+	local ks = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("BatSwing", 20)
+	if ks then
+		local kfs = ks:GetKeyframes()
+		table.sort(kfs, function(a, b)
+			return a.Time < b.Time
+		end)
+		for _, kf in kfs do
+			SWING_TIME = math.max(SWING_TIME, kf.Time)
+			for _, pose in kf:GetDescendants() do
+				if pose:IsA("Pose") and pose.Weight > 0 and UPPER_BODY[pose.Name] then
+					local tr = tracks[pose.Name]
+					if not tr then
+						tr = { times = {}, cfs = {} }
+						tracks[pose.Name] = tr
+					end
+					table.insert(tr.times, kf.Time)
+					table.insert(tr.cfs, pose.CFrame)
+				end
+			end
 		end
 	end
-	return 0, 0, 0, 0
+end
+local function sampleTrack(tr, t)
+	local times, cfs = tr.times, tr.cfs
+	if t <= times[1] then
+		return cfs[1]
+	end
+	for i = 1, #times - 1 do
+		if t <= times[i + 1] then
+			local k = (t - times[i]) / math.max(times[i + 1] - times[i], 1e-4)
+			return cfs[i]:Lerp(cfs[i + 1], k)
+		end
+	end
+	return cfs[#cfs]
+end
+-- the Motor6D that moves a body part (the joint inside the part whose Part1 is the part)
+-- (classic rigs use Motor6Ds; current avatars use AnimationConstraints, which have a Transform too)
+local function jointOf(char, partName)
+	local part = char:FindFirstChild(partName)
+	if not part then
+		return nil
+	end
+	for _, m in part:GetChildren() do
+		if (m:IsA("Motor6D") and m.Part1 == part) or (m:IsA("AnimationConstraint") and m.Attachment1 and m.Attachment1.Parent == part) then
+			return m
+		end
+	end
+	return nil
+end
+local BLEND_IN = 0.03 -- seconds (animation time) to ease into the swing from the idle pose (the bat jumps to the stance with the arms)
+-- after the last frame the follow-through is held a moment, then eases back into the idle / walk pose over RECOVER
+-- real seconds (bat and arms together). This used to be a 0.12 s blend squeezed into the end of the sped-up swing
+-- (~0.075 s), which read as a snap back to idle.
+-- The bat itself comes back on its own path: its direction (relative to the torso) turns straight from where the
+-- follow-through left it to the idle hold, whatever the arms do on the way. (Blending the grip weld instead spun the
+-- bat about 180 degrees in the hand - the swing grip and the idle grip are half a turn apart - and popped on the
+-- first frame.)
+local HOLD_END = 0.04
+local RECOVER = 0.26
+-- the wrist turn (in the wrist joint's frame) that tips the bat from SWING_GRIP's angle to END_GRIP's
+local function wristTurn(char, joint)
+	local hand = char:FindFirstChild("RightHand")
+	local weld = hand and hand:FindFirstChild("RightGrip")
+	if not (weld and joint) then
+		return nil
+	end
+	local c0 = weld.C0
+	local delta = c0 * END_GRIP:Inverse() * SWING_GRIP * c0:Inverse() -- hand-local turn
+	local b
+	if joint:IsA("Motor6D") then
+		b = joint.C1
+	elseif joint.Attachment1 then
+		b = joint.Attachment1.CFrame
+	else
+		return nil
+	end
+	return b:Inverse() * delta * b
+end
+local savedGrip = {} -- [character] = { weld, C1 }
+local function restoreGrip(char)
+	local s = savedGrip[char]
+	savedGrip[char] = nil
+	if s and s.weld.Parent then
+		s.weld.C1 = s.c1
+	end
 end
 RunService.Stepped:Connect(function()
 	local now = os.clock()
 	for char, started in swings do
-		local t = now - started
-		local sh = char.Parent and char:FindFirstChild("RightUpperArm")
-		sh = sh and sh:FindFirstChild("RightShoulder")
-		if t > SWING_TIME or not sh or not char:FindFirstChild(TOOL_NAME) or char:GetAttribute("RagdollUntil") then
+		local real = now - started
+		local t = math.min(real * SPEED, SWING_TIME)
+		local past = real - SWING_TIME / SPEED - HOLD_END -- seconds into the recovery
+		if past > RECOVER or not char.Parent or not char:FindFirstChild(TOOL_NAME) or char:GetAttribute("RagdollUntil") then
 			swings[char] = nil
+			restoreGrip(char)
 			continue
 		end
-		local s, e, w, waist = sample(t)
-		sh.Transform = CFrame.Angles(math.rad(s), 0, 0)
-		local el = char:FindFirstChild("RightLowerArm") and char.RightLowerArm:FindFirstChild("RightElbow")
-		if el then
-			el.Transform = CFrame.Angles(math.rad(e), 0, 0)
+		local w = math.min(1, t / BLEND_IN)
+		if past > 0 then
+			local r = math.clamp(past / RECOVER, 0, 1)
+			w = 1 - r * r * (3 - 2 * r) -- smooth ease out of the follow-through
 		end
-		local wr = char:FindFirstChild("RightHand") and char.RightHand:FindFirstChild("RightWrist")
-		if wr then
-			wr.Transform = CFrame.Angles(math.rad(w), 0, 0)
+		local k = math.clamp((t - END_FROM) / (END_AT - END_FROM), 0, 1)
+		k = k * k * (3 - 2 * k)
+		for name, tr in tracks do
+			local m = jointOf(char, name)
+			if m then
+				local cf = sampleTrack(tr, t)
+				if name == "RightHand" and k > 0 then
+					local turn = wristTurn(char, m)
+					if turn then
+						cf = cf * CFrame.new():Lerp(turn, k)
+					end
+				end
+				m.Transform = w >= 1 and cf or m.Transform:Lerp(cf, w)
+			end
 		end
-		local wa = char:FindFirstChild("UpperTorso") and char.UpperTorso:FindFirstChild("Waist")
-		if wa then
-			wa.Transform = CFrame.Angles(0, math.rad(waist), 0)
+		local hand = char:FindFirstChild("RightHand")
+		local weld = hand and hand:FindFirstChild("RightGrip")
+		local torso = char:FindFirstChild("UpperTorso")
+		if weld then
+			local saved = savedGrip[char]
+			if not saved then
+				saved = { weld = weld, c1 = weld.C1 }
+				savedGrip[char] = saved
+			end
+			if past <= 0 or not torso then
+				-- fixed in the hand for the whole swing
+				weld.C1 = SWING_GRIP
+				saved.endRot = nil
+			else
+				-- recovery: turn the bat (torso-relative) from its follow-through direction to the idle hold's
+				local handRot = (hand.CFrame * weld.C0).Rotation
+				local torsoRot = torso.CFrame.Rotation
+				if not saved.endRot then
+					saved.endRot = torsoRot:Inverse() * handRot * SWING_GRIP.Rotation:Inverse()
+				end
+				local restRot = saved.c1.Rotation
+				local idleRot = torsoRot:Inverse() * handRot * restRot:Inverse()
+				local want = torsoRot * saved.endRot:Lerp(idleRot, 1 - w) -- the bat's world rotation now
+				-- handle = hand * C0 * C1^-1  ->  C1 = handle^-1 * hand * C0 (rotation), keeping the idle grip's offset
+				weld.C1 = CFrame.new(saved.c1.Position) * (want:Inverse() * handRot)
+			end
 		end
 	end
 end)

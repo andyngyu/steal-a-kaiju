@@ -40,8 +40,8 @@ return table.freeze({
 	-- carries one. A swing hits the closest player in front of you: they're knocked back, ragdolled and stunned, drop a
 	-- carried nest egg on the spot, and stolen goods they carry (or a steal they're holding) go back home.
 	Bat = table.freeze({
-		CooldownSeconds = 0.9, -- between two swings
-		WindUpSeconds = 0.17, -- the hit lands this long after the swing starts (the strike in Gameplay.BatFX's swing)
+		CooldownSeconds = 0.6, -- between two swings
+		WindUpSeconds = 0.1, -- the hit lands this long after the swing starts (the bat crosses in front in BatSwing, played at 1.6x)
 		Reach = 8.5, -- studs from the swinger to the target (flat distance between root parts)
 		ConeDegrees = 110, -- how wide in front of the swinger a hit counts (anyone closer than CloseReach always counts)
 		CloseReach = 3.5,

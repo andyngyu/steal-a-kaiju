@@ -77,6 +77,11 @@ local function canTeleport(player)
 		gameEvent:FireClient(player, "CantTeleport", { Reason = "Carrying" })
 		return false
 	end
+	-- the runner is anchored on the belt: teleporting would leave them stuck mid-air, still earning Speed
+	if player:GetAttribute("OnTreadmill") then
+		gameEvent:FireClient(player, "CantTeleport", { Reason = "Treadmill" })
+		return false
+	end
 	lastTeleport[player] = now
 	return true
 end

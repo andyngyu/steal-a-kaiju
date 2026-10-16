@@ -97,12 +97,11 @@ local function stunned(player)
 	return (player:GetAttribute("StunnedUntil") or 0) > now() or (char ~= nil and char:GetAttribute("RagdollUntil") ~= nil)
 end
 
--- Hands full or busy: no swinging.
+-- Hands full or busy: no swinging. (Running on your treadmill is fine: you can bonk thieves from it.)
 local function busy(player)
 	return player:GetAttribute("CarryingEgg") ~= nil
 		or player:GetAttribute("CarryingStolen") ~= nil
 		or player:GetAttribute("Stealing") ~= nil
-		or player:GetAttribute("OnTreadmill") ~= nil
 		or stunned(player)
 end
 
@@ -322,7 +321,7 @@ function BatService:Start()
 		end
 	end
 	local function watch(player)
-		for _, attr in { "CarryingEgg", "CarryingStolen", "Stealing", "OnTreadmill", "StunnedUntil" } do
+		for _, attr in { "CarryingEgg", "CarryingStolen", "Stealing", "StunnedUntil" } do
 			player:GetAttributeChangedSignal(attr):Connect(function()
 				putAway(player)
 			end)
