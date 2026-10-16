@@ -361,6 +361,7 @@ R.Rules = {
 	Mantisaur = function(m) return tail3(m, "Tail") end,
 	Hammerjaw = function(m) return tail3(m, "Tail") end,
 	Sparkit = function(m) return tail3(m, "Tail") end,
+	AstralWyrm = function(m) return tail3(m, "Tail") end,
 	Voltbeak = function(m) return tail3(m, "Tail") end,
 	Voltkirin = function(m) return tail3(m, "Tail") end,
 	-- Tidewyrm: the manta wings (inside Seg1) become WingL / WingR, each with an outer link (WingL2 / WingR2) from 3 studs
