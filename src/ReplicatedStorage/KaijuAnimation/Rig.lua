@@ -254,7 +254,7 @@ function Rig.Analyze(model, spec, profileName, profile)
 	end
 	local root = model.PrimaryPart
 	local rootCF = root.CFrame
-	local scale = model:GetAttribute("VisualScale") or 1
+	local scale = model:GetScale() -- not VisualScale: StealService shrinks the carried copy with ScaleTo
 	local rootOffset = model:GetAttribute("RootOffset") or Vector3.new(0, 0.1, 0)
 	local rename = spec.Rename or {}
 	local parentsOverride = spec.Parents or {}
@@ -430,7 +430,7 @@ end
 function Rig.Begin(model, map)
 	local root = model.PrimaryPart
 	local rootCF = root.CFrame
-	local scale = model:GetAttribute("VisualScale") or 1
+	local scale = model:GetScale()
 	local byPath = {}
 	local function walk(parent, prefix)
 		for _, c in parent:GetChildren() do
@@ -505,6 +505,13 @@ function Rig.Begin(model, map)
 		m.Parent = folder
 		motors[i] = m
 	end
+	if not root.Anchored then
+		-- a carried copy rides the thief's character: an anchored pivot would pin the whole character in place
+		bodyPivot.Anchored = false
+		for _, p in pivots do
+			p.Anchored = false
+		end
+	end
 	folder.Parent = model
 	return {
 		model = model,
@@ -575,6 +582,19 @@ function Rig.Step(job, deadline)
 		job.stage = 4
 	end
 	return job.stage == 4
+end
+
+-- A carried copy (StealService) is held rigid by WeldConstraints from every brick to its root. Once the rig's own
+-- welds exist, those are switched off on this client only (the server's copy keeps them).
+function Rig.Release(job)
+	local root = job.root
+	for _, p in job.parts do
+		for _, w in p:GetChildren() do
+			if w:IsA("WeldConstraint") and w.Part0 == root and w.Part1 == p then
+				w.Enabled = false
+			end
+		end
+	end
 end
 
 -- A guardian's existing motors (Humanoid rig from GuardianService, Body motor included). Groups are found by the

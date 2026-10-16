@@ -158,8 +158,8 @@ States.Register("Wake", {
 	end,
 })
 
--- Being carried by a thief: the panic profile. Not detected yet (the carried copy is welded rigid today); it can be
--- forced from the debug tools to preview it.
+-- Being carried by a thief: the panic profile. Never detected: Controller.WatchCarried forces it on the stolen copy,
+-- and the debug tools can force it on any creature to preview it.
 States.Register("Carried", {
 	Priority = 90,
 	Detect = function()

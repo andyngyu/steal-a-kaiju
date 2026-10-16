@@ -156,7 +156,7 @@ function VFX.Setup(rec, parent, eyeSets)
 	end
 
 	-- rarity extras
-	local R = Config.VFX.Rarity[rec.rarityId] or {}
+	local R = (not rec.carried and Config.VFX.Rarity[rec.rarityId]) or {} -- the carried copy has its effects stripped by the server
 	rec.pulseAmount = R.Pulse or rec.P.Pulse or Config.VFX.Pulse
 	if rec.P.Pulse and R.Pulse then
 		rec.pulseAmount = math.max(R.Pulse, rec.P.Pulse)

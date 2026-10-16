@@ -416,7 +416,7 @@ local function finalize(rec)
 
 	-- spawned a moment ago: the hatch pop
 	local spawned = model:GetAttribute("SpawnedAt")
-	if spawned and workspace:GetServerTimeNow() - spawned < Config.States.Hatched.Window then
+	if spawned and not rec.carried and workspace:GetServerTimeNow() - spawned < Config.States.Hatched.Window then
 		rec.queued = Config.States.Hatched.Action
 	end
 	rec.ready = true
@@ -460,6 +460,11 @@ function Controller.Register(model, info)
 	}
 	byModel[model] = rec
 	table.insert(pending, rec)
+	if info.carried then
+		-- over a thief's head: panics the whole way (States.Carried), never walks or plays idle actions
+		rec.carried = true
+		rec.forcedState = "Carried"
+	end
 	if info.live then
 		-- read-only game state: the wander path, thrown food landing, someone holding Steal on it
 		rec.live = true
@@ -534,7 +539,11 @@ local function buildStep()
 					error("no rig")
 				end
 			end
-			if Rig.Step(rec.job, deadline) then
+			-- a carried copy is built in one go: it is small, and a half-built rig would hang off a running character
+			if Rig.Step(rec.job, rec.carried and math.huge or deadline) then
+				if rec.carried then
+					Rig.Release(rec.job)
+				end
 				table.remove(pending, 1)
 				finalize(rec)
 				stats.Builds += 1
@@ -730,6 +739,10 @@ end
 local function update(rec, dt, lod)
 	if rec.live then
 		updateMove(rec, dt)
+	elseif rec.carried then
+		-- the thief moves it every frame
+		rec.rootCF = rec.root.CFrame
+		rec.centerWorld = rec.rootCF * rec.centreOffset
 	end
 	scheduleActions(rec)
 	Motion.Step(rec, dt, lod)
@@ -837,6 +850,41 @@ function Controller.WatchLive()
 	end)
 end
 
+-- Stolen kaiju: StealService welds a shrunken copy ("StolenKaiju") over the thief's head. Each client rigs its own view
+-- of it like a pen kaiju and holds it in the Carried state; the server's copy, CarryWeld and CarryPose are untouched.
+function Controller.WatchCarried()
+	local function watchCharacter(char)
+		local function add(m)
+			if not (m:IsA("Model") and m.Name == "StolenKaiju") then
+				return
+			end
+			local species = m:GetAttribute("Species")
+			if not (species and Config.Creatures[species] and table.find(Config.Rollout, species)) then
+				return
+			end
+			whenComplete(m, function()
+				if m.Parent == char and m.PrimaryPart then
+					Controller.Register(m, { name = species, rarity = m:GetAttribute("Rarity"), carried = true })
+				end
+			end)
+		end
+		char.ChildAdded:Connect(add)
+		for _, c in char:GetChildren() do
+			add(c)
+		end
+	end
+	local function watchPlayer(p)
+		p.CharacterAdded:Connect(watchCharacter)
+		if p.Character then
+			watchCharacter(p.Character)
+		end
+	end
+	Players.PlayerAdded:Connect(watchPlayer)
+	for _, p in Players:GetPlayers() do
+		watchPlayer(p)
+	end
+end
+
 local started = false
 function Controller.Start()
 	if started then
@@ -844,6 +892,7 @@ function Controller.Start()
 	end
 	started = true
 	Controller.WatchLive()
+	Controller.WatchCarried()
 	RunService.PreSimulation:Connect(step)
 	-- camera shake: added after the camera scripts run, removed again before they run next frame
 	RunService:BindToRenderStep("KaijuAnimShakeUndo", Enum.RenderPriority.Camera.Value - 2, function()
