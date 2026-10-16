@@ -16,6 +16,7 @@ Config.Rollout = {
 	"Snowpup", "GlacierCrab", "Frostrhino", "Brrrilla", "IcebreakerRex", "AuroraSerpent", -- Frostfang Peaks
 	"Vinewhip", "Shroomhog", "Mantisaur", "Sabrejag", "Toxitops", "Hydravine", -- Venom Jungle
 	"Lurkfin", "Barnaclaw", "Hammerjaw", "Krakling", "Megajaw", "Tidewyrm", -- Sunken Abyss
+	"Sparkit", "Voltbeak", "Thunderram", "Stormgriff", "Voltkirin", "RaijinWyrm", -- Storm Spires
 }
 
 -- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
@@ -294,6 +295,10 @@ Config.Creatures = {
 	BlazeBonkey = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	MoltenRex = { Profile = "Rex" },
 	Snowpup = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Howl" } },
+	Sparkit = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Zap" } },
+	Voltbeak = { Profile = "Raptor", Wings = { Breathe = 2, Settle = 10, SettleEvery = { 5, 10 }, SettleLength = 0.9 }, Actions = { "Roar", "Hop", "WingFlap" } },
+	Thunderram = { Profile = "HeavyQuad", Actions = { "HeadButt", "Paw" }, Tail = { Sway = 14, Hz = 0.5, Lift = 1 } },
+	Voltkirin = { Profile = "AgileQuad", Actions = { "RearUp", "Paw", "AntlerSpark" } },
 	Barnaclaw = { Profile = "Arthropod", Actions = { "ClawSnap", "Bubbles", "Wiggle" } },
 	Hammerjaw = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	Tidewyrm = { Profile = "Serpent", WingRipple = { Amp = 6, Hz = 0.22, Lag = 0.9 }, Actions = { "RearUp", "WingRipple" } },
@@ -855,6 +860,66 @@ Config.Actions = {
 			Events = { { 0, "Sound", "Eat" } },
 		},
 	},
+	Zap = {
+		AgileQuad = { -- a crouch, a crackle of sparks over its fur, then a jolting little jump
+			Duration = 1.6, Calm = 0.9,
+			Tracks = {
+				{ "Body", "y", { 0, 0, 0.25, -0.07, 0.4, -0.07, 0.5, 0.22, 0.62, -0.03, 0.75, 0, 1, 0 } },
+				{ "Body", "roll", nil, Osc = { Hz = 14, Amp = 2, From = 0.15, To = 0.45 } },
+				{ "Leg*", "plant", { 0, 1, 0.44, 1, 0.48, 0, 0.6, 0, 0.64, 1, 1, 1 } },
+				{ "Head", "pitch", { 0, 0, 0.25, -8, 0.5, 10, 0.7, 0, 1, 0 } },
+				{ "Ear*", "roll", { 0, 0, 0.2, 18, 0.6, 18, 0.8, 0, 1, 0 }, Mirror = true },
+				{ "Tail*", "pitch", { 0, 0, 0.2, -14, 0.7, -12, 1, 0 }, Grow = 0.3 },
+				{ "Body", "glow", { 0, 0, 0.15, 1, 0.6, 1, 0.8, 0, 1, 0 } },
+			},
+			Events = { { 0.15, "Flash", "Bolt,BoltHot,Spark" }, { 0.3, "Biome", 1.5 }, { 0.48, "Flash", "Bolt,BoltHot,Spark" }, { 0.5, "Biome", 2 }, { 0.48, "Sound", "PlayBow" } },
+		},
+	},
+	WingFlap = {
+		Raptor = { -- three big wing beats that lift its chest
+			Duration = 1.8, Calm = 0.8,
+			Tracks = {
+				{ "Wing*", "roll", { 0, 0, 0.12, 30, 0.85, 26, 1, 0 }, Mirror = true, Osc = { Hz = 2.6, Amp = 26, From = 0.12, To = 0.85 } },
+				{ "Body", "pitch", { 0, 0, 0.12, 6, 0.85, 5, 1, 0 } },
+				{ "Body", "y", nil, Osc = { Hz = 2.6, Amp = 0.04, From = 0.12, To = 0.85, Phase = 1.6 } },
+				{ "Head", "pitch", { 0, 0, 0.12, 8, 0.85, 6, 1, 0 } },
+				{ "Tail*", "pitch", { 0, 0, 0.12, -8, 0.85, -6, 1, 0 }, Grow = 0.3 },
+			},
+			Events = { { 0.15, "Sound", "TailSwing" }, { 0.5, "Sound", "TailSwing" }, { 0.3, "Biome", 1 } },
+		},
+	},
+	HeadButt = {
+		HeavyQuad = { -- lowers its horns, lightning crackles through the fleece, then a charging head butt
+			Duration = 2.2, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "Head", "pitch", { 0, 0, 0.25, -22, 0.5, -24, 0.6, -8, 0.68, -16, 0.85, 0, 1, 0 } },
+				{ "Head", "roll", nil, Osc = { Hz = 2, Amp = 4, From = 0.1, To = 0.5 } },
+				{ "Body", "pitch", { 0, 0, 0.25, -4, 0.5, -5, 0.6, -2, 0.85, 0, 1, 0 } },
+				{ "Body", "z", { 0, 0, 0.25, 0.1, 0.5, 0.12, 0.6, -0.4, 0.7, -0.32, 0.88, 0.02, 1, 0 } },
+				{ "LegFR", "plant", { 0, 1, 0.1, 0, 0.42, 0, 0.48, 1, 1, 1 } },
+				{ "LegFR", "pitch", nil, Osc = { Hz = 3.5, Amp = 14, From = 0.12, To = 0.44 } },
+				{ "Ear*", "roll", { 0, 0, 0.25, -18, 0.8, -16, 1, 0 }, Mirror = true },
+				{ "Body", "glow", { 0, 0, 0.2, 1, 0.65, 1, 0.85, 0, 1, 0 } },
+			},
+			Events = {
+				{ 0.2, "Flash", "Bolt,BoltHot" }, { 0.35, "Flash", "Bolt,BoltHot" }, { 0.5, "Biome", 1.5 }, { 0.12, "Sound", "Paw" },
+				{ 0.6, "Sound", "BigHop" }, { 0.61, "Shake", 0.3 }, { 0.61, "Dust", "Body", 1.3 },
+			},
+		},
+	},
+	AntlerSpark = {
+		AgileQuad = { -- head raised high, its glowing mane and antlers crackle with light
+			Duration = 2.4, Calm = 1,
+			Tracks = {
+				{ "Head", "pitch", { 0, 0, 0.18, 18, 0.8, 16, 1, 0 } },
+				{ "Head", "yaw", nil, Osc = { Hz = 1.2, Amp = 8, From = 0.2, To = 0.8 } },
+				{ "Body", "pitch", { 0, 0, 0.18, 4, 0.8, 4, 1, 0 } },
+				{ "Tail*", "pitch", { 0, 0, 0.18, -12, 0.8, -10, 1, 0 }, Grow = 0.3 },
+				{ "Body", "glow", { 0, 0, 0.2, 1, 0.8, 1, 1, 0 } },
+			},
+			Events = { { 0.22, "Flash", "ManeGlow,ManeHot" }, { 0.25, "Burst" }, { 0.45, "Flash", "ManeGlow,ManeHot" }, { 0.5, "Biome", 2 }, { 0.65, "Flash", "ManeGlow,ManeHot" }, { 0.3, "Sound", "Roar" } },
+		},
+	},
 	Bubbles = {
 		Arthropod = { -- rises on its legs and blows a stream of bubbles, claws clacking
 			Duration = 2, Calm = 0.8,
@@ -1116,6 +1181,20 @@ Config.Actions = {
 		},
 	},
 	RearUp = {
+		AgileQuad = { -- rears up on its hind legs, front hooves striking the air
+			Duration = 2.4, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "Body", "pitch", { 0, 0, 0.12, -3, 0.32, 26, 0.7, 24, 0.84, -2, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.12, -0.04, 0.32, 0.08, 0.7, 0.07, 0.86, -0.02, 1, 0 } },
+				{ "LegF*", "plant", { 0, 1, 0.1, 0, 0.78, 0, 0.86, 1, 1, 1 } },
+				{ "LegF*", "pitch", { 0, 0, 0.32, 30, 0.7, 26, 0.84, 0, 1, 0 } },
+				{ "LegFL", "pitch", nil, Osc = { Hz = 2.4, Amp = 16, From = 0.34, To = 0.7 } },
+				{ "LegFR", "pitch", nil, Osc = { Hz = 2.4, Amp = 16, From = 0.34, To = 0.7, Phase = 3.14 } },
+				{ "Head", "pitch", { 0, 0, 0.32, -8, 0.7, -6, 1, 0 } },
+				{ "Tail*", "pitch", { 0, 0, 0.32, 10, 0.7, 8, 1, 0 } },
+			},
+			Events = { { 0.3, "Sound", "Roar" }, { 0.84, "Dust", "LegFL" }, { 0.84, "Shake", 0.15 } },
+		},
 		Serpent = { -- rises like a cobra, swaying, tongue flicking
 			Duration = 2.6, Calm = 1,
 			Tracks = {
