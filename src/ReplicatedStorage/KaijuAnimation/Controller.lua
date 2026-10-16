@@ -1265,6 +1265,17 @@ function Controller.Command(cmd, a, b)
 	elseif cmd == "freeze" then
 		frozen = a == true
 		return frozen
+	elseif cmd == "step" then
+		-- frame-by-frame (with freeze on): advance these creatures' poses and actions by exactly b seconds, without moving
+		-- their roots, so a recording can take each frame at leisure
+		local dt = tonumber(b) or 1 / 30
+		clock += dt
+		for _, rec in targets(a) do
+			scheduleActions(rec)
+			Motion.Step(rec, dt, 0)
+			VFX.Update(rec, dt, 0, clock)
+		end
+		return true
 	elseif cmd == "labels" then
 		labels = a == true
 		nextClassify = 0
