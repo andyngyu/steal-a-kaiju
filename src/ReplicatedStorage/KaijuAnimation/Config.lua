@@ -17,6 +17,8 @@ Config.Rollout = {
 	"Vinewhip", "Shroomhog", "Mantisaur", "Sabrejag", "Toxitops", "Hydravine", -- Venom Jungle
 	"Lurkfin", "Barnaclaw", "Hammerjaw", "Krakling", "Megajaw", "Tidewyrm", -- Sunken Abyss
 	"Sparkit", "Voltbeak", "Thunderram", "Stormgriff", "Voltkirin", "RaijinWyrm", -- Storm Spires
+	"Starmite", "Nebulynx", "Cometshell", "Quasarab", "Astrodon", "AstralWyrm", -- Cosmic Rift
+	"Prismling", -- Secret
 }
 
 -- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
@@ -295,6 +297,15 @@ Config.Creatures = {
 	BlazeBonkey = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	MoltenRex = { Profile = "Rex" },
 	Snowpup = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Howl" } },
+	Starmite = { Profile = "Hopper", Actions = { "BigHop", "CrystalPulse", "Hop" } },
+	Nebulynx = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Shimmer" }, Shimmer = { "Star" } },
+	Quasarab = { -- a six-legged beetle: legs named front / middle / back, wing cases on its back
+		Profile = "Arthropod", Gait = "Hexapod", Planted = { "LegFL", "LegML", "LegBL", "LegFR", "LegMR", "LegBR" },
+		LegTap = { Every = { 3, 6 }, Lift = 8, Step = 0.11, Order = { "LegFL", "LegML", "LegBL", "LegBR", "LegMR", "LegFR" } },
+		Head = { Yaw = 14, Pitch = 5, Tilt = 4, Hz = 0.08, GlanceEvery = { 4, 8 }, Glance = 16, GlanceHold = { 0.6, 1.4 }, Stabilize = 0.5 },
+		Actions = { "WingCaseOpen", "Wiggle" },
+	},
+	AstralWyrm = { Profile = "Winged", Actions = { "WingSpread", "Roar", "PlayBow" } },
 	Sparkit = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Zap" } },
 	Voltbeak = { Profile = "Raptor", Wings = { Breathe = 2, Settle = 10, SettleEvery = { 5, 10 }, SettleLength = 0.9 }, Actions = { "Roar", "Hop", "WingFlap" } },
 	Thunderram = { Profile = "HeavyQuad", Actions = { "HeadButt", "Paw" }, Tail = { Sway = 14, Hz = 0.5, Lift = 1 } },
@@ -349,6 +360,8 @@ Config.Gaits = {
 	Tripod = { Duty = 0.55, Stride = 0.6, Lift = 0.2, Bob = 0.02, Roll = 1.5, Sideways = true,
 		Phase = { LegAL = 0, LegCL = 0, LegBR = 0, LegBL = 0.5, LegAR = 0.5, LegCR = 0.5 } },
 	Hop = { Duty = 0.45, Stride = 0.9, Lift = 0.15, Hop = 0.35, Phase = { LegFL = 0, LegFR = 0, LegBL = 0, LegBR = 0 } },
+	Hexapod = { Duty = 0.55, Stride = 0.6, Lift = 0.2, Bob = 0.02, Roll = 1.5,
+		Phase = { LegFL = 0, LegMR = 0, LegBL = 0, LegFR = 0.5, LegML = 0.5, LegBR = 0.5 } }, -- two alternating tripods, walking forward
 	Slither = { Wave = 20, K = 1.05, Neck = 12 }, -- no feet: a travelling S-wave, the neck cancels it so the head keeps course
 	Drift = { Curl = 10 }, -- tentacles ripple harder while it moves
 }
@@ -858,6 +871,48 @@ Config.Actions = {
 				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 8, From = 0.1, To = 0.9 }, Grow = 0.3 },
 			},
 			Events = { { 0, "Sound", "Eat" } },
+		},
+	},
+	CrystalPulse = {
+		Hopper = { -- squats, its star crystals charge up and flash out in a burst
+			Duration = 1.8, Calm = 0.9,
+			Tracks = {
+				{ "Body", "y", { 0, 0, 0.3, -0.06, 0.5, -0.06, 0.58, 0.06, 0.72, 0, 1, 0 } },
+				{ "Body", "pitch", { 0, 0, 0.3, -3, 0.5, -3, 0.58, 6, 0.75, 0, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.45, 0.8, 0.56, 1, 0.8, 0, 1, 0 } },
+				{ "Body", "glow", nil, Osc = { Hz = 6, Amp = 0.5, From = 0.1, To = 0.5 } },
+				{ "Head", "pitch", { 0, 0, 0.3, -6, 0.5, -6, 0.6, 10, 0.8, 0, 1, 0 } },
+			},
+			Events = { { 0.56, "Flash", "Star,Void" }, { 0.57, "Burst" }, { 0.58, "Biome", 2 }, { 0.56, "Sound", "BigHop" } },
+		},
+	},
+	Shimmer = {
+		AgileQuad = { -- arches its back and a shimmer of starlight sweeps along its nebula coat
+			Duration = 2.2, Calm = 0.9,
+			Tracks = {
+				{ "Body", "pitch", { 0, 0, 0.2, 4, 0.75, 4, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.2, 0.05, 0.75, 0.05, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.2, 12, 0.75, 10, 1, 0 } },
+				{ "Tail*", "pitch", { 0, 0, 0.2, -16, 0.75, -14, 1, 0 } },
+				{ "Ear*", "roll", { 0, 0, 0.2, 12, 0.75, 12, 1, 0 }, Mirror = true },
+				{ "Body", "glow", { 0, 0, 0.25, 0.8, 0.75, 0.8, 1, 0 } },
+			},
+			Events = { { 0.25, "Shimmer", 1.1 }, { 0.3, "Biome", 1.5 }, { 0.6, "Burst" } },
+		},
+	},
+	WingCaseOpen = {
+		Arthropod = { -- the wing cases split open to show the galaxy inside, hold, then snap shut
+			Duration = 2.6, Calm = 1,
+			Tracks = {
+				-- the cases sit above their hinge on the spine, so opening outward is a negative roll
+				{ "Wing*", "roll", { 0, 0, 0.1, 3, 0.28, -48, 0.7, -46, 0.78, 4, 0.86, -1, 1, 0 }, Mirror = true },
+				{ "Wing*", "yaw", { 0, 0, 0.28, -14, 0.7, -12, 0.78, 0, 1, 0 }, Mirror = true },
+				{ "Wing*", "roll", nil, Osc = { Hz = 3, Amp = 4, From = 0.3, To = 0.68 }, Mirror = true },
+				{ "Body", "pitch", { 0, 0, 0.28, 4, 0.7, 4, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.28, 0.04, 0.7, 0.04, 0.78, -0.02, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.28, 1, 0.7, 1, 0.8, 0, 1, 0 } },
+			},
+			Events = { { 0.26, "Flash", "Galaxy,GalaxyCore,GalaxyLight,Star" }, { 0.3, "Biome", 2 }, { 0.5, "Flash", "Galaxy,GalaxyCore" }, { 0.77, "Sound", "ClawSnap" }, { 0.78, "Shake", 0.1 } },
 		},
 	},
 	Zap = {
