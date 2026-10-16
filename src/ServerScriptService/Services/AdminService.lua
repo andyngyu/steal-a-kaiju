@@ -14,7 +14,9 @@ local BiomeConfig = require(Config.BiomeConfig)
 local TrailConfig = require(Config.TrailConfig)
 local MutationConfig = require(Config.MutationConfig)
 local WeatherConfig = require(Config.WeatherConfig)
+local KaijuConfig = require(Config.KaijuConfig)
 local PenGeometry = require(ReplicatedStorage.Shared.Util.PenGeometry)
+local HttpService = game:GetService("HttpService")
 local EggModel = require(game:GetService("ServerScriptService").Lib.EggModel)
 
 local Services = script.Parent
@@ -31,6 +33,7 @@ local WeatherService = require(Services.WeatherService)
 local TreadmillService = require(Services.TreadmillService)
 local DailyRewardService = require(Services.DailyRewardService)
 local GroupRewardService = require(Services.GroupRewardService)
+local PetService = require(Services.PetService)
 
 local AdminService = {}
 
@@ -139,6 +142,53 @@ local function spawnEgg(player, rarityText, sizeText, mutationText, biomeText)
 	return true, string.format("Put a ready %s%s %s egg (%.2fx) in %s's pen", mutation and (mutation .. " ") or "", rarityId, biomeId, size, player.Name)
 end
 
+-- Any kaiju for the target: into their pen at a random spot (as if just hatched), or their inventory when the pen is
+-- full. Size 0.5-10 (default 1). Returns ok, message.
+local function spawnPet(player, speciesText, sizeText, mutationText)
+	local species
+	for id, k in KaijuConfig do
+		if type(k) == "table" and k.Rarity and (string.lower(id) == string.lower(tostring(speciesText))
+			or string.lower(k.DisplayName or "") == string.lower(tostring(speciesText))) then
+			species = id
+		end
+	end
+	if not species then
+		return false, "Unknown pet " .. tostring(speciesText)
+	end
+	local mutation, validMutation = mutationOf(mutationText)
+	if not validMutation then
+		return false, "Unknown mutation " .. tostring(mutationText)
+	end
+	local size = math.clamp(number(sizeText) or 1, 0.5, 10)
+	if not (DataService:Get(player) and BaseService:GetPlot(player)) then
+		return false, player.Name .. "'s base isn't ready yet"
+	end
+	local cfg = KaijuConfig[species]
+	local id = HttpService:GenerateGUID(false)
+	local entry = {
+		Kind = "Kaiju",
+		KaijuId = id,
+		Species = species,
+		Rarity = cfg.Rarity,
+		BiomeId = cfg.Biome ~= "Any" and cfg.Biome or "PebblePlains",
+		HatchedAt = os.time(),
+		Size = size,
+		Level = 1,
+		XP = 0,
+		Mutation = mutation,
+	}
+	local name = string.format("%s%s (%.2fx)", mutation and (mutation .. " ") or "", cfg.DisplayName or species, size)
+	if BaseService:HasRoom(player) and HatchService:SpawnItem(player, id, entry) then
+		EconomyService:Publish(player)
+		DataService:Save(player)
+		return true, "Spawned " .. name .. " in " .. player.Name .. "'s pen"
+	end
+	if PetService:AddToInventory(player, id, entry) then
+		return true, player.Name .. "'s pen is full: " .. name .. " went to their inventory"
+	end
+	return false, "Couldn't spawn that pet"
+end
+
 local function areaCFrame(caller, area)
 	if area == "Base" then
 		local plot = BaseService:GetPlot(caller)
@@ -232,6 +282,11 @@ local COMMANDS = {
 			return false, target.Name .. " isn't on their treadmill"
 		end
 		return true, "A lightning bolt popped up for " .. target.Name
+	end,
+
+	-- pets
+	SpawnPet = function(_, target, p)
+		return spawnPet(target, p[1], p[2], p[3])
 	end,
 
 	-- mutations

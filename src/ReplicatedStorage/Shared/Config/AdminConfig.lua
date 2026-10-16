@@ -27,6 +27,30 @@ for _, e in require(script.Parent.WeatherConfig).Events do
 	table.insert(WEATHERS, e.Id)
 end
 
+-- every kaiju species (straight from KaijuConfig, so new ones show up here by themselves), rarest last; the Spawn Pet
+-- picker shows each by its display name in its rarity's colour
+local KAIJU, KAIJU_LABELS, KAIJU_RARITY = {}, {}, {}
+do
+	local order = {}
+	for i, r in RARITIES do
+		order[r] = i
+	end
+	for id, k in require(script.Parent.KaijuConfig) do
+		if type(k) == "table" and k.Rarity then
+			table.insert(KAIJU, id)
+			KAIJU_LABELS[id] = k.DisplayName or id
+			KAIJU_RARITY[id] = k.Rarity
+		end
+	end
+	table.sort(KAIJU, function(a, b)
+		local ra, rb = order[KAIJU_RARITY[a]] or 99, order[KAIJU_RARITY[b]] or 99
+		if ra ~= rb then
+			return ra < rb
+		end
+		return KAIJU_LABELS[a] < KAIJU_LABELS[b]
+	end)
+end
+
 -- Commands, in panel order. Target = acts on the player selected in the panel's player list.
 -- Params are inputs left to right: text boxes, or a cycling button when Options is given (Small = narrower,
 -- Wide = wider). Danger = click twice.
@@ -55,6 +79,13 @@ AdminConfig.Commands = {
 		{ Name = "Size", Default = "", Hint = "size", Small = true },
 	} },
 	{ Id = "HatchEggsNow", Section = "Eggs", Label = "Hatch Eggs Now", Target = true },
+	-- any kaiju straight into the target's pen (their inventory when the pen is full). Picker = the option opens a
+	-- searchable list instead of cycling (Labels / Groups: how each option is shown and coloured)
+	{ Id = "SpawnPet", Section = "Pets", Label = "Spawn Pet", Target = true, Params = {
+		{ Name = "Pet", Default = KAIJU[1], Options = KAIJU, Picker = true, Labels = KAIJU_LABELS, Groups = KAIJU_RARITY },
+		{ Name = "Size", Default = "1", Hint = "size", Small = true },
+		{ Name = "Mutation", Default = "None", Options = MUTATIONS_OR_NONE, Small = true },
+	} },
 	{ Id = "MutatePenEggs", Section = "Mutations", Label = "Mutate Pen Eggs", Target = true, Params = {
 		{ Name = "Mutation", Default = "Shocked", Options = MUTATIONS },
 	} },
