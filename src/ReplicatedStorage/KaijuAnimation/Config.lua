@@ -15,6 +15,7 @@ Config.Rollout = {
 	"Magmite", "CinderToad", "Scorchback", "BlazeBonkey", "MoltenRex", "InfernoSerpent", -- Lava Lagoon
 	"Snowpup", "GlacierCrab", "Frostrhino", "Brrrilla", "IcebreakerRex", "AuroraSerpent", -- Frostfang Peaks
 	"Vinewhip", "Shroomhog", "Mantisaur", "Sabrejag", "Toxitops", "Hydravine", -- Venom Jungle
+	"Lurkfin", "Barnaclaw", "Hammerjaw", "Krakling", "Megajaw", "Tidewyrm", -- Sunken Abyss
 }
 
 -- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
@@ -293,6 +294,9 @@ Config.Creatures = {
 	BlazeBonkey = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	MoltenRex = { Profile = "Rex" },
 	Snowpup = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Howl" } },
+	Barnaclaw = { Profile = "Arthropod", Actions = { "ClawSnap", "Bubbles", "Wiggle" } },
+	Hammerjaw = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
+	Tidewyrm = { Profile = "Serpent", WingRipple = { Amp = 6, Hz = 0.22, Lag = 0.9 }, Actions = { "RearUp", "WingRipple" } },
 	Shroomhog = { Profile = "HeavyQuad", Actions = { "Paw", "SporePuff", "Wiggle" } },
 	Mantisaur = { -- reared up on four legs, scythes held ready, a twitchy mantis head
 		Profile = "Arthropod", Gait = "Crawl", Planted = { "LegFL", "LegFR", "LegBL", "LegBR" }, LegTap = false,
@@ -849,6 +853,31 @@ Config.Actions = {
 				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 8, From = 0.1, To = 0.9 }, Grow = 0.3 },
 			},
 			Events = { { 0, "Sound", "Eat" } },
+		},
+	},
+	Bubbles = {
+		Arthropod = { -- rises on its legs and blows a stream of bubbles, claws clacking
+			Duration = 2, Calm = 0.8,
+			Tracks = {
+				{ "Body", "y", { 0, 0, 0.15, 0.05, 0.8, 0.05, 1, 0 } },
+				{ "Body", "pitch", { 0, 0, 0.15, 5, 0.8, 4, 1, 0 }, Osc = { Hz = 3, Amp = 1.5, From = 0.2, To = 0.8 } },
+				{ "Claw*", "pitch", { 0, 0, 0.15, 14, 0.8, 12, 1, 0 } },
+				{ "Eye*", "pitch", nil, Osc = { Hz = 4, Amp = 8, From = 0.15, To = 0.8 }, Mirror = true },
+			},
+			Events = { { 0.2, "Biome", 1.5 }, { 0.4, "Biome", 1.5 }, { 0.6, "Biome", 2 }, { 0.3, "Sound", "ClawSnap" } },
+		},
+	},
+	WingRipple = {
+		Serpent = { -- rears a little and sends big waves rolling out along both manta wings
+			Duration = 2.8, Calm = 0.8,
+			Tracks = {
+				{ "Wing*", "roll", { 0, 0, 0.15, 8, 0.85, 8, 1, 0 }, Mirror = true, Grow = 0.3, Lag = 1.1, Osc = { Hz = 1.6, Amp = 18, From = 0.12, To = 0.9 } },
+				{ "Neck", "pitch", { 0, 0, 0.15, 10, 0.85, 9, 1, 0 } },
+				{ "Seg1", "pitch", { 0, 0, 0.15, 4, 0.85, 4, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.2, 0.7, 0.8, 0.7, 1, 0 } },
+				{ "@Spine", "yaw", nil, Osc = { Hz = 0.8, Amp = 4, From = 0.1, To = 0.9 }, Grow = 0.3 },
+			},
+			Events = { { 0.2, "Sound", "TailSwing" }, { 0.3, "Biome", 1 }, { 0.55, "Sound", "TailSwing" } },
 		},
 	},
 	FrillFlare = {
