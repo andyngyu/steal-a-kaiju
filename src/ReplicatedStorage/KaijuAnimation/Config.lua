@@ -12,6 +12,7 @@ local Config = {}
 -- Live kaiju species animated by this engine (Gameplay.KaijuFX keeps animating the rest), rolled out biome by biome.
 Config.Rollout = {
 	"Pebblesaur", "Chompling", "Bonkey", "Tuskit", "Rumblerex", "Thunderback", -- Pebble Plains
+	"Magmite", "CinderToad", "Scorchback", "BlazeBonkey", "MoltenRex", "InfernoSerpent", -- Lava Lagoon
 }
 
 -- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
@@ -284,6 +285,10 @@ Config.Creatures = {
 		Actions = { "GroundPunch", "ChestBeat", "Roar" },
 	},
 	Rumblerex = { Profile = "Rex" },
+	Magmite = { Profile = "Arthropod", Actions = { "ClawSnap", "MagmaBurp" } },
+	Scorchback = { Profile = "HeavyQuad", Actions = { "TailSwing", "Stomp" }, Tail = { Sway = 6, Hz = 0.22, Lift = 1 }, Pulse = 0.4 },
+	BlazeBonkey = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
+	MoltenRex = { Profile = "Rex" },
 	Vinewhip = { Profile = "Raptor" },
 	Bonkey = { Profile = "Ape" },
 	Tuskit = { Profile = "HeavyQuad", Ears = { Fan = 9 } },
@@ -547,6 +552,19 @@ Config.Actions = {
 		},
 	},
 	TailSwing = {
+		Scorchback = { -- the armoured club swings round, back plates flaring bright
+			Duration = 2, Calm = 0.8,
+			Tracks = {
+				{ "Tail*", "yaw", { 0, 0, 0.22, -14, 0.46, 34, 0.6, 28, 0.78, -8, 0.9, 2, 1, 0 }, Grow = 0.3 },
+				{ "Tail*", "pitch", { 0, 0, 0.22, -6, 0.5, -4, 1, 0 } },
+				{ "Body", "yaw", { 0, 0, 0.22, 3, 0.46, -5, 0.62, -4, 0.8, 1, 1, 0 } },
+				{ "Body", "roll", { 0, 0, 0.22, 1.5, 0.46, -2, 0.7, 0, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.22, -0.04, 0.5, -0.03, 0.8, 0, 1, 0 } },
+				{ "Head", "yaw", { 0, 0, 0.25, -10, 0.5, 12, 0.8, 0, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.15, 0.6, 0.46, 1, 0.75, 0.6, 1, 0 } },
+			},
+			Events = { { 0.36, "Sound", "TailSwing" }, { 0.44, "Flash", "Magma,MagmaHot" }, { 0.46, "Shake", 0.15 }, { 0.46, "Dust", "Body" } },
+		},
 		Default = {
 			Duration = 1.8, Calm = 0.6,
 			Tracks = {
@@ -583,6 +601,11 @@ Config.Actions = {
 		},
 	},
 	ChestBeat = {
+		BlazeBonkey = { -- the ape chest pound, shedding embers with every beat
+			Extends = "Ape",
+			Tracks = { { "Body", "glow", { 0, 0, 0.2, 0.8, 0.62, 0.8, 0.75, 0, 1, 0 } } },
+			Events = { { 0.24, "Flash", "Flame,MagmaHot" }, { 0.3, "Burst" }, { 0.48, "Flash", "Flame,MagmaHot" }, { 0.52, "Burst" }, { 0.77, "Burst" } },
+		},
 		Thunderback = { -- upright: the free right fist drums its chest while the raised left fist pumps
 			Duration = 2.4, Calm = 1,
 			Tracks = {
@@ -790,6 +813,20 @@ Config.Actions = {
 				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 8, From = 0.1, To = 0.9 }, Grow = 0.3 },
 			},
 			Events = { { 0, "Sound", "Eat" } },
+		},
+	},
+	MagmaBurp = {
+		Magmite = { -- puffs up, claws spread, then belches a flash of magma
+			Duration = 1.8, Calm = 0.8,
+			Tracks = {
+				{ "Body", "y", { 0, 0, 0.3, 0.06, 0.48, 0.07, 0.56, -0.03, 0.7, 0.01, 1, 0 } },
+				{ "Body", "pitch", { 0, 0, 0.3, 6, 0.48, 7, 0.56, -5, 0.72, 1, 1, 0 } },
+				{ "Claw*", "roll", { 0, 0, 0.3, 14, 0.5, 14, 0.62, 4, 1, 0 }, Mirror = true },
+				{ "Claw*", "pitch", { 0, 0, 0.3, 12, 0.5, 10, 0.62, -6, 1, 0 } },
+				{ "Eye*", "pitch", { 0, 0, 0.3, 10, 0.5, 10, 0.56, -12, 0.7, 0, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.3, 0.5, 0.52, 1, 0.8, 0, 1, 0 } },
+			},
+			Events = { { 0.54, "Flash", "Mouth,Magma,MagmaHot,Belly" }, { 0.55, "Burst" }, { 0.56, "Sound", "Chomp" } },
 		},
 	},
 	PushUp = {
