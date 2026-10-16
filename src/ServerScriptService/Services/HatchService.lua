@@ -201,7 +201,18 @@ local function tryHatch(owner, id, player, fromMenu)
 			Mutation = entry.Mutation,
 		}
 		gameEvent:FireClient(owner, "EggHatched", payload)
-		if grand then
+		-- everyone hears about Mythic and Secret hatches only (designer's request, 15 Oct 2026)
+		local announce = false
+		for i, r in EggConfig.Rarities do
+			if r.Id == "Mythic" then
+				for j = i, #EggConfig.Rarities do
+					if EggConfig.Rarities[j].Id == kaijuEntry.Rarity then
+						announce = true
+					end
+				end
+			end
+		end
+		if announce then
 			gameEvent:FireAllClients("HatchAnnouncement", {
 				UserId = owner.UserId,
 				PlayerName = owner.DisplayName,
