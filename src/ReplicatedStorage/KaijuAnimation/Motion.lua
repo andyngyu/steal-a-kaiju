@@ -838,6 +838,166 @@ local function solve(rec, dt, lod)
 	end
 end
 
+--------------------------------------------------------------------------------------------------- live guardians
+
+-- A live guardian's leg at phase phi: a planted foot sweeps back past the hip (stance), then the leg swings forward,
+-- lifted. Returns the leg angle, the lift (0..1) and whether the foot is down.
+local function guardianLeg(phi, duty, sweep, L)
+	if phi < duty then
+		return math.asin(clamp(sweep * (0.5 - phi / duty) / L, -0.95, 0.95)), 0, true
+	end
+	local u = (phi - duty) / (1 - duty)
+	local x = sweep * ((1 - cos(u * math.pi)) / 2 - 0.5)
+	return math.asin(clamp(x / L, -0.95, 0.95)), sin(u * math.pi), false
+end
+
+-- a foot landing: the local markers GameAudio and GameVFX stomp on (StepAt, StepPos), as Gameplay.KaijuFX set them
+local function footfall(rec, R, x, sweep)
+	local model = rec.model
+	model:SetAttribute("StepPos", rec.rootCF * Vector3.new(x, R.groundY, -sweep / 2))
+	model:SetAttribute("StepAt", os.clock())
+end
+
+-- A live guardian (GuardianService moves it with a Humanoid; the controller fills rec.run each update). The run is
+-- Gameplay.KaijuFX's: cadence rises with speed and past 3 steps a second the stride stretches; the hips ride on the
+-- planted leg, the body leans into the run and banks into turns, the visible body turns smoothly after the Humanoid's
+-- snapping heading; rexes pump their tucked arms, the upright runners (Run = "Ape") swing theirs. Also the jaws
+-- snapping at its player, copies rising out of and sinking into the ground, and the egg carry: the arms or jaws end up
+-- exactly where GuardianService welded the egg.
+local function guardianLayer(rec, dt)
+	local R = rec.run
+	local sp, moving, run = R.speed, R.moving, R.run
+	local L = R.legLength
+	local duty = clamp(0.62 - sp * 0.006, 0.42, 0.62)
+	local cadence = clamp(math.max(0.9 + sp * 0.045, sp * duty / (1.35 * L)), 0.9, 3)
+	if sp > 0.5 then
+		R.phase = (R.phase + cadence * dt) % 1
+	end
+	local sweep = sp > 0.5 and min(sp * duty / cadence, 1.6 * L) or 0
+	local phL = R.phase
+	local phR = (phL + 0.5) % 1
+	local angL, liftL, downL = guardianLeg(phL, duty, sweep, L)
+	local angR, liftR, downR = guardianLeg(phR, duty, sweep, L)
+	local s1 = sin(phL * TAU)
+	local carry
+	if downL or downR then
+		carry = math.max(downL and L * (cos(angL) - 1) or -math.huge, downR and L * (cos(angR) - 1) or -math.huge)
+	else
+		carry = L * 0.04
+	end
+	local bob = carry * 0.55 * moving
+	if moving > 0.5 and rec.sleep < 0.5 then
+		if R.lastL and phL < R.lastL then
+			footfall(rec, R, R.legXL, sweep)
+		end
+		if R.lastR and phR < R.lastR then
+			footfall(rec, R, R.legXR, sweep)
+		end
+	end
+	R.lastL, R.lastR = phL, phR
+
+	local ape = R.ape
+	local J = rec.J
+	local body = rec.body
+	local pitch = -(ape and 0.2 or 0.11) * run + sin(phL * 2 * TAU) * 0.025 * run
+	local dip = R.dip -- reaching down for a dropped egg: knees bend, it tips forward over it, the head ducks
+	body.ty += bob + R.lift - L * 0.25 * dip
+	body.ay += R.yawOffset + 0.06 * s1 * run
+	body.ax += pitch - (ape and 0.55 or 0.6) * dip
+	body.az += 0.05 * s1 * run + R.bank + R.wobble
+
+	-- legs: planted while it stands (and grounded through the roar and sleep), the run's swing once it moves; a copy
+	-- rising or sinking takes its legs with it
+	local free = R.lift < -0.01 and 1 or moving
+	local lift = L * 0.22 * min(run, 1)
+	local ll, lr = J.LegL, J.LegR
+	if ll then
+		ll.plant *= 1 - free
+		ll.ax += angL * moving
+		ll.ty += liftL * lift
+	end
+	if lr then
+		lr.plant *= 1 - free
+		lr.ax += angR * moving
+		lr.ty += liftR * lift
+	end
+
+	local la, ra = J.ArmL, J.ArmR
+	if ape then
+		local swing = 0.9 * s1 * run -- opposite to the legs
+		if la then
+			la.ax -= swing
+		end
+		if ra then
+			ra.ax += swing
+		end
+	else
+		local pump = 0.28 * s1 * run
+		if la then
+			la.ax += 0.15 * run - pump
+		end
+		if ra then
+			ra.ax += 0.15 * run + pump
+		end
+	end
+
+	-- head: level, leading turns; jaws snapping when its player is close, panting with the stride
+	local chomp = R.chomp
+	for _, h in rec.heads do
+		h.ay += clamp(-R.yawOffset * 0.6, -0.5, 0.5)
+		h.ax -= 0.12 * chomp + (ape and 0.35 or 0.75) * dip
+		h.ty -= bob * 0.6
+	end
+	local jaw = rec.jaw
+	if jaw then
+		jaw.ax -= chomp * (0.2 + 0.45 * math.max(0, sin(os.clock() * 13))) + 0.08 * math.abs(s1) * run
+	end
+
+	-- tail: counter-swings, flicks out in turns, raised for balance
+	local tail = rec.tail[1]
+	if tail then
+		tail.ay += -0.3 * s1 * run * (ape and 0.4 or 1) + clamp(-R.turnRate * 0.12, -0.4, 0.4) * moving
+		tail.ax += -0.14 * run - pitch * 0.5
+	end
+
+	-- carrying an egg home: everything above eases into the hold pose; reaching for one, the arms go down to it and the
+	-- jaws open wide, closing on the egg as it is taken
+	local hold = R.hold
+	local reach = dip * (1 - hold)
+	if hold > 0.001 or reach > 0.001 then
+		local H = Config.States.Guardian
+		if ape then
+			local jiggle = 0.05 * sin(phL * 2 * TAU) * moving -- the cradled egg bounces a little with each step
+			if la then
+				la.ax += (H.HoldArmPitch + jiggle - la.ax) * hold
+				la.ay -= la.ay * hold
+				la.az += (-H.HoldArmIn - la.az) * hold
+			end
+			if ra then
+				ra.ax += (H.HoldArmPitch + jiggle - ra.ax) * hold
+				ra.ay -= ra.ay * hold
+				ra.az += (H.HoldArmIn - ra.az) * hold
+			end
+			if la then
+				la.ax += (0.35 - la.ax) * reach
+				la.az += (-0.15 - la.az) * reach
+			end
+			if ra then
+				ra.ax += (0.35 - ra.ax) * reach
+				ra.az += (0.15 - ra.az) * reach
+			end
+		else
+			if jaw then
+				jaw.ax += (-R.holdJaw - jaw.ax) * hold -- jaws open round the egg (GuardianService fits the egg to this)
+				jaw.ax += (-0.75 - jaw.ax) * reach
+			end
+			for _, h in rec.heads do
+				h.ax += 0.1 * hold
+			end
+		end
+	end
+end
+
 -- One update of a creature. dt: seconds since its last update (slow motion included). lod: 0 Full, 1 Reduced (no micro
 -- layers), 2 Far (breathing and orbits only).
 function Motion.Step(rec, dt, lod)
@@ -864,6 +1024,9 @@ function Motion.Step(rec, dt, lod)
 		end
 		States.Pose(rec, dt, t)
 		Actions.Apply(rec, dt, true)
+		if rec.run then
+			guardianLayer(rec, dt) -- last: the egg hold overrides the arms and jaws
+		end
 	else
 		Actions.Apply(rec, dt, false)
 	end

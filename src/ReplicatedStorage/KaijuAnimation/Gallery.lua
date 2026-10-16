@@ -136,6 +136,10 @@ function Gallery.Open(Controller)
 				continue
 			end
 			local m = src:Clone()
+			local oldRig = m:FindFirstChild("_AnimRig") -- the live guardian's own effects, when this engine animates it
+			if oldRig then
+				oldRig:Destroy()
+			end
 			if info.guardian then
 				local hum = m:FindFirstChildOfClass("Humanoid")
 				if hum then

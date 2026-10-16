@@ -957,6 +957,7 @@ local function smoothstep(x)
 end
 
 local guardianRigs = {}
+local externalGuardian = setmetatable({}, { __mode = "k" }) -- [model] = true: ReplicatedStorage.KaijuAnimation animates it
 
 local function wrapAngle(a)
 	return (a + math.pi) % (math.pi * 2) - math.pi
@@ -1210,7 +1211,12 @@ local function updateGuardians(dt, t, camPos)
 			local s = 1 + math.abs(math.sin(t * 8)) * 0.3
 			alert.Size = UDim2.fromOffset(160 * s, 60 * s)
 		end
-		local near = g.PrimaryPart and (g.PrimaryPart.Position - camPos).Magnitude < ANIM_RANGE
+		local external = externalGuardian[g]
+		if external == nil then
+			external = AnimConfig.Handles(g)
+			externalGuardian[g] = external
+		end
+		local near = not external and g.PrimaryPart and (g.PrimaryPart.Position - camPos).Magnitude < ANIM_RANGE
 		local st = near and guardianRig(g)
 		if st then
 			animateGuardian(g, st, dt, t)

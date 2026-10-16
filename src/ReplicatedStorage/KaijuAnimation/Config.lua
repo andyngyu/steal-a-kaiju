@@ -21,10 +21,31 @@ Config.Rollout = {
 	"Prismling", -- Secret
 }
 
--- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
+-- Live guardians (Runtime.Guardians, GuardianService) of these biomes are animated by this engine.
+Config.GuardianRollout = { "PebblePlains", "LavaLagoon", "FrostfangPeaks", "VenomJungle", "SunkenAbyss", "StormSpires", "CosmicRift" }
+
+-- The creature entry of a biome's guardian (Config.Creatures, by its Guardian key).
+function Config.GuardianFor(biomeId)
+	for name, spec in Config.Creatures do
+		if spec.Guardian == biomeId then
+			return name
+		end
+	end
+	return nil
+end
+
+-- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species) or a
+-- live guardian (a rigged one of a rolled-out biome).
 function Config.Handles(model)
 	local runtime = workspace:FindFirstChild("Runtime")
-	local folder = runtime and runtime:FindFirstChild("Kaiju")
+	if not runtime then
+		return false
+	end
+	if model.Parent == runtime:FindFirstChild("Guardians") then
+		local biome = model:GetAttribute("BiomeId")
+		return model:GetAttribute("Rigged") == true and table.find(Config.GuardianRollout, biome) ~= nil and Config.GuardianFor(biome) ~= nil
+	end
+	local folder = runtime:FindFirstChild("Kaiju")
 	if not folder or model.Parent ~= folder then
 		return false
 	end
@@ -343,6 +364,13 @@ Config.Creatures = {
 	Krakling = { Profile = "Tentacled" },
 	Astrodon = { Profile = "Sauropod", Rename = { Head = "Neck1", HeadTop = "Head" } },
 	Thornmaw = { Profile = "GuardianTitan", Guardian = "VenomJungle" },
+	-- the other guardians (live only; Run = "Ape": the upright runners that swing their long arms)
+	PebbleBehemoth = { Profile = "GuardianTitan", Guardian = "PebblePlains" },
+	MagmaColossus = { Profile = "GuardianTitan", Guardian = "LavaLagoon" },
+	FrostTitan = { Profile = "GuardianTitan", Guardian = "FrostfangPeaks", Run = "Ape" },
+	Leviathan = { Profile = "GuardianTitan", Guardian = "SunkenAbyss" },
+	Stormbringer = { Profile = "GuardianTitan", Guardian = "StormSpires" },
+	VoidColossus = { Profile = "GuardianTitan", Guardian = "CosmicRift", Run = "Ape" },
 	Prismling = { Profile = "Winged", Actions = { "WingFlare", "PlayBow" }, Shimmer = { "FacetC", "FacetM" } },
 }
 
@@ -380,6 +408,11 @@ Config.States = {
 	Night = { Tempo = 0.82, Amp = 0.85, Glow = 1.25, DozeShare = 0.35, DozeHead = -14, DozeDrop = 0.03 },
 	Asleep = { Breath = 1.8, Drop = 0.08, Head = -22, Tempo = 0.7 },
 	Carried = { Breath = 0.45, Paddle = 18, PaddleHz = 4.5, Thrash = 20, ThrashHz = 3.5, LookBack = 50 },
+	-- live guardians: Chomp (studs past half its height) snaps the jaws at its player, Hold is the egg carry pose
+	-- (GuardianService welds the egg where these arms put it; HoldJaw is only the default for its HoldJaw attribute),
+	-- Rise / Sink match its copies' rise and sink times, Grab* the reach down for a dropped egg (its GrabAt attribute)
+	Chasing = { Chomp = 24, LookYaw = 50, LookPitch = 25 },
+	Guardian = { HoldArmPitch = 0.9, HoldArmIn = 0.38, HoldJaw = 0.75, Rise = 1.1, Sink = 1.2, GrabDown = 0.4, GrabLow = 0.15, GrabUp = 0.45 },
 	Hatched = { Action = "Pop", Window = 2.5 }, -- a creature spawned (SpawnedAt) less than Window seconds ago pops in
 }
 
@@ -440,6 +473,39 @@ Config.Gallery = {
 --   or "Body"), Shake (camera shake if the camera is close), Burst (sparkles), Flash (neon parts by name, comma
 --   separated), DrumFlash (Raijin's drums in sequence, arg = seconds), Shimmer (a light sweep across the facets).
 Config.Actions = {
+	-- A live guardian's wake-up rear (GuardianService State "Waking"): a pose only, short enough for its 0.6 s wake.
+	-- GameAudio plays the roar and GameVFX the rings and shockwave, so it has no events of its own.
+	WakeRoar = {
+		GuardianTitan = {
+			Duration = 1, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "Body", "pitch", { 0, 0, 0.19, 15, 0.7, 15, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.19, 12, 0.7, 12, 1, 0 } },
+				{ "Jaw", "pitch", { 0, 0, 0.19, -34, 0.7, -34, 1, 0 } },
+				{ "Arm*", "pitch", { 0, 0, 0.19, 36, 0.7, 36, 1, 0 } },
+				{ "Arm*", "roll", { 0, 0, 0.19, -12, 0.7, -12, 1, 0 }, Mirror = true },
+				{ "Leg*", "roll", { 0, 0, 0.19, 4, 0.7, 4, 1, 0 }, Mirror = true },
+				{ "Tail*", "pitch", { 0, 0, 0.19, 6, 0.7, 6, 1, 0 } },
+				{ "Tail*", "yaw", nil, Osc = { Hz = 1.6, Amp = 10, From = 0.15, To = 0.85 } },
+			},
+		},
+		FrostTitan = { -- the upright runners rear higher and pound their chests, fists alternating
+			Extends = "GuardianTitan",
+			Tracks = {
+				{ "ArmL", "pitch", { 0, 0, 0.19, 16, 0.7, 16, 1, 0 }, Osc = { Hz = 2.5, Amp = 14, From = 0.19, To = 0.7 } },
+				{ "ArmR", "pitch", { 0, 0, 0.19, 16, 0.7, 16, 1, 0 }, Osc = { Hz = 2.5, Amp = 14, From = 0.19, To = 0.7, Phase = math.pi } },
+				{ "Arm*", "roll", { 0, 0, 0.19, -8, 0.7, -8, 1, 0 }, Mirror = true },
+			},
+		},
+		VoidColossus = {
+			Extends = "GuardianTitan",
+			Tracks = {
+				{ "ArmL", "pitch", { 0, 0, 0.19, 16, 0.7, 16, 1, 0 }, Osc = { Hz = 2.5, Amp = 14, From = 0.19, To = 0.7 } },
+				{ "ArmR", "pitch", { 0, 0, 0.19, 16, 0.7, 16, 1, 0 }, Osc = { Hz = 2.5, Amp = 14, From = 0.19, To = 0.7, Phase = math.pi } },
+				{ "Arm*", "roll", { 0, 0, 0.19, -8, 0.7, -8, 1, 0 }, Mirror = true },
+			},
+		},
+	},
 	Pop = {
 		Default = {
 			Duration = 1.1, Calm = 1,

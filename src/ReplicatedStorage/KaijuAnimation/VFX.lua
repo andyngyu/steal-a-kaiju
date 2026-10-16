@@ -296,8 +296,8 @@ function VFX.Setup(rec, parent, eyeSets)
 		rec.shimmerList = list
 	end
 
-	-- a guardian's sleep sign (Zzz over its head)
-	if rec.guardian then
+	-- a guardian's sleep sign (Zzz over its head); a live guardian's signs belong to GuardianService
+	if rec.guardian and not rec.liveGuardian then
 		rec.sleepSigns = {}
 		for _, g in model:GetDescendants() do
 			if g:IsA("BillboardGui") and (g.Name == "Sleep" or g.Name == "Alert") then

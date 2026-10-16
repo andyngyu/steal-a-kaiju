@@ -411,8 +411,26 @@ local function finalize(rec)
 	for _, parts in job.eyes do
 		table.insert(eyeSets, parts)
 	end
+	-- a live guardian runs on its own gait (Motion's guardian layer) and plays nothing unprompted: its moods come from
+	-- GuardianService, and GameAudio / GameVFX already voice its roar
+	if rec.liveGuardian then
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		local groundY = -(rec.root.Size.Y / 2 + (hum and hum.HipHeight or 0))
+		local legL, legR = J.LegL, J.LegR
+		rec.run = {
+			speed = 0, moving = 0, run = 0, phase = 0, turnRate = 0, yawOffset = 0, bank = 0, lift = 0, wobble = 0,
+			chomp = 0, hold = 0, holdJaw = Config.States.Guardian.HoldJaw, dip = 0, ape = P.Run == "Ape", groundY = groundY,
+			legLength = legL and math.max(1.5, legL.restPos.Y - groundY) or 4,
+			legXL = legL and legL.restPos.X or -1.5,
+			legXR = legR and legR.restPos.X or 1.5,
+		}
+		rec.gait = nil
+	end
 	VFX.Setup(rec, fxParent, eyeSets)
 	Actions.Bind(rec)
+	if rec.liveGuardian then
+		rec.actionList = {}
+	end
 
 	-- spawned a moment ago: the hatch pop
 	local spawned = model:GetAttribute("SpawnedAt")
@@ -460,6 +478,9 @@ function Controller.Register(model, info)
 	}
 	byModel[model] = rec
 	table.insert(pending, rec)
+	if info.liveGuardian then
+		rec.liveGuardian = true
+	end
 	if info.carried then
 		-- over a thief's head: panics the whole way (States.Carried), never walks or plays idle actions
 		rec.carried = true
@@ -736,9 +757,93 @@ local function updateMove(rec, dt)
 	end
 end
 
+local function wrapAngle(a)
+	return (a + math.pi) % TAU - math.pi
+end
+
+-- a copy bursting out of the ground or sinking back into it
+local function groundBurst(rec)
+	Actions.OnEvent(rec, "Dust", nil, math.clamp(rec.height / 6, 1, 3))
+	Actions.OnEvent(rec, "Shake", 0.45)
+end
+
+-- A live guardian's inputs for Motion's guardian layer, all read from game state: its Humanoid-driven speed and heading,
+-- its player (TargetUserId) while it chases, the egg it hauls (CarryingEgg), a copy's RiseAt / SinkAt.
+local function updateGuardian(rec, dt)
+	local R, model, root = rec.run, rec.model, rec.root
+	local cf = root.CFrame
+	rec.rootCF = cf
+	rec.centerWorld = cf * rec.centreOffset
+	local k6 = 1 - math.exp(-6 * dt)
+	local v = root.AssemblyLinearVelocity
+	R.speed += (Vector3.new(v.X, 0, v.Z).Magnitude - R.speed) * k6
+	local sp = R.speed
+	R.moving = math.clamp((sp - 1) / 5, 0, 1)
+	R.run = math.clamp(sp / 30, 0, 1.2) * R.moving
+	rec.moveBlend = R.moving -- quiets the idles and holds actions while it runs
+	-- the Humanoid snaps to each new goal: the visible body turns after it smoothly and banks into the turn
+	local look = cf.LookVector
+	local rootYaw = math.atan2(-look.X, -look.Z)
+	R.yaw = R.yaw or rootYaw
+	local turn = math.clamp(wrapAngle(rootYaw - R.yaw) * (1 - math.exp(-9 * dt)), -7 * dt, 7 * dt)
+	R.yaw = wrapAngle(R.yaw + turn)
+	R.turnRate += (turn / math.max(dt, 1e-3) - R.turnRate) * (1 - math.exp(-8 * dt))
+	R.yawOffset = wrapAngle(R.yaw - rootYaw)
+	R.bank = math.clamp(R.turnRate * 0.07, -0.22, 0.22) * R.moving
+	local near = false
+	if model:GetAttribute("State") == "Chasing" then
+		local who = Players:GetPlayerByUserId(model:GetAttribute("TargetUserId") or 0)
+		local hrp = who and who.Character and who.Character:FindFirstChild("HumanoidRootPart")
+		near = hrp ~= nil and (hrp.Position - cf.Position).Magnitude < Config.States.Chasing.Chomp + rec.height * 0.5
+	end
+	R.chomp += ((near and 1 or 0) - R.chomp) * k6
+	R.hold += ((model:GetAttribute("CarryingEgg") ~= nil and 1 or 0) - R.hold) * (1 - math.exp(-8 * dt))
+	local H = Config.States.Guardian
+	R.holdJaw = model:GetAttribute("HoldJaw") or H.HoldJaw -- GuardianService fits the egg to this opening
+	-- reaching down for a dropped egg: down, a moment low, back up
+	local dip = 0
+	local grabAt = model:GetAttribute("GrabAt")
+	if grabAt then
+		local e = workspace:GetServerTimeNow() - grabAt
+		if e >= 0 and e < H.GrabDown then
+			dip = Util.smooth(e / H.GrabDown)
+		elseif e >= H.GrabDown and e < H.GrabDown + H.GrabLow then
+			dip = 1
+		elseif e >= H.GrabDown + H.GrabLow then
+			dip = 1 - Util.smooth(math.clamp((e - H.GrabDown - H.GrabLow) / H.GrabUp, 0, 1))
+		end
+	end
+	R.dip = dip
+	local riseAt, sinkAt = model:GetAttribute("RiseAt"), model:GetAttribute("SinkAt")
+	R.lift, R.wobble = 0, 0
+	if sinkAt or riseAt then
+		local now = workspace:GetServerTimeNow()
+		local wob = math.sin(os.clock() * 30)
+		if sinkAt then
+			local k = math.clamp((now - sinkAt) / H.Sink, 0, 1)
+			R.lift = -(k ^ 2) * rec.height * 1.1
+			R.wobble = wob * 0.05 * (1 - k)
+			if not R.sinkFx then
+				R.sinkFx = true
+				groundBurst(rec)
+			end
+		else
+			local k = math.clamp((now - riseAt) / H.Rise, 0, 1)
+			R.lift = -((1 - k) ^ 3) * rec.height * 1.1
+			R.wobble = wob * 0.06 * (1 - k)
+			if not R.riseFx and k < 1 then
+				R.riseFx = true
+				groundBurst(rec)
+			end
+		end
+	end
+end
+
 local function update(rec, dt, lod)
 	if rec.live then
 		updateMove(rec, dt)
+	elseif rec.run then
+		updateGuardian(rec, dt)
 	elseif rec.carried then
 		-- the thief moves it every frame
 		rec.rootCF = rec.root.CFrame
@@ -885,6 +990,39 @@ function Controller.WatchCarried()
 	end
 end
 
+-- Live guardians (Runtime.Guardians) of the rolled-out biomes (Config.GuardianRollout); KaijuFX skips exactly these.
+function Controller.WatchGuardians()
+	if #Config.GuardianRollout == 0 then
+		return
+	end
+	task.spawn(function()
+		local folder = workspace:WaitForChild("Runtime"):WaitForChild("Guardians")
+		local function add(m)
+			if not (m:IsA("Model") and Config.Handles(m)) then
+				return
+			end
+			-- a copy rising mid-game arrives before its parts (and guardians carry no PartCount): wait for the root and
+			-- its Body motor, then a frame for the rest (short, so a rising copy never shows standing at full height)
+			task.spawn(function()
+				local t0 = os.clock()
+				while m.Parent == folder and not (m.PrimaryPart and m.PrimaryPart:FindFirstChild("Body")) and os.clock() - t0 < 10 do
+					task.wait(0.05)
+				end
+				task.wait()
+				if m.Parent ~= folder or not m.PrimaryPart then
+					return
+				end
+				local biome = m:GetAttribute("BiomeId")
+				Controller.Register(m, { name = Config.GuardianFor(biome), rarity = "Guardian", biome = biome, guardian = true, liveGuardian = true })
+			end)
+		end
+		folder.ChildAdded:Connect(add)
+		for _, m in folder:GetChildren() do
+			add(m)
+		end
+	end)
+end
+
 local started = false
 function Controller.Start()
 	if started then
@@ -893,6 +1031,7 @@ function Controller.Start()
 	started = true
 	Controller.WatchLive()
 	Controller.WatchCarried()
+	Controller.WatchGuardians()
 	RunService.PreSimulation:Connect(step)
 	-- camera shake: added after the camera scripts run, removed again before they run next frame
 	RunService:BindToRenderStep("KaijuAnimShakeUndo", Enum.RenderPriority.Camera.Value - 2, function()

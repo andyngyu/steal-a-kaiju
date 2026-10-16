@@ -99,6 +99,9 @@ States.Register("OwnerNearby", {
 States.Register("StrangerNearby", {
 	Priority = 45,
 	Detect = function(rec, ctx)
+		if rec.liveGuardian then
+			return false -- a live guardian's moods come from GuardianService
+		end
 		local o = nearest(rec, ctx, false, Config.States.StrangerNearby.Range + rec.radius)
 		if o then
 			rec.lookPart = o.head
@@ -150,10 +153,36 @@ States.Register("Wake", {
 		return rec.guardian and rec.model:GetAttribute("State") == "Waking"
 	end,
 	Enter = function(rec)
-		rec.queued = "Roar"
+		rec.queued = rec.liveGuardian and "WakeRoar" or "Roar" -- live: a short silent rear (GameAudio roars)
 		rec.alertTarget = 1
 	end,
 	Exit = function(rec)
+		rec.alertTarget = 0
+	end,
+})
+
+-- Guardians after a thief (State "Chasing"): eyes locked on its player (TargetUserId), head up.
+States.Register("Chasing", {
+	Priority = 86,
+	Detect = function(rec, ctx)
+		if not (rec.guardian and rec.model:GetAttribute("State") == "Chasing") then
+			return false
+		end
+		local target = rec.model:GetAttribute("TargetUserId")
+		rec.lookPart = nil
+		for _, o in ctx.people do
+			if o.userId == target then
+				rec.lookPart = o.head
+			end
+		end
+		return true
+	end,
+	Enter = function(rec)
+		rec.lookWTarget = 1
+		rec.alertTarget = 1
+	end,
+	Exit = function(rec)
+		rec.lookWTarget = 0
 		rec.alertTarget = 0
 	end,
 })
@@ -228,7 +257,9 @@ function States.Pose(rec, dt, t)
 	-- look target (owner or stranger) as joint-local yaw / pitch for every head
 	local part = rec.lookPart
 	if rec.lookW > 0.01 and part and part.Parent then
-		local S = rec.state == States.ByName.StrangerNearby and Config.States.StrangerNearby or Config.States.OwnerNearby
+		local S = (rec.state == States.ByName.StrangerNearby and Config.States.StrangerNearby)
+			or (rec.state == States.ByName.Chasing and Config.States.Chasing)
+			or Config.States.OwnerNearby
 		local lp = rec.rootCF:PointToObjectSpace(part.Position)
 		for _, h in rec.heads do
 			local d = lp - h.restPos
