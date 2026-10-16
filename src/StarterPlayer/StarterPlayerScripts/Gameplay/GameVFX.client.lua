@@ -631,7 +631,6 @@ local function swirl(color)
 			p.a1.Position = pos + Vector3.new(0, 0.35, 0)
 		end
 	end)
-	groundRing(root.Position - Vector3.new(0, 3, 0), color, 2, 10, 0.6)
 end
 
 local function equipBurst(color)
@@ -640,8 +639,6 @@ local function equipBurst(color)
 		return
 	end
 	local feet = root.Position - Vector3.new(0, 3, 0)
-	groundRing(feet, color, 1, 12, 0.5)
-	task.delay(0.12, groundRing, feet, WHITE, 1, 8, 0.45, 0.4)
 	burst(CFrame.new(feet), 20, {
 		Texture = T.Sparkle,
 		Color = tintSeq(color),
