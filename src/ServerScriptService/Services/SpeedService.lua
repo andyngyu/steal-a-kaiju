@@ -82,12 +82,24 @@ function SpeedService:Refresh(player)
 end
 
 -- Adds Speed (no limit). Returns the new balance.
+-- Huge balances: a number only keeps ~16 significant digits, so at e.g. 1e22 a treadmill tick (~1e5) rounded away to
+-- nothing and Speed never went up. Gains too small to register are carried over per player until they add up to
+-- something the balance can hold.
+local carry = {} -- [player] = Speed gained but not yet big enough to show on the balance
 function SpeedService:AddSpeed(player, amount)
 	local data = DataService:Get(player)
 	if not data or amount <= 0 then
 		return data and data.Speed.Trained or 0
 	end
-	data.Speed.Trained += amount
+	local old = data.Speed.Trained
+	local total = (carry[player] or 0) + amount
+	local new = old + total
+	if new == old then
+		carry[player] = total
+		return old
+	end
+	carry[player] = math.max(0, total - (new - old)) -- what rounding left out this time
+	data.Speed.Trained = new
 	publish(player, data)
 	DataService:Save(player)
 	return data.Speed.Trained
@@ -109,6 +121,9 @@ function SpeedService:SetTrainedForTesting(player, value)
 end
 
 function SpeedService:Start()
+	game:GetService("Players").PlayerRemoving:Connect(function(player)
+		carry[player] = nil
+	end)
 	DataService:OnLoaded(function(player, data)
 		local s = data.Speed
 		if (s.Version or 1) < 2 then
