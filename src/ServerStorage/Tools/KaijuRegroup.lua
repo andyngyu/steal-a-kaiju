@@ -351,6 +351,8 @@ local RAIJIN_HALO_CENTRE = Vector3.new(0, 3.05 + 0.9, 2.4) * 1.65
 
 R.Rules = {
 	Rumblerex = function(m) return tail3(m, "Tail") end,
+	Pebblesaur = function(m) return tail3(m, "Tail") end,
+	Chompling = function(m) return tail3(m, "Tail") end,
 	Vinewhip = function(m) return tail3(m, "Tail") end,
 	Sabrejag = function(m) return tail3(m, "Tail") end,
 	Lurkfin = function(m) return tail3(m, "Tail") end,
