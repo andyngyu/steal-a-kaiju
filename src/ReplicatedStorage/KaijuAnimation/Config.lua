@@ -13,6 +13,7 @@ local Config = {}
 Config.Rollout = {
 	"Pebblesaur", "Chompling", "Bonkey", "Tuskit", "Rumblerex", "Thunderback", -- Pebble Plains
 	"Magmite", "CinderToad", "Scorchback", "BlazeBonkey", "MoltenRex", "InfernoSerpent", -- Lava Lagoon
+	"Snowpup", "GlacierCrab", "Frostrhino", "Brrrilla", "IcebreakerRex", "AuroraSerpent", -- Frostfang Peaks
 }
 
 -- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
@@ -289,6 +290,11 @@ Config.Creatures = {
 	Scorchback = { Profile = "HeavyQuad", Actions = { "TailSwing", "Stomp" }, Tail = { Sway = 6, Hz = 0.22, Lift = 1 }, Pulse = 0.4 },
 	BlazeBonkey = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
 	MoltenRex = { Profile = "Rex" },
+	Snowpup = { Profile = "AgileQuad", Actions = { "PlayBow", "Paw", "Howl" } },
+	Frostrhino = { Profile = "HeavyQuad", Actions = { "Paw", "HornToss", "Snort" }, Tail = { Sway = 14, Hz = 0.5, Lift = 1 } },
+	Brrrilla = { Profile = "Ape", Actions = { "ChestBeat", "KnuckleSlam" } },
+	IcebreakerRex = { Profile = "Rex", Actions = { "Roar", "TailSwing", "Stomp" } },
+	AuroraSerpent = { Profile = "Serpent", Actions = { "RearUp", "Coil" } },
 	Vinewhip = { Profile = "Raptor" },
 	Bonkey = { Profile = "Ape" },
 	Tuskit = { Profile = "HeavyQuad", Ears = { Fan = 9 } },
@@ -601,6 +607,10 @@ Config.Actions = {
 		},
 	},
 	ChestBeat = {
+		Brrrilla = { -- the ape chest pound with a big frosty breath
+			Extends = "Ape",
+			Events = { { 0.22, "Breath", 2 }, { 0.5, "Breath", 2 }, { 0.62, "Breath", 1.5 } },
+		},
 		BlazeBonkey = { -- the ape chest pound, shedding embers with every beat
 			Extends = "Ape",
 			Tracks = { { "Body", "glow", { 0, 0, 0.2, 0.8, 0.62, 0.8, 0.75, 0, 1, 0 } } },
@@ -709,6 +719,20 @@ Config.Actions = {
 		},
 	},
 	Stomp = {
+		Rex = { -- a biped: the right foot lifts high and stamps down
+			Duration = 1.6, Calm = 0.7, Pivot = "Hips",
+			Tracks = {
+				{ "LegR", "plant", { 0, 1, 0.06, 0, 0.38, 0, 0.44, 1, 1, 1 } },
+				{ "LegR", "y", { 0, 0, 0.26, 0.4, 0.36, 0.3, 0.42, 0, 1, 0 } },
+				{ "LegR", "pitch", { 0, 0, 0.26, 12, 0.42, 0, 1, 0 } },
+				{ "Body", "roll", { 0, 0, 0.26, -3, 0.44, 1, 0.62, 0, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.42, -0.06, 0.55, 0.01, 0.7, 0, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.26, 8, 0.44, -8, 0.64, 0, 1, 0 } },
+				{ "Arm*", "pitch", { 0, 0, 0.26, 14, 0.44, -6, 0.7, 0, 1, 0 } },
+				{ "Tail*", "pitch", { 0, 0, 0.26, -6, 0.44, 4, 0.7, 0, 1, 0 }, Grow = 0.3 },
+			},
+			Events = { { 0.42, "Sound", "BigHop" }, { 0.43, "Dust", "LegR", 1.3 }, { 0.43, "Shake", 0.25 } },
+		},
 		Default = { -- a front foot lifts and stomps down
 			Duration = 1.5, Calm = 0.6,
 			Tracks = {
@@ -813,6 +837,49 @@ Config.Actions = {
 				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 8, From = 0.1, To = 0.9 }, Grow = 0.3 },
 			},
 			Events = { { 0, "Sound", "Eat" } },
+		},
+	},
+	Howl = {
+		AgileQuad = { -- sits back on its haunches and howls at the sky
+			Duration = 2.8, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "Body", "pitch", { 0, 0, 0.15, 12, 0.85, 12, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.15, -0.05, 0.85, -0.05, 1, 0 } },
+				{ "LegF*", "plant", { 0, 1, 0.1, 0.4, 0.88, 0.4, 0.95, 1, 1, 1 } },
+				{ "Head", "pitch", { 0, 0, 0.12, -6, 0.25, 34, 0.8, 32, 0.92, -2, 1, 0 } },
+				{ "Head", "yaw", nil, Osc = { Hz = 1.5, Amp = 3, From = 0.25, To = 0.8 } },
+				{ "Jaw", "pitch", { 0, 0, 0.25, -24, 0.78, -20, 0.86, 0, 1, 0 } },
+				{ "Ear*", "roll", { 0, 0, 0.2, -14, 0.85, -14, 1, 0 }, Mirror = true },
+				{ "Tail*", "pitch", { 0, 0, 0.2, 10, 0.85, 10, 1, 0 } },
+			},
+			Events = { { 0.26, "Sound", "Roar" }, { 0.3, "Breath", 1.5 }, { 0.55, "Breath", 1.5 } },
+		},
+	},
+	HornToss = {
+		HeavyQuad = { -- head down, then the horn tossed up hard
+			Duration = 1.7, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "Head", "pitch", { 0, 0, 0.3, -22, 0.44, 30, 0.6, 24, 0.78, -3, 1, 0 } },
+				{ "Head", "roll", { 0, 0, 0.3, 6, 0.44, -8, 0.7, 0, 1, 0 } },
+				{ "Body", "pitch", { 0, 0, 0.3, -5, 0.44, 6, 0.6, 5, 0.8, -1, 1, 0 } },
+				{ "Body", "z", { 0, 0, 0.3, 0.06, 0.44, -0.12, 0.7, 0, 1, 0 } },
+				{ "LegF*", "plant", { 0, 1, 0.36, 0.6, 0.7, 0.6, 0.8, 1, 1, 1 } },
+				{ "Ear*", "roll", { 0, 0, 0.3, -14, 0.5, 10, 0.8, 0, 1, 0 }, Mirror = true },
+				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 14, From = 0.3, To = 0.8 } },
+			},
+			Events = { { 0.42, "Sound", "TailSwing" }, { 0.44, "Breath", 1.5 }, { 0.3, "Dust", "LegFR" } },
+		},
+	},
+	Snort = {
+		HeavyQuad = { -- two sharp snorts, head jerking, breath puffing
+			Duration = 1.4, Calm = 0.8,
+			Tracks = {
+				{ "Head", "pitch", { 0, 0, 0.15, -6, 0.22, 4, 0.4, -6, 0.48, 4, 0.7, 0, 1, 0 } },
+				{ "Head", "yaw", { 0, 0, 0.15, 4, 0.4, -4, 0.7, 0, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.15, -0.02, 0.22, 0.01, 0.4, -0.02, 0.48, 0.01, 0.7, 0, 1, 0 } },
+				{ "Ear*", "roll", nil, Osc = { Hz = 5, Amp = 12, From = 0.15, To = 0.6 }, Mirror = true },
+			},
+			Events = { { 0.2, "Breath", 1 }, { 0.46, "Breath", 1.3 } },
 		},
 	},
 	MagmaBurp = {
