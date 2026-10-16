@@ -272,8 +272,20 @@ end
 
 local PROFILES = {}
 
+-- wings: lift a little with each breath, now and then lift and resettle
+local function wingsLayer(rec, W, t, ex, micro)
+	if not W or #rec.wings == 0 then
+		return
+	end
+	local settle = micro and cycle(rec, t, "settle", "settleAt", W.SettleEvery, W.SettleLength) or 0
+	for _, w in rec.wings do
+		w.az += w.side * (W.Breathe * rec.breath + W.Settle * settle) * RAD * ex
+	end
+end
+
 function PROFILES.Rex(rec, P, t, ex, micro)
 	tailLayer(rec, P.Tail, t, ex, micro)
+	wingsLayer(rec, P.Wings, t, ex, micro)
 	armsLayer(rec, P.Arms, t, ex)
 	jawLayer(rec, P.Jaw, t, ex, micro)
 end
@@ -552,13 +564,7 @@ function PROFILES.Hydra(rec, P, t, ex, micro)
 end
 
 function PROFILES.Winged(rec, P, t, ex, micro)
-	local W = P.Wings
-	if W then
-		local settle = micro and cycle(rec, t, "settle", "settleAt", W.SettleEvery, W.SettleLength) or 0
-		for _, w in rec.wings do
-			w.az += w.side * (W.Breathe * rec.breath + W.Settle * settle) * RAD * ex
-		end
-	end
+	wingsLayer(rec, P.Wings, t, ex, micro)
 	tailLayer(rec, P.Tail, t, ex, micro)
 end
 
