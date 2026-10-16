@@ -252,6 +252,18 @@ function PetService:Start()
 	end)
 end
 
+-- Removes a kaiju from the inventory (MarketService: selling an unequipped kaiju). Returns the entry or nil.
+function PetService:TakeFromInventory(player, id)
+	local inv = inventoryOf(player)
+	local entry = inv and inv[id]
+	if not entry then
+		return nil
+	end
+	inv[id] = nil
+	publish(player)
+	return entry
+end
+
 -- Puts a kaiju entry straight into the player's inventory (rewards, admin tools). Returns true.
 function PetService:AddToInventory(player, id, entry)
 	local inv = inventoryOf(player)

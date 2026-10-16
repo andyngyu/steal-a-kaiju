@@ -1,5 +1,6 @@
 -- Kaiju Market backend (the stalls themselves are built by ServerStorage.Tools.MarketBuilder into Map.Market).
 --   Remotes.SellKaiju (kaijuId): sells one of your kaiju for KaijuStats.SellPrice (income x EconomyConfig.SellMultiplier).
+--     Works for equipped (pen) kaiju and unequipped ones waiting in the Pets inventory (PetService).
 --     Used by the UI's Sell panel; the Sell stall's pad/prompt opens that panel (Gameplay.MarketFX).
 --   Remotes.TeleportToShop (): to the market (the UI's BUY button). Remotes.TeleportToBase (): to your pen's entrance,
 --     only from the bases side of Map.SafeZoneX (the UI's BASE button). Neither works while carrying an egg or stolen
@@ -16,6 +17,7 @@ local DataService = require(script.Parent.DataService)
 local BaseService = require(script.Parent.BaseService)
 local EconomyService = require(script.Parent.EconomyService)
 local KaijuService = require(script.Parent.KaijuService)
+local PetService = require(script.Parent.PetService)
 
 local MarketService = {}
 
@@ -32,12 +34,22 @@ end
 function MarketService:Sell(player, kaijuId)
 	local data = DataService:Get(player)
 	local entry, model = BaseService:GetItem(player, kaijuId)
-	if not (data and entry and entry.Kind == "Kaiju") or entry.StolenBy or entry.Unique then -- Unique: reward kaiju can't be sold
+	local stored = false
+	if not entry and data and data.Inventory and data.Inventory[kaijuId] then
+		entry, stored = data.Inventory[kaijuId], true -- unequipped kaiju in the Pets inventory
+	end
+	if not (data and entry and entry.Kind == "Kaiju") or entry.StolenBy or entry.Unique or entry.Variant == "Golden" then -- Unique: reward kaiju can't be sold
 		return false
 	end
 	local price = KaijuStats.EntrySellPrice(entry) -- includes a weather mutation
 	local position = model and KaijuService:GetPosition(model) or nil
-	BaseService:RemoveItem(player, kaijuId)
+	if stored then
+		if not PetService:TakeFromInventory(player, kaijuId) then
+			return false
+		end
+	else
+		BaseService:RemoveItem(player, kaijuId)
+	end
 	data.Stats.KaijuSold = (data.Stats.KaijuSold or 0) + 1
 	if price > 0 then
 		EconomyService:AddCash(player, price)
