@@ -14,7 +14,8 @@ local AdminConfig = {
 }
 
 local RARITIES = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
-local AREAS = { "Base", "PebblePlains", "LavaLagoon", "FrostfangPeaks", "VenomJungle", "SunkenAbyss", "StormSpires", "CosmicRift" }
+local BIOMES = { "PebblePlains", "LavaLagoon", "FrostfangPeaks", "VenomJungle", "SunkenAbyss", "StormSpires", "CosmicRift" }
+local AREAS = { "Base", table.unpack(BIOMES) }
 
 -- mutation and weather choices come straight from their configs, so new ones show up here by themselves
 local MUTATIONS, MUTATIONS_OR_NONE, WEATHERS = {}, { "None" }, {}
@@ -43,10 +44,17 @@ AdminConfig.Commands = {
 	{ Id = "LightningBoost", Section = "Boosts", Label = "Lightning x4", Target = true },
 	{ Id = "LightningBolt", Section = "Boosts", Label = "Spawn Bolt", Target = true },
 	{ Id = "SpawnEgg", Section = "Eggs", Label = "Ready Egg In Pen", Target = true, Params = {
+		{ Name = "Biome", Default = "PebblePlains", Options = BIOMES, Small = true },
 		{ Name = "Rarity", Default = "Legendary", Options = RARITIES, Small = true },
 		{ Name = "Mutation", Default = "None", Options = MUTATIONS_OR_NONE, Small = true },
+	} },
+	-- the same with a chosen size (a row fits three inputs; mutate it afterwards with Mutate Pen Eggs)
+	{ Id = "SpawnSizedEgg", Section = "Eggs", Label = "Ready Egg (Size)", Target = true, Params = {
+		{ Name = "Biome", Default = "PebblePlains", Options = BIOMES, Small = true },
+		{ Name = "Rarity", Default = "Legendary", Options = RARITIES, Small = true },
 		{ Name = "Size", Default = "", Hint = "size", Small = true },
 	} },
+	{ Id = "HatchEggsNow", Section = "Eggs", Label = "Hatch Eggs Now", Target = true },
 	{ Id = "MutatePenEggs", Section = "Mutations", Label = "Mutate Pen Eggs", Target = true, Params = {
 		{ Name = "Mutation", Default = "Shocked", Options = MUTATIONS },
 	} },

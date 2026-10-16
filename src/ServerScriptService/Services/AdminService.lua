@@ -10,6 +10,7 @@ local AdminConfig = require(Config.AdminConfig)
 local DevConfig = require(Config.DevConfig)
 local DayNightConfig = require(Config.DayNightConfig)
 local EggConfig = require(Config.EggConfig)
+local BiomeConfig = require(Config.BiomeConfig)
 local TrailConfig = require(Config.TrailConfig)
 local MutationConfig = require(Config.MutationConfig)
 local WeatherConfig = require(Config.WeatherConfig)
@@ -84,8 +85,21 @@ local function mutationOf(text)
 	return nil, false
 end
 
--- A ready-to-hatch egg in the target's pen (same as the /egg dev command), optionally mutated. Returns ok, message.
-local function spawnEgg(player, rarityText, sizeText, mutationText)
+-- A ready-to-hatch egg from any biome in the target's pen (same as the /egg dev command, which is Pebble Plains only),
+-- optionally mutated. Returns ok, message.
+local function spawnEgg(player, rarityText, sizeText, mutationText, biomeText)
+	local biomeId = "PebblePlains"
+	if biomeText and biomeText ~= "" then
+		biomeId = nil
+		for id in BiomeConfig.ById do
+			if string.lower(id) == string.lower(tostring(biomeText)) then
+				biomeId = id
+			end
+		end
+		if not biomeId then
+			return false, "Unknown biome " .. tostring(biomeText)
+		end
+	end
 	local rarityId
 	for _, r in EggConfig.Rarities do
 		if string.lower(r.Id) == string.lower(tostring(rarityText)) then
@@ -108,7 +122,7 @@ local function spawnEgg(player, rarityText, sizeText, mutationText)
 	if not x then
 		return false, "No free spot in " .. player.Name .. "'s pen"
 	end
-	local egg = EggModel.Build("PebblePlains", rarityId, nil, size)
+	local egg = EggModel.Build(biomeId, rarityId, nil, size)
 	local id = egg:GetAttribute("EggId")
 	if not HatchService:PlaceEgg(player, egg, x, d, nil) then
 		egg:Destroy()
@@ -122,7 +136,7 @@ local function spawnEgg(player, rarityText, sizeText, mutationText)
 	if mutation then
 		HatchService:MutatePenEgg(player, id, mutation)
 	end
-	return true, string.format("Put a ready %s%s egg (%.2fx) in %s's pen", mutation and (mutation .. " ") or "", rarityId, size, player.Name)
+	return true, string.format("Put a ready %s%s %s egg (%.2fx) in %s's pen", mutation and (mutation .. " ") or "", rarityId, biomeId, size, player.Name)
 end
 
 local function areaCFrame(caller, area)
@@ -166,7 +180,26 @@ local COMMANDS = {
 		return true, "Unlocked every trail for " .. target.Name
 	end,
 	SpawnEgg = function(_, target, p)
-		return spawnEgg(target, p[1], p[3], p[2])
+		return spawnEgg(target, p[2], nil, p[3], p[1])
+	end,
+	SpawnSizedEgg = function(_, target, p)
+		return spawnEgg(target, p[2], p[3], nil, p[1])
+	end,
+	HatchEggsNow = function(_, target)
+		local data = DataService:Get(target)
+		local ids = {}
+		for id, entry in (data and data.Pen and data.Pen.Items) or {} do
+			if entry.Kind == "Egg" and not entry.StolenBy then
+				table.insert(ids, id)
+			end
+		end
+		local n = 0
+		for _, id in ids do
+			if HatchService:HatchNow(target, id) then
+				n += 1
+			end
+		end
+		return n > 0, n > 0 and string.format("Hatching %d of %s's eggs", n, target.Name) or (target.Name .. " has no eggs to hatch")
 	end,
 
 	-- boosts

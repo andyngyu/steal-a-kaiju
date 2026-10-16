@@ -256,6 +256,20 @@ function HatchService:TryHatch(player, id)
 	tryHatch(player, id, player)
 end
 
+-- Admin / testing: makes a pen egg ready and hatches it now, from any distance (the normal hatch, animation and all).
+-- Returns true when the hatch started.
+function HatchService:HatchNow(player, id)
+	local entry, egg = BaseService:GetItem(player, id)
+	if not (entry and egg and entry.Kind == "Egg") or entry.StolenBy or egg:GetAttribute("HatchStartedAt") then
+		return false
+	end
+	entry.HatchAt = math.min(entry.HatchAt or 0, os.time())
+	egg:SetAttribute("HatchAt", entry.HatchAt)
+	egg:SetAttribute("Ready", true)
+	tryHatch(player, id, player, true)
+	return egg:GetAttribute("HatchStartedAt") ~= nil
+end
+
 local function showEgg(player, id, egg, entry, fromPos)
 	local pos = BaseService:PenToWorld(player, entry.X, entry.D)
 	EggModel.SetPhysics(egg, true)
