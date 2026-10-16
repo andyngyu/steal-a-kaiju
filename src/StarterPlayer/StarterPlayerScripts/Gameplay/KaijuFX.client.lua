@@ -1,12 +1,9 @@
 -- World animations, client-only and purely visual (reads server attributes, never changes gameplay):
---   kaiju: walk with bob + waddle, smooth turning, idle bob, random emotes (hop-spin, look around, wiggle), hatch pop-out, "+$" popups
---   limbs: brick kaiju body groups swing about their joints; gaits and emotes per real animal live in Gameplay.KaijuMotion
---          (rex stomp, ape knuckle-walk, dog trot, mammoth amble, croc crawl, toad hops, sideways crabs, slithering serpents)
---   keepers: display kaiju in workspace.Map.Market.Keepers (shopkeepers) idle and emote the same way
+--   kaiju: ReplicatedStorage.KaijuAnimation animates every pen kaiju, shopkeeper, stolen copy and guardian; here they only
+--          get the hatch pop-out and slam, the hatch banner and the "+$" popups
 --   eggs:  toss arc + landing squash, nest bob, incubating wobble (faster near the end), ready bounce + glow, hatch shake + shell burst
 --   misc:  pen fence rising after an upgrade (things carried overhead are Gameplay.CarryPose's)
---   guardians: stride-matched run cycle with body bob / lean / sway, smooth turning and banking, roar, sleep,
---          snapping jaws, personal copies rising and sinking, footfall markers (see the guardian section)
+--   guardians: the Alert sign over an awake guardian pulses
 --   grand hatches (EggConfig.IsGrand: Epic+ or Huge+): egg levitates + spins inside a rarity light pillar with inward sparkles
 --     and pulse rings, triple shockwave + confetti on burst, kaiju leaps out and slams down, "GIANT LEGENDARY!" banner
 --     over it for everyone nearby, camera shake (strongest for the owner). Big (non-grand) hatches get a small banner.
@@ -24,10 +21,8 @@ local EggConfig = require(Config.EggConfig)
 local BaseConfig = require(Config.BaseConfig)
 local KaijuConfig = require(Config.KaijuConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
-local KaijuMotion = require(script.Parent:WaitForChild("KaijuMotion"))
--- kaiju the new animation engine (ReplicatedStorage.KaijuAnimation) animates: here they only get popups and hatch effects
-local AnimConfig = require(ReplicatedStorage:WaitForChild("KaijuAnimation"):WaitForChild("Config"))
-local EggMotion = require(ReplicatedStorage.KaijuAnimation:WaitForChild("Eggs")) -- incubating eggs' build-up
+-- the animation engine (ReplicatedStorage.KaijuAnimation) poses incubating eggs
+local EggMotion = require(ReplicatedStorage:WaitForChild("KaijuAnimation"):WaitForChild("Eggs"))
 local Settings = require(script.Parent:WaitForChild("Settings"))
 local gameEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameEvent")
 
@@ -54,11 +49,6 @@ end
 
 local function lerp(a, b, t)
 	return a + (b - a) * t
-end
-
-local function lerpAngle(a, b, t)
-	local d = (b - a + math.pi) % (math.pi * 2) - math.pi
-	return a + d * t
 end
 
 local function rarityColor(id)
@@ -527,8 +517,6 @@ end
 local kaiju = {}
 local kaijuFolders = { [kaijuFolder] = true } -- plus Map.Market.Keepers once it's found
 
-local LIMB_RANGE = 140 -- beyond this, limbs rest and the kaiju moves as one piece
-
 local function bannerLabel(parent, text, font, height, order, strokeThickness)
 	local l = Instance.new("TextLabel")
 	l.LayoutOrder = order
@@ -628,41 +616,14 @@ local function setupKaiju(model)
 	if not kaijuFolders[model.Parent] or kaiju[model] then
 		return
 	end
-	local rig = makeRig(model)
-	local _, yaw = rig.base:ToEulerAnglesYXZ()
+	local rig = makeRig(model) -- its size and resting spot, for the banner, the slam and the popups
 	local scale = model:GetAttribute("VisualScale") or 1
 	local st = {
-		model = model, -- read by KaijuMotion.EmoteStarted (sound hooks)
 		rig = rig,
 		scale = scale,
-		limbs = #rig.groups > 0,
 		owned = model:GetAttribute("OwnerUserId") == player.UserId,
-		seed = rng:NextNumber(0, 100),
-		yaw = yaw,
-		phase = 0,
-		moveBlend = 0,
-		nextEmote = os.clock() + rng:NextNumber(2, 7),
 		nextPopup = os.clock() + rng:NextNumber(0, BaseConfig.IncomePopupSeconds),
 	}
-	KaijuMotion.Setup(st, model)
-	st.external = AnimConfig.Handles(model)
-	-- Gameplay.MarketFX stamps EatAt (client-only) when thrown food lands on this kaiju
-	model:GetAttributeChangedSignal("EatAt"):Connect(function()
-		if not st.external then
-			KaijuMotion.Force(st, "Eat")
-		end
-	end)
-	-- someone is holding Steal on it (StealService sets StealBy): it struggles until they stop
-	model:GetAttributeChangedSignal("StealBy"):Connect(function()
-		if model:GetAttribute("StealBy") and not st.external then
-			task.spawn(function()
-				while model.Parent and model:GetAttribute("StealBy") do
-					KaijuMotion.Force(st, "Wiggle")
-					task.wait(0.85)
-				end
-			end)
-		end
-	end)
 	local spawned = model:GetAttribute("SpawnedAt")
 	if spawned and serverNow() - spawned < 2.5 then
 		local rarityId = model:GetAttribute("Rarity")
@@ -670,7 +631,6 @@ local function setupKaiju(model)
 		st.grand = EggConfig.IsGrand(rarityId or "Common", size)
 		st.popStart = os.clock()
 		st.popLen = st.grand and 1.4 or 0.9
-		st.popHeight = 3.2 * math.sqrt(scale) * (st.grand and 1.6 or 1)
 		burstParticles(rig.base.Position + Vector3.new(0, rig.size.Y * 0.4, 0), rarityColor(rarityId), st.grand and 50 or 30, 14 * math.sqrt(scale))
 		if st.grand or (model:GetAttribute("SizeTier") or "") ~= "" then
 			hatchBanner(model, st)
@@ -707,63 +667,20 @@ local function updateKaiju(model, st, dt, t, camPos)
 	if not (from and to and ms and me) then
 		return
 	end
-	local now = serverNow()
-	local alpha = me > ms and math.clamp((now - ms) / (me - ms), 0, 1) or 1
+	local alpha = me > ms and math.clamp((serverNow() - ms) / (me - ms), 0, 1) or 1
 	local pos = from:Lerp(to, alpha)
 	local dist = (pos - camPos).Magnitude
 	st.dist = dist
 	if dist > ANIM_RANGE then
 		return
 	end
-	if st.external then
-		-- the new engine moves and poses it; the grand hatch slam and the cash popups stay here
-		if st.popStart and (os.clock() - st.popStart) / st.popLen >= 1 then
-			st.popStart = nil
-			if st.grand then
-				slam(model, st, pos)
-			end
-		end
-		incomePopup(model, st, dist)
-		return
-	end
-	local moving = alpha < 1 and now >= ms
-	local dir = to - from
-	if moving and dir.Magnitude > 0.05 then
-		local heading = math.atan2(-dir.X, -dir.Z) + KaijuMotion.FaceOffset(st)
-		st.yaw = lerpAngle(st.yaw, heading, 1 - math.exp(-8 * dt))
-		st.phase += dt * 10 / math.sqrt(st.scale) * KaijuMotion.PhaseRate(st)
-	end
-	st.moveBlend = lerp(st.moveBlend, moving and 1 or 0, 1 - math.exp(-10 * dt))
-	st.headYaw = lerp(st.headYaw, 0, 1 - math.exp(-6 * dt))
-	KaijuMotion.UpdateEmote(st, rng, moving)
-	local y, pitch, roll, extraYaw = KaijuMotion.Body(st, t)
-
-	if st.popStart then
-		local p = (os.clock() - st.popStart) / st.popLen
-		if p >= 1 then
-			st.popStart = nil
-			if st.grand then
-				slam(model, st, pos)
-			end
-		else
-			y += math.sin(p * math.pi) * st.popHeight
-			extraYaw += (1 - p) ^ 2 * math.pi * 4
-			roll += math.sin(p * math.pi * 3) * 0.2 * (1 - p)
+	-- the animation engine moves and poses it (its own hatch pop included); the grand hatch slam lands here
+	if st.popStart and (os.clock() - st.popStart) / st.popLen >= 1 then
+		st.popStart = nil
+		if st.grand then
+			slam(model, st, pos)
 		end
 	end
-
-	if st.limbs then
-		if dist < LIMB_RANGE then
-			KaijuMotion.Limbs(st, t)
-			st.limbsAtRest = false
-		elseif not st.limbsAtRest then
-			for _, g in st.rig.groups do
-				g.anim = CFrame.identity
-			end
-			st.limbsAtRest = true
-		end
-	end
-	pose(st.rig, CFrame.new(pos + Vector3.new(0, y, 0)) * CFrame.Angles(0, st.yaw + extraYaw, 0) * CFrame.Angles(pitch, 0, roll))
 	incomePopup(model, st, dist)
 end
 
@@ -929,295 +846,16 @@ local function updateEgg(model, st, t, camPos)
 end
 
 -- ---------- guardians, pens ----------
--- Rigged brick guardians (Tools.BiomeArtBuilder). GuardianService adds a "Body" motor (HumanoidRootPart -> BodyJoint)
--- that carries the body bricks and every limb motor, so the whole body can move; everything is local Motor6D.Transform.
---   run:     a stance / swing gait: a planted foot sweeps back at the real ground speed (no sliding), then the leg
---            swings forward lifted; the body dips as each foot lands, leans into the run, sways
---            towards the planted foot and twists with the stride; the head stays level and leads turns; the tail
---            counter-swings and flicks out in turns; rexes pump their tucked arms, Frostfang swings its long arms
---   turning: the humanoid snaps to each new goal, so the visible body turns towards it smoothly and banks into turns
---   moods:   roar on waking (rears up, arms out, jaw wide), asleep (crouched, head down, breathing), jaws snapping when
---            its player (TargetUserId) is close; personal copies rise out of the ground (RiseAt) and sink away (SinkAt)
---   footfalls set the local attributes StepAt (os.clock) and StepPos (ground point) on the model; GameVFX and
---            GameAudio stomp on them
---   carrying an egg home (attribute CarryingEgg; GuardianService welds the egg in): rexes hold it in their jaws (jaw
---            held a little open, head up), Frostfang (HoldStyle "Arms") cradles it with both arms held forward
-local GUARDIAN_GAIT = { FrostfangPeaks = "ape", CosmicRift = "ape" } -- everyone else runs like a rex
-local RISE_SECONDS, SINK_SECONDS = 1.1, 1.2 -- GuardianService's copy rise / sink times
-local HOLD_ARM_PITCH, HOLD_ARM_IN = 0.9, 0.38 -- arms forward / inward while carrying an egg (GuardianService matches)
--- picking up a dropped egg (model attribute GrabAt, server time; GuardianService stands still for it and takes the egg
--- at the bottom): reach down, stay low a moment, straighten back up
-local GRAB_DOWN, GRAB_LOW, GRAB_UP = 0.4, 0.15, 0.45
+-- Guardians are animated by ReplicatedStorage.KaijuAnimation (run, roar, sleep, chase, the egg carry, copies rising and
+-- sinking, the StepAt / StepPos footfall markers). Here: the Alert sign over an awake guardian pulses.
 
-local function smoothstep(x)
-	x = math.clamp(x, 0, 1)
-	return x * x * (3 - 2 * x)
-end
-
-local guardianRigs = {}
-local externalGuardian = setmetatable({}, { __mode = "k" }) -- [model] = true: ReplicatedStorage.KaijuAnimation animates it
-
-local function wrapAngle(a)
-	return (a + math.pi) % (math.pi * 2) - math.pi
-end
-
-local function guardianRig(g)
-	local st = guardianRigs[g]
-	if st == nil then
-		local root = g.PrimaryPart
-		local hum = g:FindFirstChildOfClass("Humanoid")
-		if not (g:GetAttribute("Rigged") and root and hum) then
-			guardianRigs[g] = false
-			return nil
-		end
-		local motors = {}
-		for _, d in g:GetDescendants() do
-			if d:IsA("Motor6D") then
-				motors[d.Name] = d
-			end
-		end
-		local groundY = -(root.Size.Y / 2 + hum.HipHeight) -- root space (limb motors hang off the BodyJoint, which rests on the root)
-		local legL, legR = motors.LegL, motors.LegR
-		st = {
-			motors = motors,
-			root = root,
-			groundY = groundY,
-			legLength = legL and math.max(1.5, legL.C0.Position.Y - groundY) or 4,
-			legX = { L = legL and legL.C0.Position.X or -1.5, R = legR and legR.C0.Position.X or 1.5 },
-			height = g:GetExtentsSize().Y,
-			gait = GUARDIAN_GAIT[g:GetAttribute("BiomeId") or ""] or "rex",
-			seed = rng:NextNumber(0, 100),
-			phase = 0,
-			speed = 0,
-			sleep = 1,
-			chomp = 0,
-			turnRate = 0,
-		}
-		guardianRigs[g] = st
-		g.Destroying:Connect(function()
-			guardianRigs[g] = nil
-		end)
-	end
-	return st or nil
-end
-
-local function groundBurst(root, st)
-	local ground = root.Position + Vector3.new(0, st.groundY + 0.2, 0)
-	dust(ground, math.clamp(st.height / 6, 1, 3))
-	shockwave(ground, Color3.fromHex("A0805C"), st.height * 2.2, 0.7)
-	addShake(0.45, ground)
-end
-
-local function animateGuardian(g, st, dt, t)
-	local root = st.root
-	local m = st.motors
-	local state = g:GetAttribute("State")
-	if state ~= st.state then
-		st.state = state
-		if state == "Waking" then
-			st.roarAt = os.clock()
-		end
-	end
-
-	-- ground speed
-	local v = root.AssemblyLinearVelocity
-	st.speed = lerp(st.speed, Vector3.new(v.X, 0, v.Z).Magnitude, 1 - math.exp(-6 * dt))
-	local sp = st.speed
-	local moving = math.clamp((sp - 1) / 5, 0, 1) -- 0 standing .. 1 on the move
-	local run = math.clamp(sp / 30, 0, 1.2) * moving -- how hard it's running
-
-	-- the visible body turns smoothly towards the physical heading
-	local look = root.CFrame.LookVector
-	local rootYaw = math.atan2(-look.X, -look.Z)
-	st.yaw = st.yaw or rootYaw
-	local turn = math.clamp(wrapAngle(rootYaw - st.yaw) * (1 - math.exp(-9 * dt)), -7 * dt, 7 * dt)
-	st.yaw = wrapAngle(st.yaw + turn)
-	st.turnRate = lerp(st.turnRate, turn / math.max(dt, 1e-3), 1 - math.exp(-8 * dt))
-	local yawOffset = wrapAngle(st.yaw - rootYaw)
-	local bank = math.clamp(st.turnRate * 0.07, -0.22, 0.22) * moving
-
-	-- moods
-	local asleep = state == "Sleeping"
-	st.sleep = lerp(st.sleep, asleep and 1 or 0, 1 - math.exp(-(asleep and 2 or 14) * dt))
-	local sleep = st.sleep
-	local rt = st.roarAt and os.clock() - st.roarAt or math.huge
-	local roar = math.clamp(rt / 0.22, 0, 1) * math.clamp((1.15 - rt) / 0.35, 0, 1)
-	local breathe = math.sin(t * 1.3 + st.seed)
-	local near = false
-	if state == "Chasing" then
-		local who = Players:GetPlayerByUserId(g:GetAttribute("TargetUserId") or 0)
-		local hrp = who and who.Character and who.Character:FindFirstChild("HumanoidRootPart")
-		near = hrp ~= nil and (hrp.Position - root.Position).Magnitude < 24 + st.height * 0.5
-	end
-	st.chomp = lerp(st.chomp, near and 1 or 0, 1 - math.exp(-6 * dt))
-	local holding = g:GetAttribute("CarryingEgg") ~= nil
-	st.hold = lerp(st.hold or 0, holding and 1 or 0, 1 - math.exp(-8 * dt))
-	local hold = st.hold
-	-- 0..1 how far down it's reaching for a dropped egg
-	local dip = 0
-	local grabAt = g:GetAttribute("GrabAt")
-	if grabAt then
-		local e = serverNow() - grabAt
-		if e >= 0 and e < GRAB_DOWN then
-			dip = smoothstep(e / GRAB_DOWN)
-		elseif e >= GRAB_DOWN and e < GRAB_DOWN + GRAB_LOW then
-			dip = 1
-		elseif e >= GRAB_DOWN + GRAB_LOW then
-			dip = 1 - smoothstep((e - GRAB_DOWN - GRAB_LOW) / GRAB_UP)
-		end
-	end
-
-	-- gait: a planted foot sweeps back at the ground speed (stance), then the leg swings forward, lifted. Cadence rises
-	-- with speed and climbs further rather than over-stretch a leg past ~42 degrees; past 3 steps a second the stride
-	-- stretches (and only the very fastest runs slide a little). The hips ride on whichever leg is planted.
-	local L = st.legLength
-	local duty = math.clamp(0.62 - sp * 0.006, 0.42, 0.62) -- share of a cycle a foot is on the ground
-	local cadence = math.clamp(math.max(0.9 + sp * 0.045, sp * duty / (1.35 * L)), 0.9, 3) -- cycles per second
-	if sp > 0.5 then
-		st.phase = (st.phase + cadence * dt) % 1
-	end
-	local sweep = sp > 0.5 and math.min(sp * duty / cadence, 1.6 * L) or 0 -- how far a planted foot travels past the hip
-	local function legState(phi)
-		if phi < duty then
-			return math.asin(math.clamp(sweep * (0.5 - phi / duty) / L, -0.95, 0.95)), 0, true
-		end
-		local u = (phi - duty) / (1 - duty)
-		local x = sweep * ((1 - math.cos(u * math.pi)) / 2 - 0.5)
-		return math.asin(math.clamp(x / L, -0.95, 0.95)), math.sin(u * math.pi), false
-	end
-	local phL, phR = st.phase, (st.phase + 0.5) % 1
-	local angL, liftL, downL = legState(phL)
-	local angR, liftR, downR = legState(phR)
-	local s1 = math.sin(phL * 2 * math.pi)
-	local carry -- the hip's height over a planted foot: lowest at the ends of a stride, floating between steps
-	if downL or downR then
-		carry = math.max(downL and L * (math.cos(angL) - 1) or -math.huge, downR and L * (math.cos(angR) - 1) or -math.huge)
-	else
-		carry = L * 0.04
-	end
-	local bob = carry * 0.55 * moving
-
-	-- footfalls: a foot lands as its leg starts a new stance
-	for _, side in { "L", "R" } do
-		local phi = side == "L" and phL or phR
-		local prev = st["last" .. side]
-		st["last" .. side] = phi
-		if prev and phi < prev and moving > 0.5 and not asleep then
-			g:SetAttribute("StepPos", root.CFrame * Vector3.new(st.legX[side], st.groundY, -sweep / 2))
-			g:SetAttribute("StepAt", os.clock())
-		end
-	end
-
-	-- personal copies climb out of the ground and sink back into it
-	local lift, wobble = 0, 0
-	local riseAt, sinkAt = g:GetAttribute("RiseAt"), g:GetAttribute("SinkAt")
-	if sinkAt then
-		local k = math.clamp((serverNow() - sinkAt) / SINK_SECONDS, 0, 1)
-		lift = -(k ^ 2) * st.height * 1.1
-		wobble = math.sin(t * 30) * 0.05 * (1 - k)
-		if not st.sinkFx then
-			st.sinkFx = true
-			groundBurst(root, st)
-		end
-	elseif riseAt then
-		local k = math.clamp((serverNow() - riseAt) / RISE_SECONDS, 0, 1)
-		lift = -((1 - k) ^ 3) * st.height * 1.1
-		wobble = math.sin(t * 30) * 0.06 * (1 - k)
-		if not st.riseFx and k < 1 then
-			st.riseFx = true
-			groundBurst(root, st)
-		end
-	end
-
-	-- whole body
-	local ape = st.gait == "ape"
-	local crouch = L * 0.08 * sleep + L * 0.25 * dip -- knees bend to reach the egg
-	local pitch = -(ape and 0.2 or 0.11) * run + math.sin(phL * 4 * math.pi) * 0.025 * run + 0.38 * roar - 0.07 * sleep + breathe * 0.012 * (1 - moving)
-		- (ape and 0.55 or 0.6) * dip -- tips forward over the egg
-	local roll = 0.05 * s1 * run + bank
-	local twist = 0.06 * s1 * run
-	if m.Body then
-		m.Body.Transform = CFrame.new(0, bob - crouch + lift, 0) * CFrame.Angles(0, yawOffset + twist, 0) * CFrame.Angles(pitch, 0, roll + wobble)
-	end
-
-	-- legs: the gait's swing, lifted clear on the way forward, braced apart for the roar
-	local function leg(motor, angle, lift, side)
-		if motor then
-			motor.Transform = CFrame.new(0, lift * L * 0.22 * math.min(run, 1), 0) * CFrame.Angles(angle * moving, 0, side * 0.1 * roar)
-		end
-	end
-	leg(m.LegL, angL, liftL, 1)
-	leg(m.LegR, angR, liftR, -1)
-
-	-- arms
-	if ape then
-		local swing = 0.9 * s1 * run -- opposite to the legs
-		local beat = math.sin(t * 16) * 0.35 * roar -- chest beat
-		local jiggle = 0.05 * math.sin(phL * 4 * math.pi) * moving -- the cradled egg bounces a little with each step
-		if m.ArmL then
-			local free = CFrame.Angles(-swing + 1.3 * roar + beat + breathe * 0.03 * sleep, 0, -0.35 * roar)
-			m.ArmL.Transform = free:Lerp(CFrame.Angles(HOLD_ARM_PITCH + jiggle, 0, -HOLD_ARM_IN), hold)
-				:Lerp(CFrame.Angles(0.35, 0, -0.15), dip * (1 - hold)) -- reaching down for it
-		end
-		if m.ArmR then
-			local free = CFrame.Angles(swing + 1.3 * roar - beat + breathe * 0.03 * sleep, 0, 0.35 * roar)
-			m.ArmR.Transform = free:Lerp(CFrame.Angles(HOLD_ARM_PITCH + jiggle, 0, HOLD_ARM_IN), hold)
-				:Lerp(CFrame.Angles(0.35, 0, 0.15), dip * (1 - hold))
-		end
-	else
-		local pump = 0.28 * s1 * run
-		if m.ArmL then
-			m.ArmL.Transform = CFrame.Angles(0.15 * run - pump + 0.9 * roar + breathe * 0.04 * sleep, 0, -0.3 * roar)
-		end
-		if m.ArmR then
-			m.ArmR.Transform = CFrame.Angles(0.15 * run + pump + 0.9 * roar + breathe * 0.04 * sleep, 0, 0.3 * roar)
-		end
-	end
-
-	-- head: level, leading turns, looking around when idle; jaw for roars, chomping and panting
-	if m.Head then
-		local lookYaw = math.clamp(-yawOffset * 0.6, -0.5, 0.5) + math.sin(t * 0.8 + st.seed) * 0.1 * (1 - moving) * (1 - sleep)
-		local headPitch = -pitch * 0.75 - 0.42 * sleep + breathe * 0.04 * sleep + 0.3 * roar - 0.12 * st.chomp + (ape and 0 or 0.1 * hold)
-			- (ape and 0.35 or 0.75) * dip -- head ducks to the ground
-		m.Head.Transform = CFrame.new(0, -bob * 0.6, 0) * CFrame.Angles(0, lookYaw, 0) * CFrame.Angles(headPitch, 0, -roll * 0.5)
-	end
-	if m.Jaw then
-		local jaw = 0.85 * roar + st.chomp * (0.2 + 0.45 * math.max(0, math.sin(t * 13))) + 0.08 * math.abs(s1) * run + math.max(0, breathe) * 0.06 * sleep
-		if not ape then
-			jaw = jaw * (1 - hold) + (g:GetAttribute("HoldJaw") or 0.75) * hold -- jaws open around the egg (GuardianService fits the egg to this)
-			jaw = jaw + (0.75 - jaw) * dip * (1 - hold) -- wide open going down, closing on the egg as it takes it
-		end
-		m.Jaw.Transform = CFrame.Angles(-jaw, 0, 0)
-	end
-
-	-- tail: counter-swing, raised for balance, flicked out in turns, curled when asleep, lashing on a roar
-	if m.Tail then
-		local swing = -0.3 * s1 * run * (ape and 0.4 or 1)
-		local flick = math.clamp(-st.turnRate * 0.12, -0.4, 0.4) * moving
-		local idle = math.sin(t * 0.7 + st.seed) * 0.1 * (1 - moving)
-		local lash = math.sin(t * 10) * 0.25 * roar
-		local tailPitch = -0.14 * run - pitch * 0.5 - 0.08 * sleep + 0.15 * roar
-		m.Tail.Transform = CFrame.Angles(tailPitch, swing + flick + idle + lash + 0.45 * sleep, 0)
-	end
-end
-
-local function updateGuardians(dt, t, camPos)
+local function updateGuardians(t)
 	for _, g in guardianFolder:GetChildren() do
 		local head = g:FindFirstChild("Head")
 		local alert = head and head:FindFirstChild("Alert")
 		if alert and alert.Enabled then
 			local s = 1 + math.abs(math.sin(t * 8)) * 0.3
 			alert.Size = UDim2.fromOffset(160 * s, 60 * s)
-		end
-		local external = externalGuardian[g]
-		if external == nil then
-			external = AnimConfig.Handles(g)
-			externalGuardian[g] = external
-		end
-		local near = not external and g.PrimaryPart and (g.PrimaryPart.Position - camPos).Magnitude < ANIM_RANGE
-		local st = near and guardianRig(g)
-		if st then
-			animateGuardian(g, st, dt, t)
 		end
 	end
 end
@@ -1367,8 +1005,8 @@ RunService:BindToRenderStep("KaijuShake", Enum.RenderPriority.Camera.Value + 1, 
 	shakeAmp *= math.exp(-5 * dt)
 end)
 
--- Animation LOD: the brick kaiju have a few hundred parts each, so far ones are posed less often (every 2nd frame past
--- 60 studs, every 4th past 120) with the time they skipped; each kaiju gets its own frame slot to spread the load.
+-- Kaiju bookkeeping (popups, the hatch slam) runs less often for far ones (every 2nd frame past 60 studs, every 4th past
+-- 120); each kaiju gets its own frame slot to spread the load.
 local frame = 0
 RunService.RenderStepped:Connect(function(dt)
 	frame += 1
@@ -1391,5 +1029,5 @@ RunService.RenderStepped:Connect(function(dt)
 			updateEgg(model, st, t, camPos)
 		end
 	end
-	updateGuardians(dt, t, camPos)
+	updateGuardians(t)
 end)
