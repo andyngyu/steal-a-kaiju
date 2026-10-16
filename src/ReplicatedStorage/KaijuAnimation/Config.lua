@@ -509,11 +509,12 @@ Config.Gallery = {
 --   or "Body"), Shake (camera shake if the camera is close), Burst (sparkles), Flash (neon parts by name, comma
 --   separated), DrumFlash (Raijin's drums in sequence, arg = seconds), Shimmer (a light sweep across the facets).
 Config.Actions = {
-	-- A live guardian's wake-up rear (GuardianService State "Waking"): a pose only, short enough for its 0.6 s wake.
-	-- GameAudio plays the roar and GameVFX the rings and shockwave, so it has no events of its own.
+	-- A live guardian's wake-up rear (GuardianService State "Waking"): a pose only, held through most of its wake (about
+	-- 2.35 s with the thief's head start). GameAudio plays the roar and GameVFX the rings and shockwave, so it has no
+	-- events of its own.
 	WakeRoar = {
 		GuardianTitan = {
-			Duration = 1, Calm = 1, Pivot = "Hips",
+			Duration = 1.8, Calm = 1, Pivot = "Hips",
 			Tracks = {
 				{ "Body", "pitch", { 0, 0, 0.19, 15, 0.7, 15, 1, 0 } },
 				{ "Head", "pitch", { 0, 0, 0.19, 12, 0.7, 12, 1, 0 } },

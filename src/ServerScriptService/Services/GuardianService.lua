@@ -74,6 +74,9 @@ local FLING_UP = 0.55 -- upward part of the fling, as a fraction of that
 local POST_CATCH_PAUSE = 1 -- seconds it stands over the egg after a catch before picking it up (time to come back for it)
 local FETCH_REACH = 3 -- studs past its body at which a guardian scoops up a dropped egg
 local REGRAB_ROAR = 1.2 -- seconds it roars before chasing someone who snatched the egg back off it
+-- Extra seconds of roar before every chase (taking a nest egg, snatching one back off it), on top of WakeDelay /
+-- UNDERSPEED_WAKE / REGRAB_ROAR: a head start so a thief can get going, on mobile too.
+local HEADSTART = 1.75
 -- Picking a dropped egg up: it stops, reaches down (GRAB_DIP; KaijuFX ducks the head / arms to the ground off the model
 -- attribute GrabAt), takes the egg at the bottom, then straightens up (GRAB_RISE) before setting off home.
 local GRAB_DIP = 0.45
@@ -697,7 +700,7 @@ local function step(g)
 			setState(g, "Waking")
 		end
 	elseif g.state == "Waking" then
-		if now - g.stateTime >= (underspeed(g, owner) and UNDERSPEED_WAKE or g.cfg.WakeDelay) then
+		if now - g.stateTime >= (underspeed(g, owner) and UNDERSPEED_WAKE or g.cfg.WakeDelay) + HEADSTART then
 			setState(g, "Chasing")
 		end
 	elseif g.state == "Chasing" then
@@ -966,7 +969,7 @@ function GuardianService:OnEggTaken(biomeId, player, egg)
 					g.owner = player
 					gameEvent:FireClient(player, "GuardianAwake", { BiomeId = biomeId })
 					setState(g, "Waking")
-					g.pauseUntil = os.clock() + math.max(0, REGRAB_ROAR - g.cfg.WakeDelay)
+					g.pauseUntil = os.clock() + REGRAB_ROAR + HEADSTART -- the whole roar: it doesn't move until it's over
 					return
 				end
 				headOff(g)
