@@ -41,11 +41,11 @@ local DESIGN = {
 
 -- front gem colour per rarity (Neon); GemLight is a paler shade, GemCore stays white
 local GEM_COLOR = {
-	Common = Color3.fromHex("D8EEFF"),
+	Common = Color3.fromHex("C4CCD4"), -- gray (designer's egg descriptions)
 	Uncommon = Color3.fromHex("3FD94A"),
-	Rare = Color3.fromHex("1E9BFF"),
-	Epic = Color3.fromHex("7A22E8"),
-	Legendary = Color3.fromHex("FFB30F"),
+	Rare = Color3.fromHex("2E9BFF"),
+	Epic = Color3.fromHex("9A3CF0"),
+	Legendary = Color3.fromHex("FFC42E"),
 	Mythic = Color3.fromHex("F0306A"),
 }
 
