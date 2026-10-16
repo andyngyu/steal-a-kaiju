@@ -70,6 +70,11 @@ local function envelope(e)
 	return math.clamp(math.min(e / 0.2, (1 - e) / 0.25), 0, 1)
 end
 
+-- Lets the new animation engine (ReplicatedStorage.KaijuAnimation) voice its actions through the same sound hooks.
+function KaijuMotion.FireEmote(model, name)
+	emoteStarted:Fire(model, name)
+end
+
 function KaijuMotion.Setup(st, model)
 	local gait = model:GetAttribute("Gait")
 	if not (gait and GAITS[gait] and st.limbs) then
