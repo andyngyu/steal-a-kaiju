@@ -56,13 +56,48 @@ local function compile(def)
 	return c
 end
 
+-- A variant with Extends = "<other variant>" is that variant plus its own extra Tracks and Events (and any field it
+-- sets itself, like Duration).
+local extended = {}
+local function extend(variants, def)
+	local merged = extended[def]
+	if merged then
+		return merged
+	end
+	local base = variants[def.Extends]
+	assert(base, "KaijuAnimation: Extends names a missing variant " .. tostring(def.Extends))
+	merged = {}
+	for k, v in base do
+		merged[k] = v
+	end
+	for k, v in def do
+		if k ~= "Tracks" and k ~= "Events" and k ~= "Extends" then
+			merged[k] = v
+		end
+	end
+	merged.Tracks = table.clone(base.Tracks or {})
+	for _, t in def.Tracks or {} do
+		table.insert(merged.Tracks, t)
+	end
+	merged.Events = table.clone(base.Events or {})
+	for _, e in def.Events or {} do
+		table.insert(merged.Events, e)
+	end
+	extended[def] = merged
+	return merged
+end
+
 -- The definition a creature uses: by creature name, then profile, then Default.
 function Actions.Resolve(name, creature, profile)
 	local variants = Config.Actions[name]
 	if not variants then
 		return nil
 	end
-	return variants[creature] or variants[profile] or variants.Default
+	local def = variants[creature] or variants[profile] or variants.Default
+	if def and def.Extends then
+		def = extend(variants, def)
+	end
+	return def
 end
 
 -- Joint records matching a selector.
