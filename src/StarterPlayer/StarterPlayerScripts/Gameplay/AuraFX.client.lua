@@ -1,11 +1,13 @@
--- AuraFX: player auras, client-only and cosmetic (remade from scratch 16 Oct 2026; styles in Shared.Config.AuraConfig).
--- Every player wearing a trail (attribute EquippedTrail, set by TrailService) gets that trail's aura, built from
--- effects rather than pictures: particles (Roblox's own fire / smoke / spark / sparkle textures), glowing 3D pieces
--- floating round the body, procedural lightning (Beams), spiralling energy ribbons (Trails), a light and an outline.
--- Nothing is drawn flat on the ground. Auras idle while the player moves and power up while they stand still ("aura
--- farming"), with a burst at full power. Respects the Player Auras and Reduced Effects settings; auras fade with
--- distance and sleep beyond AuraConfig.Range. Rainbow trails (style Rainbow) also scroll the trail itself through the
--- rainbow on every screen, even with auras turned off. The trails themselves are TrailService + TrailFX, not this.
+-- AuraFX: player auras, client-only and cosmetic (remade from scratch again 16 Oct 2026; styles in
+-- Shared.Config.AuraConfig). Every player wearing a trail (attribute EquippedTrail, set by TrailService) gets that
+-- trail's aura, built from layered effects: particle layers using VFX Studio textures (animated flipbook flames and
+-- smoke, body-aura flame sheets, lightning flashes, sweeping crescents, vortexes, sparks, glints, lens flares, themed
+-- drifting bits), glowing 3D pieces floating round the body, procedural lightning (Beams), spiralling energy ribbons
+-- (Trails), a light and an outline. Nothing is drawn flat on the ground. Auras idle while the player moves and power
+-- up while they stand still ("aura farming"), with a burst at full power. Respects the Player Auras and Reduced
+-- Effects settings; auras fade with distance and sleep beyond AuraConfig.Range. Rainbow trails (style Rainbow) also
+-- scroll the trail itself through the rainbow on every screen, even with auras off. The trails themselves are
+-- TrailService + TrailFX, not this.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -18,18 +20,12 @@ local Settings = require(script.Parent:WaitForChild("Settings"))
 local player = Players.LocalPlayer
 local F = AuraConfig.Farm
 local TEX = AuraConfig.Textures
-local FIRE = "rbxasset://textures/particles/fire_main.dds"
-local SMOKE = "rbxasset://textures/particles/smoke_main.dds"
-local SPARKS = "rbxasset://textures/particles/fire_sparks_main.dds"
-local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
-local SQUARE = "rbxasset://textures/particles/SquareParticle.png"
 local WHITE, BLACK = Color3.new(1, 1, 1), Color3.new(0, 0, 0)
 local TOP, BOTTOM = Enum.NormalId.Top, Enum.NormalId.Bottom
 local BOX, SPHERE = Enum.ParticleEmitterShape.Box, Enum.ParticleEmitterShape.Sphere
 local VOLUME = Enum.ParticleEmitterShapeStyle.Volume
 local STREAK = Enum.ParticleOrientation.VelocityParallel
 local rng = Random.new()
-
 
 local fxFolder = Instance.new("Folder")
 fxFolder.Name = "PlayerAuras"
@@ -75,6 +71,8 @@ local function palette(glow)
 	return { glow = glow, light = glow:Lerp(WHITE, 0.55), deep = glow:Lerp(BLACK, 0.35), dark = glow:Lerp(BLACK, 0.86) }
 end
 
+local LIVE = { Glow = true, Light = true, Deep = true, Dark = true }
+
 -- one colour word / hex -> Color3
 local function word(w, a)
 	if typeof(w) == "Color3" then
@@ -98,27 +96,44 @@ local function word(w, a)
 	return ok and c or WHITE
 end
 
--- a colour spec -> ColorSequence (and whether it changes over time)
+-- a colour spec -> ColorSequence
 local function resolveSeq(spec, a)
 	if spec == "Rainbow" then
-		return colorSeq(rainbowList(os.clock(), 5)), true
+		return colorSeq(rainbowList(os.clock(), 5))
+	end
+	if spec == "White" then
+		return ColorSequence.new(WHITE)
 	end
 	if type(spec) == "table" then
-		local list, live = {}, false
+		local list = {}
 		for _, w in spec do
 			table.insert(list, word(w, a))
-			live = live or w == "Glow" or w == "Light" or w == "Deep" or w == "Dark"
 		end
-		return colorSeq(list), live
+		return colorSeq(list)
 	end
 	local c = word(spec or "Glow", a)
-	return ColorSequence.new(c:Lerp(WHITE, 0.25), c), spec == nil or spec == "Glow" or spec == "Light" or spec == "Deep" or spec == "Dark"
+	return ColorSequence.new(c:Lerp(WHITE, 0.25), c)
 end
 local function resolveColor(spec, a)
 	if type(spec) == "table" then
 		return word(spec[1], a)
 	end
 	return word(spec or "Glow", a)
+end
+-- does this colour spec change when the palette turns (rainbow auras)?
+local function isLive(spec)
+	if spec == nil or spec == "Rainbow" then
+		return true
+	end
+	if type(spec) == "table" then
+		for _, w in spec do
+			if LIVE[w] or w == "Rainbow" then
+				return true
+			end
+		end
+		return false
+	end
+	return LIVE[spec] == true
 end
 
 local function anchoredPart(name, size)
@@ -151,228 +166,338 @@ end
 
 -- something whose colour follows the palette (re-applied as a rainbow aura turns)
 local function colored(a, inst, prop, spec, asSeq)
-	table.insert(a.colored, { inst = inst, prop = prop, spec = spec, seq = asSeq })
-end
-
--- particle emitters sharing a { moving, farming } rate (per emitter) and a power-up burst
-local function emitters(a, parents, props, spec, rates, burst)
-	local list = {}
-	local cs = resolveSeq(spec, a)
-	for _, parent in parents do
-		local pe = Instance.new("ParticleEmitter")
-		pe.LightInfluence = 0
-		pe.LightEmission = 1
-		for k, v in props do
-			pe[k] = v
-		end
-		if not props.Color then
-			pe.Color = cs
-			colored(a, pe, "Color", spec, true)
-		end
-		pe.Rate = 0
-		pe.Parent = parent
-		own(a, pe)
-		table.insert(list, pe)
+	if isLive(spec) then
+		table.insert(a.colored, { inst = inst, prop = prop, spec = spec, seq = asSeq })
 	end
-	table.insert(a.layers, { pes = list, moving = rates and rates[1] or 0, farming = rates and rates[2] or 0, burst = burst })
-	return list
 end
 
----------------------------------------------------------------- elements
-local E = {}
+---------------------------------------------------------------- particle layers (VFX Studio textures)
+local FLIP = {
+	Loop = function(pe)
+		pe.FlipbookMode = Enum.ParticleFlipbookMode.Loop
+		pe.FlipbookFramerate = range(14, 22)
+		pe.FlipbookStartRandom = true
+	end,
+	OneShot = function(pe)
+		pe.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+		pe.FlipbookStartRandom = false
+	end,
+	Still = function(pe) -- one random frame per particle (a sheet of variations)
+		pe.FlipbookMode = Enum.ParticleFlipbookMode.Loop
+		pe.FlipbookFramerate = range(0, 0)
+		pe.FlipbookStartRandom = true
+	end,
+}
 
-function E.Smoke(a, el)
-	local s, k = a.s, el.Size or 1
-	emitters(a, { a.feetAtt }, {
-		Name = "AuraSmoke",
-		Texture = SMOKE,
-		LightEmission = el.Dark and 0 or 0.35,
-		LightInfluence = el.Dark and 0.6 or 0.15,
-		EmissionDirection = TOP,
-		Size = seq({ { 0, 1 * s * k }, { 1, 3.1 * s * k } }),
-		Transparency = seq({ { 0, 1 }, { 0.25, el.Alpha or 0.55 }, { 1, 1 } }),
-		Lifetime = range(1.2, 2),
-		Speed = range(1.5 * s * (el.Rise or 1), 3 * s * (el.Rise or 1)),
-		SpreadAngle = Vector2.new(35, 35),
-		Acceleration = Vector3.new(0, 1.5 * s * (el.Rise or 1), 0),
-		Drag = 1,
-		Rotation = range(0, 360),
-		RotSpeed = range(-40, 40),
-		ZOffset = -0.6,
-	}, el.Color, el.Rate or { 2, 8 }, 6)
-end
+--[[ Presets: what each FX layer does. Each returns the emitter's parent (an attachment or part of the aura), its
+properties, and its defaults: Tex, Flip (flipbook mode), Rate { moving, farming }, Burst (power-up), LE (light
+emission). s = body scale, k = el.Size, H = half the body height. ]]
+local P = {}
 
-function E.Flames(a, el)
-	-- fire licking up round the body: emitted from the flame box (a little wider than the body) and drawn just behind
-	-- it, so the flames frame the silhouette instead of hiding inside the limbs
-	local s, k = a.s, el.Size or 1
-	local rate = el.Rate or { 1, 7 }
-	emitters(a, { a.flameBox }, {
-		Name = "AuraFlames",
-		Texture = FIRE,
-		LightEmission = 0.45, -- part solid colour, part glow: pure glow washes out on the bright floors
-		Brightness = el.Brightness or 2,
+function P.Backdrop(a, el, s, k) -- dark smoke behind everything else: the contrast that makes the glow read in daylight
+	return a.flameBox, {
 		Shape = BOX,
 		ShapeStyle = VOLUME,
 		EmissionDirection = TOP,
-		Size = seq({ { 0, 0.9 * s * k }, { 0.4, 2.3 * s * k }, { 1, 0.4 * s * k } }),
-		Transparency = seq({ { 0, 0.05 }, { 0.6, 0.25 }, { 1, 1 } }),
-		Lifetime = range(0.4, 0.7),
-		Speed = range(2 * s, 4 * s),
-		SpreadAngle = Vector2.new(12, 12),
-		Acceleration = Vector3.new(0, 8 * s, 0),
-		Drag = 0.5,
-		Rotation = range(-20, 20),
-		RotSpeed = range(-40, 40),
-		ZOffset = -0.2,
-	}, el.Color or { "Light", "Glow", "Deep" }, { rate[1] * 6, rate[2] * 6 }, 12)
+		LightInfluence = 0,
+		Size = seq({ { 0, 2 * s * k }, { 1, 3.6 * s * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.2, el.Alpha or 0.35 }, { 1, 1 } }),
+		Lifetime = range(0.9, 1.5),
+		Speed = range(0.6 * s, 1.6 * s),
+		SpreadAngle = Vector2.new(20, 20),
+		Acceleration = Vector3.new(0, 2 * s, 0),
+		Drag = 0.8,
+		Rotation = range(0, 360),
+		RotSpeed = range(-30, 30),
+		ZOffset = -2,
+	}, { Tex = "SmokePuff", Flip = "OneShot", Rate = { 4, 14 }, Burst = 8, LE = 0 }
 end
 
-function E.Embers(a, el)
-	local s, k = a.s, el.Size or 1
-	emitters(a, { a.core }, {
-		Name = "AuraEmbers",
-		Texture = SPARKS,
-		LightEmission = 0.6,
-		Brightness = 3,
+function P.Mist(a, el, s, k)
+	local rise = el.Rise or 1
+	return a.feetAtt, {
+		EmissionDirection = TOP,
+		LightInfluence = el.Glow and 0 or 0.5,
+		Size = seq({ { 0, 1.2 * s * k }, { 1, 3.4 * s * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.25, el.Alpha or 0.5 }, { 1, 1 } }),
+		Lifetime = range(1.2, 2),
+		Speed = range(1.5 * s * rise, 3 * s * rise),
+		SpreadAngle = Vector2.new(40, 40),
+		Acceleration = Vector3.new(0, 1.5 * s * rise, 0),
+		Drag = 1,
+		Rotation = range(0, 360),
+		RotSpeed = range(-40, 40),
+		ZOffset = -0.8,
+	}, { Tex = "SmokeSoft", Flip = "OneShot", Rate = { 2, 8 }, Burst = 6, LE = el.Glow and 0.3 or 0 }
+end
+
+function P.Flame(a, el, s, k)
+	return a.flameBox, {
+		Shape = BOX,
+		ShapeStyle = VOLUME,
+		EmissionDirection = TOP,
+		Brightness = el.Brightness or 2,
+		Size = seq({ { 0, 0.8 * s * k }, { 0.35, 1.9 * s * k }, { 1, 0.3 * s * k } }),
+		Transparency = seq({ { 0, 0.1 }, { 0.6, 0.25 }, { 1, 1 } }),
+		Lifetime = range(0.45, 0.8),
+		Speed = range(2 * s, 4 * s),
+		SpreadAngle = Vector2.new(12, 12),
+		Acceleration = Vector3.new(0, 7 * s, 0),
+		Drag = 0.6,
+		Rotation = range(-15, 15),
+		RotSpeed = range(-30, 30),
+		ZOffset = -0.3,
+	}, { Tex = "FlameTongue", Flip = "Loop", Rate = { 6, 36 }, Burst = 12, LE = 0.5 }
+end
+
+function P.Sheet(a, el, s, k) -- the big anime power-up flame behind the body
+	local H = a.halfH
+	return a.sheetAtt, {
+		LockedToPart = true,
+		Brightness = el.Brightness or 2.5,
+		Size = seq({ { 0, 1.5 * H * k }, { 0.5, 1.9 * H * k }, { 1, 2.15 * H * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.25, el.Alpha or 0.25 }, { 0.7, (el.Alpha or 0.25) + 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.35, 0.55),
+		Speed = range(0, 0),
+		Rotation = range(-6, 6),
+		RotSpeed = range(-8, 8),
+		ZOffset = -1.2,
+	}, { Tex = "FlameAura", Rate = { 0, 8 }, Burst = 3, LE = 0.5 }
+end
+
+function P.Wisp(a, el, s, k)
+	return a.flameBox, {
+		Shape = BOX,
+		ShapeStyle = VOLUME,
+		EmissionDirection = TOP,
+		LightInfluence = 0,
+		Size = seq({ { 0, 1 * s * k }, { 1, 1.9 * s * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.2, el.Alpha or 0.2 }, { 1, 1 } }),
+		Lifetime = range(0.8, 1.2),
+		Speed = range(1.5 * s, 3 * s),
+		Acceleration = Vector3.new(0, 2 * s, 0),
+		Drag = 1,
+		Rotation = range(-30, 30),
+		RotSpeed = range(-40, 40),
+		ZOffset = -0.5,
+	}, { Tex = "Wisp", Flip = "OneShot", Rate = { 2, 12 }, Burst = 6, LE = el.Dark and 0 or 0.45 }
+end
+
+function P.Spark(a, el, s, k)
+	return a.core, {
 		Orientation = STREAK,
 		Shape = BOX,
 		ShapeStyle = VOLUME,
 		EmissionDirection = TOP,
-		Size = seq({ { 0, 0 }, { 0.2, 0.7 * s * k }, { 1, 0 } }),
+		Brightness = el.Brightness or 3,
+		Size = seq({ { 0, 0 }, { 0.2, 0.55 * s * k }, { 1, 0 } }),
 		Squash = seq({ { 0, -1 }, { 1, 2.5 } }),
 		Transparency = seq({ { 0, 0 }, { 1, 1 } }),
-		Lifetime = range(0.5, 0.9),
-		Speed = range(3 * s, 6 * s),
-		SpreadAngle = Vector2.new(12, 12),
-		Acceleration = Vector3.new(0, 6 * s, 0),
-		Drag = 1,
-	}, el.Color, el.Rate or { 3, 30 }, 18)
+		Lifetime = range(0.45, 0.85),
+		Speed = range(4 * s, 8 * s),
+		SpreadAngle = Vector2.new(15, 15),
+		Acceleration = Vector3.new(0, 4 * s, 0),
+		Drag = 1.5,
+	}, { Tex = "Needle", Rate = { 3, 30 }, Burst = 18, LE = 0.7 }
 end
 
-function E.Motes(a, el)
-	local s, k = a.s, el.Size or 1
-	emitters(a, { a.core }, {
-		Name = "AuraMotes",
-		Texture = SPARKLE,
-		LightEmission = 0.6,
-		Brightness = 2.5,
+function P.Glint(a, el, s, k)
+	return a.core, {
+		Shape = BOX,
+		ShapeStyle = VOLUME,
+		LockedToPart = true,
+		Brightness = el.Brightness or 3,
+		Size = seq({ { 0, 0 }, { 0.4, 0.9 * s * k }, { 1, 0 } }),
+		Lifetime = range(0.3, 0.5),
+		Speed = range(0, 0),
+		Rotation = range(-15, 15),
+		RotSpeed = range(-90, 90),
+		ZOffset = 0.5,
+	}, { Tex = "Star4", Rate = { 1, 10 }, Burst = 6, LE = 0.8 }
+end
+
+function P.Flare(a, el, s, k) -- anamorphic lens streaks
+	return a.core, {
+		Shape = BOX,
+		ShapeStyle = VOLUME,
+		LockedToPart = true,
+		Brightness = el.Brightness or 2,
+		Size = seq({ { 0, 0 }, { 0.3, 2.4 * s * k }, { 1, 0 } }),
+		Lifetime = range(0.2, 0.35),
+		Speed = range(0, 0),
+		Rotation = range(0, 0),
+		ZOffset = 1,
+	}, { Tex = "LensStreak", Rate = { 0, 1.5 }, Burst = 2, LE = 1 }
+end
+
+function P.Mote(a, el, s, k)
+	return a.core, {
 		Shape = SPHERE,
 		ShapeStyle = VOLUME,
-		Size = seq({ { 0, 0 }, { 0.3, 0.58 * s * k }, { 1, 0 } }),
-		Transparency = seq({ { 0, 0.1 }, { 1, 1 } }),
-		Lifetime = range(1.2, 2),
-		Speed = range(0.2, 0.8),
+		Brightness = el.Brightness or 2,
+		Size = seq({ { 0, 0 }, { 0.3, 0.4 * s * k }, { 1, 0 } }),
+		Transparency = seq({ { 0, 0 }, { 1, 1 } }),
+		Lifetime = range(1.2, 2.2),
+		Speed = range(0.3, 1),
 		SpreadAngle = Vector2.new(180, 180),
 		Acceleration = Vector3.new(0, 0.6 * s, 0),
 		Drag = 1.5,
-		Rotation = range(0, 360),
-		RotSpeed = range(-60, 60),
-	}, el.Color, el.Rate or { 4, 20 }, 10)
+	}, { Tex = "Glow", Rate = { 3, 18 }, Burst = 10, LE = 0.7 }
 end
 
-function E.Glints(a, el)
-	local s = a.s
-	emitters(a, { a.core }, {
-		Name = "AuraGlints",
-		Texture = TEX.Star,
-		Color = ColorSequence.new(WHITE),
-		Brightness = 2,
-		Shape = BOX,
-		ShapeStyle = VOLUME,
-		Size = seq({ { 0, 0 }, { 0.3, 1.1 * s }, { 1, 0 } }),
-		Lifetime = range(0.25, 0.45),
-		Speed = range(0, 0),
-		Rotation = range(-10, 10),
-		LockedToPart = true,
-	}, nil, el.Rate or { 1, 10 }, 6)
-end
-
-function E.Drift(a, el)
-	local s, k = a.s, el.Size or 1
-	local props = {
-		Name = "AuraDrift",
-		Texture = TEX[el.Texture] or SPARKLE,
-		LightEmission = el.Glow and 0.6 or 0,
-		LightInfluence = el.Glow and 0 or 1,
+function P.Drift(a, el, s, k)
+	return a.core, {
 		Shape = SPHERE,
 		ShapeStyle = VOLUME,
-		Size = seq({ { 0, 0.35 * s * k }, { 1, 0.3 * s * k } }),
+		LightInfluence = el.Glow and 0 or 0.8,
+		Brightness = el.Brightness or 1.5,
+		Size = seq({ { 0, 0.45 * s * k }, { 1, 0.35 * s * k } }),
 		Transparency = seq({ { 0, 1 }, { 0.15, 0 }, { 0.85, 0 }, { 1, 1 } }),
-		Lifetime = range(1.5, 2.5),
-		Speed = range(0.5, 1.5),
+		Lifetime = range(1.6, 2.6),
+		Speed = range(0.6, 1.6),
 		SpreadAngle = Vector2.new(180, 180),
-		Acceleration = Vector3.new(0, el.Fall and -1.2 * s or 0.4 * s, 0),
+		Acceleration = Vector3.new(0, el.Fall and -1.4 * s or 0.5 * s, 0),
 		Drag = 1,
 		Rotation = range(0, 360),
-		RotSpeed = range(-180, 180),
-	}
-	if el.Texture == "Butterfly" then
-		props.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
-		props.FlipbookMode = Enum.ParticleFlipbookMode.Loop
-		props.FlipbookFramerate = range(18, 24)
-		props.FlipbookStartRandom = true
-		props.RotSpeed = range(-20, 20)
-		props.Rotation = range(-20, 20)
-	end
-	emitters(a, { a.core }, props, el.Color, el.Rate or { 2, 10 }, 4)
+		RotSpeed = range(-160, 160),
+	}, { Tex = "Leaf", Rate = { 2, 10 }, Burst = 6, LE = el.Glow and 0.5 or 0 }
 end
 
-function E.Drips(a, el)
-	local s = a.s
-	emitters(a, { a.core }, {
-		Name = "AuraDrips",
-		Texture = SPARKS,
-		Brightness = 2,
-		Orientation = STREAK,
+function P.Bolt(a, el, s, k) -- lightning flashing over the body
+	return a.core, {
 		Shape = BOX,
 		ShapeStyle = VOLUME,
-		EmissionDirection = BOTTOM,
-		Size = seq({ { 0, 0.25 * s }, { 0.6, 0.2 * s }, { 1, 0.05 } }),
-		Squash = seq({ { 0, 0 }, { 1, 1.6 } }),
-		Lifetime = range(0.45, 0.75),
-		Speed = range(0.2, 1),
-		Acceleration = Vector3.new(0, -28, 0),
-	}, el.Color, el.Rate or { 0, 6 })
+		LockedToPart = true,
+		Brightness = el.Brightness or 4,
+		Size = seq({ { 0, 1.2 * s * k }, { 1, 1.4 * s * k } }),
+		Transparency = seq({ { 0, 0 }, { 0.75, 0 }, { 1, 1 } }),
+		Lifetime = range(0.12, 0.22),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		ZOffset = 0.6,
+	}, { Tex = "BoltFlash", Flip = "OneShot", Rate = { 0, 6 }, Burst = 6, LE = 0.9 }
 end
 
-function E.Chips(a, el)
-	local s = a.s
-	emitters(a, { a.feetAtt }, {
-		Name = "AuraChips",
-		Texture = SQUARE,
-		LightEmission = 0,
-		LightInfluence = 1,
+function P.Slash(a, el, s, k) -- crescents sweeping round the body
+	local spin = el.Spin or 420
+	return a.midAtt, {
+		LockedToPart = true,
+		Brightness = el.Brightness or 2.5,
+		Size = seq({ { 0, 2.2 * s * k }, { 1, 3.4 * s * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.2, 0 }, { 1, 1 } }),
+		Lifetime = range(0.3, 0.5),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(spin * 0.7, spin),
+		ZOffset = 0.4,
+	}, { Tex = "Crescent", Flip = "OneShot", Rate = { 0, 3 }, Burst = 4, LE = 0.6 }
+end
+
+function P.Vortex(a, el, s, k) -- a slow vortex behind the body
+	local H = a.halfH
+	return a.sheetAtt, {
+		LockedToPart = true,
+		LightInfluence = el.Glow and 0 or 0.3,
+		Brightness = el.Brightness or 1.5,
+		Size = seq({ { 0, 1.6 * H * k }, { 1, 2.1 * H * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.3, el.Alpha or 0.4 }, { 0.7, el.Alpha or 0.4 }, { 1, 1 } }),
+		Lifetime = range(1.3, 1.7),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		RotSpeed = range(50, 80),
+		ZOffset = -2.5,
+	}, { Tex = "DarkVoid", Rate = { 0, 1.5 }, Burst = 1, LE = el.Glow and 0.4 or 0 }
+end
+
+function P.Debris(a, el, s, k)
+	return a.feetAtt, {
 		EmissionDirection = TOP,
-		Size = seq({ { 0, 0.22 * s }, { 1, 0.16 * s } }),
-		Lifetime = range(0.5, 0.8),
+		LightInfluence = 1,
+		Size = seq({ { 0, 0.4 * s * k }, { 1, 0.3 * s * k } }),
+		Lifetime = range(0.6, 1),
 		Speed = range(6 * s, 10 * s),
 		SpreadAngle = Vector2.new(35, 35),
 		Acceleration = Vector3.new(0, -30, 0),
 		Rotation = range(0, 360),
 		RotSpeed = range(-300, 300),
-	}, el.Color, el.Rate or { 1, 8 }, 10)
+	}, { Tex = "Debris", Flip = "Still", Rate = { 0, 6 }, Burst = 10, LE = 0 }
 end
 
-function E.Cloud(a, el)
-	local s = a.s
-	emitters(a, { a.cloudAtt }, {
-		Name = "AuraCloud",
-		Texture = SMOKE,
-		LightEmission = 0,
+function P.Drip(a, el, s, k)
+	return a.core, {
+		Orientation = STREAK,
+		Shape = BOX,
+		ShapeStyle = VOLUME,
+		EmissionDirection = BOTTOM,
+		Brightness = el.Brightness or 2,
+		Size = seq({ { 0, 0.3 * s * k }, { 0.6, 0.25 * s * k }, { 1, 0.08 } }),
+		Squash = seq({ { 0, 0 }, { 1, 1.6 } }),
+		Lifetime = range(0.45, 0.75),
+		Speed = range(0.2, 1),
+		Acceleration = Vector3.new(0, -28, 0),
+	}, { Tex = "Glow", Rate = { 0, 6 }, LE = 0.8 }
+end
+
+function P.Cloud(a, el, s, k)
+	return a.cloudAtt, {
 		LightInfluence = 0.4,
-		Size = seq({ { 0, 1.4 * s }, { 1, 2.4 * s } }),
-		Transparency = seq({ { 0, 1 }, { 0.25, 0.25 }, { 0.8, 0.3 }, { 1, 1 } }),
+		Size = seq({ { 0, 1.4 * s * k }, { 1, 2.6 * s * k } }),
+		Transparency = seq({ { 0, 1 }, { 0.25, 0.2 }, { 0.8, 0.3 }, { 1, 1 } }),
 		Lifetime = range(1.6, 2.4),
 		Speed = range(0.3, 0.8),
 		SpreadAngle = Vector2.new(180, 30),
 		EmissionDirection = Enum.NormalId.Right,
 		Rotation = range(0, 360),
 		RotSpeed = range(-10, 10),
-	}, el.Color, el.Rate or { 0, 8 }, 6)
+	}, { Tex = "SmokeSoft", Rate = { 0, 8 }, Burst = 6, LE = 0 }
 end
 
--- 3D pieces floating round the body
+function P.Pop(a, el, s, k) -- power-up only: a flash at the centre
+	return a.midAtt, {
+		LockedToPart = true,
+		Brightness = el.Brightness or 3,
+		Size = seq({ { 0, 1 * s * k }, { 1, 6 * s * k } }),
+		Transparency = seq({ { 0, 0 }, { 1, 1 } }),
+		Lifetime = range(0.35, 0.5),
+		Speed = range(0, 0),
+		Rotation = range(0, 360),
+		ZOffset = 1,
+	}, { Tex = "Burst", Flip = "OneShot", Rate = { 0, 0 }, Burst = 1, LE = 0.9 }
+end
+
+local E = {}
+
+function E.FX(a, el)
+	local preset = P[el.Preset]
+	if not preset then
+		warn("[AuraFX] unknown FX preset", el.Preset)
+		return
+	end
+	local s, k = a.s, el.Size or 1
+	local parent, props, d = preset(a, el, s, k)
+	local tex = TEX[el.Tex or d.Tex] or TEX[d.Tex]
+	local pe = Instance.new("ParticleEmitter")
+	pe.Name = "Aura" .. el.Preset
+	pe.LightInfluence = 0
+	pe.LightEmission = el.LE or d.LE or 0.6
+	pe.Texture = tex.Id
+	if tex.Grid then
+		pe.FlipbookLayout = Enum.ParticleFlipbookLayout[tex.Grid]
+		;(FLIP[el.Flip or d.Flip or "Loop"] or FLIP.Loop)(pe)
+	end
+	for key, v in props do
+		pe[key] = v
+	end
+	pe.Color = resolveSeq(el.Color, a)
+	colored(a, pe, "Color", el.Color, true)
+	pe.Rate = 0
+	pe.Parent = parent
+	own(a, pe)
+	local rate = el.Rate or d.Rate or { 0, 0 }
+	table.insert(a.layers, { pes = { pe }, moving = rate[1], farming = rate[2], burst = el.Burst or d.Burst })
+end
+
+---------------------------------------------------------------- 3D pieces floating round the body
 local function makePiece(a, el, i)
 	local s, k = a.s, (el.Size or 1) * rng:NextNumber(0.75, 1.25)
 	local shape = el.Shape or "Rock"
@@ -402,9 +527,7 @@ local function makePiece(a, el, i)
 		end
 	end
 	p.Color = resolveColor(el.Color, a)
-	if el.Color == "Rainbow" or el.Color == nil or el.Color == "Glow" then
-		colored(a, p, "Color", el.Color, false)
-	end
+	colored(a, p, "Color", el.Color, false)
 	own(a, p)
 	local base = shape == "Crystal" and 0.25 or (shape == "Shard" and 0.15 or 0)
 	local piece = {
@@ -455,7 +578,7 @@ function E.Pieces(a, el)
 	table.insert(a.pieceGroups, group)
 end
 
--- energy streaks spiralling round the body
+---------------------------------------------------------------- energy streaks spiralling round the body
 function E.Ribbons(a, el)
 	local count = el.Count or { 0, 2 }
 	local n = math.max(count[1], count[2])
@@ -482,7 +605,7 @@ function E.Ribbons(a, el)
 	table.insert(a.ribbonGroups, group)
 end
 
--- procedural lightning: a chain of Beams through jittered points, re-rolled while it shows
+---------------------------------------------------------------- procedural lightning (Beams)
 local function newBolt(a, segments, spec, width)
 	local bolt = { atts = {}, beams = {}, life = 0, width = width, jitterAt = 0 }
 	for i = 1, segments + 1 do
@@ -586,10 +709,14 @@ local function build(other, char, trailId)
 		flash = 0,
 		nextColor = 0,
 	}
+	-- the body volume (follows the player, turning with them)
 	a.core = own(a, anchoredPart("AuraCore", Vector3.new(2.6 * s, top - feet, 2.6 * s)))
+	a.midAtt = att(a, a.core, "AuraMid")
+	a.sheetAtt = att(a, a.core, "AuraSheet", Vector3.new(0, a.halfH * 0.12, 0))
 	a.feetAtt = att(a, a.core, "AuraFeet", Vector3.new(0, feet - a.midY + 0.1, 0))
-	a.flameBox = own(a, anchoredPart("AuraFlameBox", Vector3.new(3.6 * s, (top - feet) * 0.75, 2.6 * s)))
 	a.cloudAtt = att(a, a.core, "AuraCloud", Vector3.new(0, top - a.midY + 2 * s, 0))
+	-- flames and smoke come off a box a little wider than the body, so they frame the silhouette
+	a.flameBox = own(a, anchoredPart("AuraFlameBox", Vector3.new(3.6 * s, (top - feet) * 0.75, 2.6 * s)))
 	a.arcHost = own(a, anchoredPart("AuraArcs", Vector3.one * 0.2))
 	a.arcHost.CFrame = CFrame.identity
 
@@ -601,19 +728,6 @@ local function build(other, char, trailId)
 			warn("[AuraFX] unknown aura element", el.Type)
 		end
 	end
-
-	-- the power-up burst: a sphere of sparkles
-	a.burst = emitters(a, { a.core }, {
-		Name = "AuraBurst",
-		Texture = SPARKLE,
-		Brightness = 2,
-		Shape = SPHERE,
-		Size = seq({ { 0, 0.55 * s }, { 1, 0 } }),
-		Lifetime = range(0.5, 0.8),
-		Speed = range(8 * s, 14 * s),
-		SpreadAngle = Vector2.new(180, 180),
-		Drag = 3,
-	}, style.Rainbow and "Rainbow" or { "Light", "Glow" }, { 0, 0 })[1]
 
 	a.light = own(a, Instance.new("PointLight"))
 	a.light.Color = a.pal.glow
@@ -639,7 +753,7 @@ local function recolor(a)
 	for _, c in a.colored do
 		if c.inst.Parent then
 			if c.seq then
-				c.inst[c.prop] = (resolveSeq(c.spec, a))
+				c.inst[c.prop] = resolveSeq(c.spec, a)
 			else
 				c.inst[c.prop] = resolveColor(c.spec, a)
 			end
@@ -649,14 +763,11 @@ end
 
 local function powerUp(a, scale)
 	for _, L in a.layers do
-		if L.burst then
+		if L.burst and L.burst > 0 then
 			for _, pe in L.pes do
 				pe:Emit(math.max(1, math.ceil(L.burst * scale)))
 			end
 		end
-	end
-	if a.burst then
-		a.burst:Emit(math.ceil(26 * scale))
 	end
 	a.flash = 1
 	if a.strike then
