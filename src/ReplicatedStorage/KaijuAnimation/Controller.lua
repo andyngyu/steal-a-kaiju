@@ -158,18 +158,29 @@ local function startAction(rec, name)
 end
 
 local function scheduleActions(rec)
+	if rec.forceAction then
+		Actions.Start(rec, rec.forceAction)
+		rec.forceAction = nil
+		return
+	end
 	if rec.action then
 		return
 	end
-	if rec.queued then
-		local q = rec.queued
-		rec.queued = nil
-		if q then
-			startAction(rec, q)
-		end
+	if rec.struggle then
+		Actions.Start(rec, "Wiggle") -- someone is holding Steal on it: it struggles until they stop
 		return
 	end
-	if rec.tier > 1 or rec.sleep > 0.5 or rec.doze > 0.5 or rec.panic > 0.5 or rec.noActions then
+	local walking = rec.moveBlend and rec.moveBlend > 0.1
+	if rec.queued then
+		if walking and rec.queued ~= "Eat" then
+			return -- greetings wait until it stops
+		end
+		local q = rec.queued
+		rec.queued = nil
+		startAction(rec, q)
+		return
+	end
+	if walking or rec.tier > 1 or rec.sleep > 0.5 or rec.doze > 0.5 or rec.panic > 0.5 or rec.noActions then
 		return
 	end
 	if clock < rec.nextActionAt then
@@ -208,7 +219,7 @@ local function newJoint(name, role, motor, parent)
 		side = 0, chain = 1, stab = 0, spring = false, omega = 1, zeta = 1, inertia = 0,
 		curlX = 0, curlZ = 0, plant = 1, plantDefault = 1, planted = false,
 		ax = 0, ay = 0, az = 0, tx = 0, ty = 0, tz = 0, curl = 0,
-		sx = 0, sy = 0, sz = 0, svx = 0, svy = 0, svz = 0,
+		sx = 0, sy = 0, sz = 0, svx = 0, svy = 0, svz = 0, fox = 0, foy = 0, foz = 0,
 		pwx = 0, pwy = 0, pwz = 0, wx = 0, wy = 0, wz = 0,
 		spin = 0, spinRate = 0, spinBoost = 0, spinAdd = 0,
 	}
@@ -352,6 +363,25 @@ local function finalize(rec)
 		rec.tentacleHz[ci] = T and rng:NextNumber(T.Hz[1], T.Hz[2]) or 0.3
 		rec.tentaclePhase[ci] = rng:NextNumber(0, TAU)
 	end
+	-- walking: the gait, which way the feet travel (crabs walk sideways), leg length for the stride
+	local gaitName = P.Gait or Config.ProfileGaits[rec.profileName]
+	local G = gaitName and Config.Gaits[gaitName]
+	rec.gait = G
+	rec.faceOffset = (G and G.Sideways) and math.pi / 2 or 0
+	rec.travelDir = Vector3.new(math.sin(rec.faceOffset), 0, -math.cos(rec.faceOffset))
+	local legSum, legs = 0, 0
+	for _, j in joints do
+		if G and G.Phase and G.Phase[j.name] and j.kind == 2 then
+			j.gaitOffset = G.Phase[j.name]
+			legSum += j.d0.Magnitude
+			legs += 1
+		end
+	end
+	rec.legLength = legs > 0 and math.max(legSum / legs, 0.5) or 1
+	rec.moveBlend, rec.moveSpeed, rec.gaitPhase = 0, 0, 0
+	rec.pos = rec.root.Position
+	local look = rec.rootCF.LookVector
+	rec.yaw = math.atan2(-look.X, -look.Z)
 	rec.breathJoint = P.Breath.Joint and J[P.Breath.Joint] or body
 	rec.pulseHz = (P.Gills and P.Gills.Hz) or (P.Throat and P.Throat.Hz) or (P.Jaw and P.Jaw.Pulse and P.Jaw.Hz) or nil
 
@@ -430,6 +460,25 @@ function Controller.Register(model, info)
 	}
 	byModel[model] = rec
 	table.insert(pending, rec)
+	if info.live then
+		-- read-only game state: the wander path, thrown food landing, someone holding Steal on it
+		rec.live = true
+		local function wander()
+			rec.wFrom, rec.wTo = model:GetAttribute("WanderFrom"), model:GetAttribute("WanderTo")
+			rec.mStart, rec.mEnd = model:GetAttribute("MoveStart"), model:GetAttribute("MoveEnd")
+		end
+		wander()
+		for _, a in { "WanderFrom", "WanderTo", "MoveStart", "MoveEnd" } do
+			model:GetAttributeChangedSignal(a):Connect(wander)
+		end
+		model:GetAttributeChangedSignal("EatAt"):Connect(function()
+			rec.forceAction = "Eat" -- food interrupts whatever it was doing
+		end)
+		model:GetAttributeChangedSignal("StealBy"):Connect(function()
+			rec.struggle = model:GetAttribute("StealBy") ~= nil
+		end)
+		rec.struggle = model:GetAttribute("StealBy") ~= nil
+	end
 	model.AncestryChanged:Connect(function()
 		if not model:IsDescendantOf(workspace) then
 			Controller.Unregister(model)
@@ -639,7 +688,49 @@ end
 
 ----------------------------------------------------------------------------------------------------- the loop
 
+-- A live kaiju walks its server wander path (WanderFrom to WanderTo between MoveStart and MoveEnd), turning smoothly.
+-- Only the root's CFrame is written, and only while it moves or turns.
+local function updateMove(rec, dt)
+	local from, to, ms, me = rec.wFrom, rec.wTo, rec.mStart, rec.mEnd
+	if not (from and to and ms and me) then
+		return
+	end
+	local now = workspace:GetServerTimeNow()
+	local alpha = me > ms and math.clamp((now - ms) / (me - ms), 0, 1) or 1
+	local pos = from:Lerp(to, alpha)
+	local moving = alpha < 1 and now >= ms
+	local dir = to - from
+	local yaw = rec.yaw
+	if moving and dir.Magnitude > 0.05 then
+		local heading = math.atan2(-dir.X, -dir.Z) + rec.faceOffset
+		local d = (heading - yaw + math.pi) % TAU - math.pi
+		yaw += d * (1 - math.exp(-6 * dt))
+		rec.moveSpeed = dir.Magnitude / math.max(me - ms, 0.05)
+	end
+	rec.moveBlend += ((moving and 1 or 0) - rec.moveBlend) * (1 - math.exp(-8 * dt))
+	local turn = yaw - rec.yaw
+	if math.abs(turn) > 1e-5 then
+		-- tails, heads and necks lag the turn and swing back
+		for _, j in rec.joints do
+			if j.spring and j.parent == rec.body then
+				j.sy -= turn * j.inertia * 0.6
+			end
+		end
+	end
+	rec.yaw = yaw
+	if (pos - rec.pos).Magnitude > 1e-4 or math.abs(turn) > 1e-5 then
+		rec.pos = pos
+		local cf = CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
+		rec.root.CFrame = cf
+		rec.rootCF = cf
+		rec.centerWorld = cf * rec.centreOffset
+	end
+end
+
 local function update(rec, dt, lod)
+	if rec.live then
+		updateMove(rec, dt)
+	end
 	scheduleActions(rec)
 	Motion.Step(rec, dt, lod)
 	VFX.Update(rec, dt, lod, clock)
@@ -685,12 +776,74 @@ local function step(rawDt)
 	stats.Ms = stats.Ms + (ms - stats.Ms) * 0.05
 end
 
+-- Big models reach the client over several frames: wait for every part (the server stamps PartCount), like KaijuFX.
+local function whenComplete(model, fn)
+	local want = model:GetAttribute("PartCount")
+	local function have()
+		local n = 0
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				n += 1
+			end
+		end
+		return n
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while model.Parent and want and have() < want and os.clock() - t0 < 10 do
+			task.wait(0.05)
+		end
+		if model.Parent then
+			fn()
+		end
+	end)
+end
+
+-- Live pen kaiju of the rolled-out species (Config.Rollout); KaijuFX skips exactly these (Config.Handles).
+function Controller.WatchLive()
+	if #Config.Rollout == 0 then
+		return
+	end
+	task.spawn(function()
+		local ReplicatedStorage = game:GetService("ReplicatedStorage")
+		local ok, KaijuConfig = pcall(function()
+			return require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("KaijuConfig"))
+		end)
+		KaijuConfig = ok and KaijuConfig or {}
+		local folder = workspace:WaitForChild("Runtime"):WaitForChild("Kaiju")
+		local function add(m)
+			if not (m:IsA("Model") and Config.Handles(m)) then
+				return
+			end
+			whenComplete(m, function()
+				if m.Parent ~= folder or not m.PrimaryPart then
+					return
+				end
+				local species = m:GetAttribute("Species") or m.Name
+				local kc = KaijuConfig[species] or {}
+				Controller.Register(m, {
+					name = species,
+					rarity = m:GetAttribute("Rarity") or kc.Rarity,
+					biome = kc.Biome,
+					owner = m:GetAttribute("OwnerUserId"),
+					live = true,
+				})
+			end)
+		end
+		folder.ChildAdded:Connect(add)
+		for _, m in folder:GetChildren() do
+			add(m)
+		end
+	end)
+end
+
 local started = false
 function Controller.Start()
 	if started then
 		return
 	end
 	started = true
+	Controller.WatchLive()
 	RunService.PreSimulation:Connect(step)
 	-- camera shake: added after the camera scripts run, removed again before they run next frame
 	RunService:BindToRenderStep("KaijuAnimShakeUndo", Enum.RenderPriority.Camera.Value - 2, function()

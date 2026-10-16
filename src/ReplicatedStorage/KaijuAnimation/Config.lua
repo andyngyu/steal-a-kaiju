@@ -9,9 +9,20 @@
 -- follower (Tail with Tail2) becomes name1 (Tail1); L is the +X side of the model, which faces -Z.
 local Config = {}
 
--- Live kaiju species animated by this engine (Gameplay.KaijuFX keeps animating the rest). Empty during Phase 1: only the
--- Studio Gallery uses the engine.
-Config.Rollout = {}
+-- Live kaiju species animated by this engine (Gameplay.KaijuFX keeps animating the rest), rolled out biome by biome.
+Config.Rollout = {
+	"Pebblesaur", "Chompling", "Bonkey", "Tuskit", "Rumblerex", "Thunderback", -- Pebble Plains
+}
+
+-- Shared with Gameplay.KaijuFX: true when this engine animates a live kaiju (a pen kaiju of a rolled-out species).
+function Config.Handles(model)
+	local runtime = workspace:FindFirstChild("Runtime")
+	local folder = runtime and runtime:FindFirstChild("Kaiju")
+	if not folder or model.Parent ~= folder then
+		return false
+	end
+	return table.find(Config.Rollout, model:GetAttribute("Species") or model.Name) ~= nil
+end
 
 Config.Global = {
 	SpeedJitter = { 0.88, 1.12 }, -- per-creature speed multiplier, so no two creatures move in sync
@@ -22,7 +33,7 @@ Config.Global = {
 }
 
 Config.Performance = {
--- Measured in the Gallery (Studio, 17 creatures, about 12,600 bricks all at full rate): about 0.35 ms of physics per
+	-- Measured in the Gallery (Studio, 17 creatures, about 12,600 bricks all at full rate): about 0.35 ms of physics per
 	-- creature per update, because every brick of a moving group is moved. So full rate is kept for the closest ones.
 	FullNear = 30, -- studs: every frame inside this
 	FullEvery = 2, -- 30 to 60 studs: all layers, every 2nd frame
@@ -265,6 +276,13 @@ Config.Profiles = {
 -- to joint names; Parents re-parents joints in the motor chain (by joint name); any other key overrides that profile
 -- table by name. Biome and Rarity come from KaijuConfig (guardians: Guardian = their biome).
 Config.Creatures = {
+	Pebblesaur = { Profile = "LowCrawler", Actions = { "PushUp", "Chomp" } },
+	Chompling = { Profile = "LowCrawler", Actions = { "Chomp", "TailSwing", "Lunge" } },
+	Thunderback = { -- stands upright with its left fist raised
+		Profile = "Ape", Gait = "Biped", Planted = { "LegL", "LegR" }, Knuckles = false,
+		Shoulders = { Roll = 1.5, Hz = 0.12 }, Arms = { Flex = 4, Hz = 0.18 },
+		Actions = { "GroundPunch", "ChestBeat", "Roar" },
+	},
 	Rumblerex = { Profile = "Rex" },
 	Vinewhip = { Profile = "Raptor" },
 	Bonkey = { Profile = "Ape" },
@@ -283,6 +301,30 @@ Config.Creatures = {
 	Astrodon = { Profile = "Sauropod", Rename = { Head = "Neck1", HeadTop = "Head" } },
 	Thornmaw = { Profile = "GuardianTitan", Guardian = "VenomJungle" },
 	Prismling = { Profile = "Winged", Actions = { "WingFlare", "PlayBow" }, Shimmer = { "FacetC", "FacetM" } },
+}
+
+-- Walking (pen kaiju wander: the server sets WanderFrom / WanderTo / MoveStart / MoveEnd). Each planted limb steps on
+-- its Phase (0..1) of the cycle: down for Duty of it, sliding back under the body at the walking speed so it never
+-- skids, then lifted (Lift, a share of leg length) and swung forward. Stride: the longest step, as a share of leg
+-- length (the cadence rises to keep steps within it). Bob (studs), Lean / Roll / Yaw (degrees) move the body with the
+-- steps. Profiles pick a gait by name; a creature can override it with Gait = "...".
+Config.Gaits = {
+	Biped = { Duty = 0.6, Stride = 0.8, Lift = 0.22, Bob = 0.06, Lean = -3, Roll = 3, Phase = { LegL = 0, LegR = 0.5 } },
+	Knuckle = { Duty = 0.6, Stride = 0.7, Lift = 0.2, Bob = 0.05, Lean = -4, Roll = 2.5, Phase = { LegL = 0, ArmR = 0, LegR = 0.5, ArmL = 0.5 } },
+	Trot = { Duty = 0.6, Stride = 0.8, Lift = 0.22, Bob = 0.04, Lean = -1, Roll = 1.5, Phase = { LegFL = 0, LegBR = 0, LegFR = 0.5, LegBL = 0.5 } },
+	Amble = { Duty = 0.7, Stride = 0.7, Lift = 0.18, Bob = 0.03, Roll = 2, Phase = { LegBL = 0, LegFL = 0.25, LegBR = 0.5, LegFR = 0.75 } },
+	Crawl = { Duty = 0.65, Stride = 0.8, Lift = 0.18, Bob = 0.015, Yaw = 6, Phase = { LegFL = 0, LegBR = 0, LegFR = 0.5, LegBL = 0.5 } },
+	Tripod = { Duty = 0.55, Stride = 0.6, Lift = 0.2, Bob = 0.02, Roll = 1.5, Sideways = true,
+		Phase = { LegAL = 0, LegCL = 0, LegBR = 0, LegBL = 0.5, LegAR = 0.5, LegCR = 0.5 } },
+	Hop = { Duty = 0.45, Stride = 0.9, Lift = 0.15, Hop = 0.35, Phase = { LegFL = 0, LegFR = 0, LegBL = 0, LegBR = 0 } },
+	Slither = { Wave = 20, K = 1.05, Neck = 12 }, -- no feet: a travelling S-wave, the neck cancels it so the head keeps course
+	Drift = { Curl = 10 }, -- tentacles ripple harder while it moves
+}
+Config.ProfileGaits = {
+	Rex = "Biped", Raptor = "Biped", Ape = "Knuckle", HeavyQuad = "Amble", AgileQuad = "Trot", LowCrawler = "Crawl",
+	Hopper = "Hop", Shelled = "Amble", Arthropod = "Tripod", Serpent = "Slither", VerticalCoil = "Slither",
+	Hydra = "Slither", Winged = "Trot", FinLegFish = "Crawl", Tentacled = "Drift", Sauropod = "Amble",
+	GuardianTitan = "Biped",
 }
 
 -- States (the engine reads game state, never writes it). Range: studs from the creature. LookYaw / LookPitch: how far
@@ -541,6 +583,19 @@ Config.Actions = {
 		},
 	},
 	ChestBeat = {
+		Thunderback = { -- upright: the free right fist drums its chest while the raised left fist pumps
+			Duration = 2.4, Calm = 1,
+			Tracks = {
+				{ "ArmR", "pitch", { 0, 0, 0.15, 75, 0.75, 75, 0.9, 0, 1, 0 }, Osc = { Hz = 6, Amp = 14, From = 0.16, To = 0.74 } },
+				{ "ArmR", "roll", { 0, 0, 0.15, 30, 0.75, 30, 0.9, 0, 1, 0 } },
+				{ "ArmL", "pitch", { 0, 0, 0.15, 10, 0.75, 8, 1, 0 }, Osc = { Hz = 3, Amp = 10, From = 0.16, To = 0.74, Phase = 1 } },
+				{ "Body", "pitch", { 0, 0, 0.15, 6, 0.75, 6, 1, 0 } },
+				{ "Body", "y", nil, Osc = { Hz = 6, Amp = 0.02, From = 0.16, To = 0.74 } },
+				{ "Head", "pitch", { 0, 0, 0.15, 16, 0.75, 14, 1, 0 } },
+				{ "Jaw", "pitch", { 0, 0, 0.18, -20, 0.7, -18, 0.8, 0, 1, 0 } },
+			},
+			Events = { { 0.16, "Sound", "ChestBeat" }, { 0.45, "Sound", "ChestBeat" }, { 0.3, "Flash", "Spark,Vein" } },
+		},
 		Ape = { -- rears onto its legs, pounds its chest, then drops back onto its knuckles
 			Duration = 2.6, Calm = 1, Pivot = "Hips",
 			Tracks = {
@@ -722,8 +777,58 @@ Config.Actions = {
 			Events = { { 0.2, "Flash", "GillTip,Glow" } },
 		},
 	},
+	Eat = {
+		Default = { -- thrown food landed on it (MarketFX's EatAt): leans in, dips to the food and chews
+			Duration = 1.2, Calm = 1,
+			Tracks = {
+				{ "Body", "pitch", { 0, 0, 0.18, -4, 0.8, -4, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.18, -18, 0.8, -16, 1, 0 }, Osc = { Hz = 5, Amp = 5, From = 0.2, To = 0.8 } },
+				{ "Neck*", "pitch", { 0, 0, 0.18, -10, 0.8, -10, 1, 0 } },
+				{ "Jaw", "pitch", { 0, 0, 0.15, -16, 0.22, -4, 1, 0 }, Osc = { Hz = 5, Amp = 8, From = 0.22, To = 0.82 } },
+				{ "Trunk*", "pitch", { 0, 0, 0.2, 40, 0.8, 38, 1, 0 }, Grow = -0.2 },
+				{ "Claw*", "pitch", { 0, 0, 0.2, 30, 0.8, 30, 1, 0 }, Osc = { Hz = 4, Amp = 10, From = 0.2, To = 0.8 } },
+				{ "Tail*", "yaw", nil, Osc = { Hz = 4, Amp = 8, From = 0.1, To = 0.9 }, Grow = 0.3 },
+			},
+			Events = { { 0, "Sound", "Eat" } },
+		},
+	},
+	PushUp = {
+		LowCrawler = { -- a lizard's display: three push-ups on the front legs, the head bobbing with each one
+			Duration = 2.4, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "Body", "pitch", { 0, 0, 0.12, 2, 0.2, 9, 0.3, 1, 0.42, 9, 0.52, 1, 0.64, 10, 0.76, 0, 0.86, -1, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.2, 0.06, 0.3, 0.01, 0.42, 0.06, 0.52, 0.01, 0.64, 0.07, 0.76, 0, 1, 0 } },
+				{ "LegF*", "plant", { 0, 1, 0.1, 0.4, 0.8, 0.4, 0.86, 1, 1, 1 } },
+				{ "Head", "pitch", { 0, 0, 0.2, -8, 0.3, 6, 0.42, -8, 0.52, 6, 0.64, -9, 0.76, 4, 0.88, 0, 1, 0 } },
+				{ "Jaw", "pitch", { 0, 0, 0.6, 0, 0.66, -14, 0.76, 0, 1, 0 } },
+				{ "Tail*", "yaw", nil, Osc = { Hz = 2.2, Amp = 6, From = 0.1, To = 0.9 }, Grow = 0.3 },
+			},
+			Events = { { 0.64, "Sound", "Chomp" } },
+		},
+	},
+	GroundPunch = {
+		Thunderback = { -- lightning crackles down the raised left arm, then the fist slams into the ground
+			Duration = 2.6, Calm = 1, Pivot = "Hips",
+			Tracks = {
+				{ "ArmL", "pitch", { 0, 0, 0.3, 14, 0.38, -40, 0.46, -150, 0.72, -145, 0.9, 4, 1, 0 } },
+				{ "ArmL", "roll", { 0, 0, 0.3, 6, 0.46, -12, 0.72, -12, 1, 0 } },
+				{ "ArmL", "yaw", nil, Osc = { Hz = 14, Amp = 2, From = 0.02, To = 0.3 } },
+				{ "ArmR", "pitch", { 0, 0, 0.3, -8, 0.46, 20, 0.72, 18, 1, 0 } },
+				{ "Body", "pitch", { 0, 0, 0.3, 5, 0.46, -20, 0.72, -18, 0.88, 1.5, 1, 0 } },
+				{ "Body", "y", { 0, 0, 0.3, 0.04, 0.46, -0.22, 0.72, -0.2, 0.88, 0.02, 1, 0 } },
+				{ "Body", "yaw", { 0, 0, 0.3, -8, 0.46, 10, 0.72, 8, 1, 0 } },
+				{ "Head", "pitch", { 0, 0, 0.3, 14, 0.46, -12, 0.72, -10, 1, 0 } },
+				{ "Jaw", "pitch", { 0, 0, 0.3, -20, 0.46, -30, 0.6, -6, 1, 0 } },
+				{ "Body", "glow", { 0, 0, 0.05, 1, 0.5, 1, 0.8, 0, 1, 0 } },
+			},
+			Events = {
+				{ 0.04, "Flash", "Spark" }, { 0.14, "Flash", "Vein" }, { 0.24, "Flash", "Bolt,Spark" }, { 0.3, "Sound", "Roar" },
+				{ 0.45, "Sound", "BigHop" }, { 0.46, "Dust", "Body", 1.6 }, { 0.46, "Burst" }, { 0.46, "Shake", 0.45 }, { 0.47, "Flash", "Vein,Bolt" },
+			},
+		},
+	},
 	Lunge = {
-		FinLegFish = { -- rocks back, jaw wide open, lunges forward and snaps shut
+		Default = { -- rocks back, jaw wide open, lunges forward and snaps shut
 			Duration = 1.9, Calm = 1,
 			Tracks = {
 				{ "Body", "z", { 0, 0, 0.25, 0.14, 0.42, -0.4, 0.6, -0.36, 0.82, 0.02, 1, 0 } },

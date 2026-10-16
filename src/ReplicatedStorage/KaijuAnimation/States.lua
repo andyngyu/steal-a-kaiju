@@ -87,7 +87,7 @@ States.Register("OwnerNearby", {
 		rec.lookWTarget = 1
 		if ctx.now - (rec.lastGreet or -1e9) > Config.States.OwnerNearby.GreetCooldown then
 			rec.lastGreet = ctx.now
-			rec.queued = States.GreetFor(rec)
+			rec.queued = rec.queued or States.GreetFor(rec) -- a hatch pop already waiting goes first
 		end
 	end,
 	Exit = function(rec)

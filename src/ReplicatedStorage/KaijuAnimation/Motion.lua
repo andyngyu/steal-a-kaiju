@@ -280,6 +280,7 @@ end
 PROFILES.Raptor = PROFILES.Rex
 
 function PROFILES.Ape(rec, P, t, ex, micro)
+	armsLayer(rec, P.Arms, t, ex)
 	local S = P.Shoulders
 	if S then
 		-- shoulder roll: the chest rocks side to side over the planted knuckles
@@ -639,6 +640,89 @@ end
 
 Motion.Profiles = PROFILES
 
+---------------------------------------------------------------------------------------------------------- walking
+
+-- The gait while the creature wanders (rec.moveBlend 0 standing .. 1 walking, rec.moveSpeed in studs per second).
+-- Planted limbs get a foot target that slides back under the body during stance and swings forward, lifted, after it.
+local function gaitLayer(rec, dt)
+	local mb = rec.moveBlend
+	local G = rec.gait
+	if mb < 0.001 or not G then
+		return
+	end
+	local speed = rec.moveSpeed
+	if G.Phase then
+		local L = rec.legLength
+		local duty = G.Duty
+		local cadence = math.clamp(speed * duty / (G.Stride * L), 0.6 / math.sqrt(rec.scale), 3)
+		rec.gaitPhase = (rec.gaitPhase + dt * cadence) % 1
+		local stride = speed * duty / cadence
+		local travel = rec.travelDir
+		local ph = rec.gaitPhase
+		for _, j in rec.joints do
+			local off = j.gaitOffset
+			if off then
+				local phi = (ph + off) % 1
+				local a, lift
+				if phi < duty then
+					a, lift = stride * (0.5 - phi / duty), 0
+				else
+					local u = (phi - duty) / (1 - duty)
+					a = stride * (Util.smooth(u) - 0.5)
+					lift = sin(math.pi * u) * G.Lift * L
+				end
+				j.fox, j.foy, j.foz = travel.X * a * mb, lift * mb, travel.Z * a * mb
+			end
+		end
+		local body = rec.body
+		if G.Bob then
+			body.ty += G.Bob * rec.scale * (0.5 - 0.5 * cos(2 * TAU * ph)) * mb
+		end
+		if G.Lean then
+			body.ax += G.Lean * RAD * mb
+		end
+		if G.Roll then
+			body.az += G.Roll * RAD * sin(TAU * ph) * mb
+		end
+		if G.Yaw then
+			body.ay += G.Yaw * RAD * sin(TAU * ph) * mb
+		end
+		if G.Hop and ph >= duty then
+			local u = (ph - duty) / (1 - duty)
+			body.ty += G.Hop * rec.scale * sin(math.pi * u) * mb
+			body.ax += 6 * RAD * cos(math.pi * u) * mb
+		end
+		-- the tail counter-swings the hips, free arms pump against the legs
+		for i, j in rec.tail do
+			j.ay -= 7 * RAD * sin(TAU * ph - i * 0.6) * mb
+		end
+		for _, a in rec.arms do
+			if not a.planted then
+				a.ax += 12 * RAD * a.side * sin(TAU * ph) * mb
+			end
+		end
+	elseif G.Wave then
+		-- slither: an S-wave travels down the body; the neck cancels it so the head keeps its course
+		rec.gaitPhase = (rec.gaitPhase + dt * speed / (2.5 * rec.scale)) % 1
+		local ph = TAU * rec.gaitPhase
+		for _, j in rec.spine do
+			j.ay += G.Wave * RAD * sin(ph - G.K * j.chain) * mb
+		end
+		local n = rec.necks[1]
+		if n then
+			n.ay -= G.Neck * RAD * sin(ph) * mb
+		end
+	elseif G.Curl then
+		rec.gaitPhase = (rec.gaitPhase + dt * speed / (2 * rec.scale)) % 1
+		for ci, chain in rec.tentacleChains do
+			local n = #chain
+			for k, j in chain do
+				j.curl += G.Curl * RAD * sin(TAU * rec.gaitPhase + ci * 0.9 - 0.6 * k) * k / n * mb
+			end
+		end
+	end
+end
+
 ---------------------------------------------------------------------------------------------------------- solve
 
 local function solve(rec, dt, lod)
@@ -707,6 +791,9 @@ local function solve(rec, dt, lod)
 			else
 				local Jw = body.world * j.c0
 				local foot, d0 = j.foot, j.d0
+				if j.fox ~= 0 or j.foy ~= 0 or j.foz ~= 0 then
+					foot += Vector3.new(j.fox, j.foy, j.foz) -- walking: the foot's place in the step cycle
+				end
 				local d1 = Jw.Position - foot
 				local cr = d0:Cross(d1)
 				local cm = cr.Magnitude
@@ -740,6 +827,7 @@ function Motion.Step(rec, dt, lod)
 	rec.t = t
 	for _, j in rec.joints do
 		j.ax, j.ay, j.az, j.tx, j.ty, j.tz, j.curl = 0, 0, 0, 0, 0, 0, 0
+		j.fox, j.foy, j.foz = 0, 0, 0
 		j.plant = j.plantDefault
 		j.spinBoost, j.spinAdd = 0, 0
 	end
@@ -748,8 +836,9 @@ function Motion.Step(rec, dt, lod)
 	local ex = EXAGGERATE * rec.ampMul
 	breathLayer(rec, dt, ex)
 	if lod < 2 then
-		local micro = lod == 0
-		shiftLayer(rec, t, ex)
+		local micro = lod == 0 and rec.moveBlend < 0.5
+		shiftLayer(rec, t, ex * (1 - rec.moveBlend))
+		gaitLayer(rec, dt)
 		headLayer(rec, t, ex, micro)
 		local layer = PROFILES[rec.profileName]
 		if layer then
