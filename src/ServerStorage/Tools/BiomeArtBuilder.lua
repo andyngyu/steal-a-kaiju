@@ -341,7 +341,7 @@ local function dressNest(B, specs, biome, laneModel)
 	for _, d in nest:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = true
-			d.CanCollide = d.Parent.Name ~= "Pebbles" and d.Size.Magnitude > 0.8
+			d.CanCollide = d.Parent.Name == "Bed" -- only the bed the eggs sit on: players run straight out of the nest
 			d.CanTouch = false
 		end
 	end
@@ -773,7 +773,7 @@ local function dressProps(laneModel, dress)
 		for _, d in m:GetDescendants() do
 			if d:IsA("BasePart") then
 				local fx = d.Name == "FxAnchor"
-				d.CanCollide = collide and not fx
+				d.CanCollide = false -- cosmetic: never in the way of a player running with an egg
 				d.CanQuery = collide and not fx
 			end
 		end
