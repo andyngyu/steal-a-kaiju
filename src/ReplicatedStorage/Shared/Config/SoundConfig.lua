@@ -148,11 +148,10 @@ SoundConfig.DuckDuringHatch = 0.35 -- music volume multiplier while a hatch reve
 -- Ambience per zone: looping beds (Bed = one, Beds = a list) plus one-shot layers (Gusts = one or a list), each on
 -- its own random timer (Every = { min, max } seconds). Metered loudness at Volume 1 is noted per sound.
 SoundConfig.Ambience = {
-	Hub = { Bed = { Id = 9119383684, Volume = 1.5 } }, -- morning birds chirping in the castle grounds (~3.3, a quiet file)
+	Hub = { Bed = { Id = 9114518794, Volume = 1.6 } }, -- a soft breeze through the castle grounds (~1.9; no birds, owner asked)
 	PebblePlains = {
 		Beds = {
 			{ Id = 9114518794, Volume = 1.8 }, -- gentle breeze in leaves (~1.9; was 0.22, basically inaudible)
-			{ Id = 9119383684, Volume = 0.9, Pitch = 1.05 }, -- birds, a little further off
 		},
 	},
 	LavaLagoon = {
@@ -178,8 +177,8 @@ SoundConfig.Ambience = {
 	},
 	VenomJungle = {
 		Beds = {
-			{ Id = 9112738716, Volume = 1.4 }, -- real jungle day: frogs, crickets, cicadas, birds (~4.6)
-			{ Id = 9114518794, Volume = 1.2, Pitch = 0.85 }, -- heavy leaves stirring (~1.9)
+			{ Id = 9114518794, Volume = 1.5, Pitch = 0.85 }, -- heavy leaves stirring (~1.9; the old jungle bed had birds in it)
+			{ Id = 9125410075, Volume = 0.08, Pitch = 1.1 }, -- soft swampy bubbling underneath (~20)
 		},
 		Gusts = {
 			{ Id = { 9125337823, 9120311866 }, Volume = 0.1, Pitch = 1.25, Vary = 0.12, Every = { 5, 11 } }, -- toxic pools plopping

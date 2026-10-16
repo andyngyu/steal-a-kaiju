@@ -257,7 +257,7 @@ cc.Name = "WeatherColor"
 cc.Parent = Lighting
 local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
 local sky = Lighting:FindFirstChildOfClass("Sky")
-local baseAtmo = atmo and { Color = atmo.Color, Decay = atmo.Decay, Haze = atmo.Haze, Glare = atmo.Glare }
+local baseAtmo = atmo and { Color = atmo.Color, Decay = atmo.Decay, Haze = atmo.Haze, Glare = atmo.Glare, Density = atmo.Density }
 local baseSky = sky and { StarCount = sky.StarCount, Celestial = sky.CelestialBodiesShown }
 -- the sky to blend from and back to: the current biome's (GameVFX publishes it as Lighting ZoneAtmo* attributes,
 -- e.g. Storm Spires' overcast), else the start-up one
@@ -267,25 +267,27 @@ local function zoneAtmo()
 		Decay = Lighting:GetAttribute("ZoneAtmoDecay") or baseAtmo.Decay,
 		Haze = Lighting:GetAttribute("ZoneAtmoHaze") or baseAtmo.Haze,
 		Glare = Lighting:GetAttribute("ZoneAtmoGlare") or baseAtmo.Glare,
+		Density = Lighting:GetAttribute("ZoneAtmoDensity") or baseAtmo.Density,
 	}
 end
 local flash = 0 -- lightning flash, decays each frame
--- Atmosphere.Density also belongs to GameVFX (biome haze): weather adds on top of whatever it last set
-local densAdd, densWritten = 0, nil
-local function setDensity(add)
+-- Atmosphere.Density: GameVFX publishes the zone's own value (Lighting ZoneAtmoDensity) and stops writing it while a
+-- weather event shows, so the weather's fog is worked out from that every frame and never stacks up when you cross
+-- into a new zone. Events with FogDensity / FogHaze hold the fog at that level everywhere (it stays constant).
+local function applyFog(look, za, w)
 	if not atmo then
 		return
 	end
-	local cur = atmo.Density
-	local base
-	if densWritten and math.abs(cur - densWritten) < 1e-4 then
-		base = cur - densAdd
+	if look and look.FogHaze then
+		atmo.Haze = za.Haze + (look.FogHaze - za.Haze) * w
 	else
-		base = cur -- GameVFX set a new biome value
+		atmo.Haze = za.Haze + ((look and look.Haze) or 0) * w
 	end
-	densAdd = add
-	densWritten = math.clamp(base + add, 0, 1)
-	atmo.Density = densWritten
+	if look and look.FogDensity then
+		atmo.Density = math.clamp(za.Density + (look.FogDensity - za.Density) * w, 0, 1)
+	else
+		atmo.Density = math.clamp(za.Density + ((look and look.Density) or 0) * w, 0, 1)
+	end
 end
 
 -- per event: colour grade + darkness + sky + builder for its particles / sky pieces
@@ -573,9 +575,8 @@ RunService.RenderStepped:Connect(function(dt)
 			local za = zoneAtmo()
 			atmo.Color = za.Color:Lerp(look.AtmoColor or za.Color, w)
 			atmo.Decay = za.Decay:Lerp(look.AtmoDecay or za.Decay, w)
-			atmo.Haze = za.Haze + (look.Haze or 0) * w
 			atmo.Glare = math.max(0, za.Glare + (look.Glare or 0) * w)
-			setDensity((look.Density or 0) * w)
+			applyFog(look, za, w)
 		end
 		if sky and baseSky then
 			sky.StarCount = look.Stars and math.floor(baseSky.StarCount + (look.Stars - baseSky.StarCount) * w) or baseSky.StarCount
@@ -593,7 +594,7 @@ RunService.RenderStepped:Connect(function(dt)
 			if atmo and baseAtmo then
 				local za = zoneAtmo()
 				atmo.Color, atmo.Decay, atmo.Haze, atmo.Glare = za.Color, za.Decay, za.Haze, za.Glare
-				setDensity(0)
+				atmo.Density = za.Density
 			end
 			if sky and baseSky then
 				sky.StarCount, sky.CelestialBodiesShown = baseSky.StarCount, baseSky.Celestial
@@ -955,7 +956,7 @@ LOOKS.Thunderstorm = {
 
 LOOKS.Blizzard = {
 	Tint = hex("E3F0FF"), Saturation = -0.25, Brightness = 0.06, Contrast = -0.03, Dark = 0.15, Ambient = hex("C8D8F0"),
-	AtmoColor = hex("EAF4FF"), AtmoDecay = hex("DCE8F5"), Haze = 3, Glare = -0.1, Density = 0.3,
+	AtmoColor = hex("EAF4FF"), AtmoDecay = hex("DCE8F5"), Glare = -0.1, FogHaze = 1.4, FogDensity = 0.3, -- a light, even snow haze in every zone
 	Build = function(ctx, state)
 		local wind = Vector3.new(-26, -7, 9)
 		ctx.emit("Near", {
@@ -977,9 +978,9 @@ LOOKS.Blizzard = {
 		})
 		ctx.emit("Ground", {
 			Name = "GroundMist", Texture = T.CloudPuff, Color = ColorSequence.new(hex("F4FAFF")), LightEmission = 0.2, LightInfluence = 0.8,
-			Size = NS(0, 10, 1, 22), Transparency = NS(0, 1, 0.3, 0.55, 1, 1), Lifetime = NumberRange.new(4, 6),
+			Size = NS(0, 8, 1, 16), Transparency = NS(0, 1, 0.3, 0.8, 1, 1), Lifetime = NumberRange.new(4, 6),
 			Speed = NumberRange.new(4, 8), EmissionDirection = Enum.NormalId.Left, Rotation = NumberRange.new(0, 360),
-			RotSpeed = NumberRange.new(-10, 10), Rate = 14,
+			RotSpeed = NumberRange.new(-10, 10), Rate = 6,
 		})
 		ctx.loop(S.Wind)
 		-- frost creeping in at the screen edges
@@ -1010,7 +1011,7 @@ LOOKS.Blizzard = {
 	end,
 	Update = function(state)
 		for _, f in state.edges or {} do
-			f.BackgroundTransparency = 1 - 0.75 * state.weight
+			f.BackgroundTransparency = 1 - 0.45 * state.weight
 		end
 	end,
 }
@@ -1250,8 +1251,8 @@ LOOKS.RainbowAurora = {
 	Tint = hex("F1E6FF"), Saturation = 0.3, Brightness = 0.02, Dark = 0.4, Ambient = hex("6A5A9A"), Clock = 21.6, Stars = 6000,
 	AtmoColor = hex("C8B8FF"), AtmoDecay = hex("6A4AA8"), Haze = 0.3, Glare = 0.5,
 	Build = function(ctx)
-		ctx.curtains(5, {
-			Texture = T.Aurora, Transparency = 0.25, Brightness = 4,
+		ctx.curtains(7, {
+			Texture = T.Aurora, Transparency = 0.22, Brightness = 4,
 			Color = CS({ "#FF4D4D", "#FFE84D", "#4DFF88", "#4DD8FF", "#C44DFF", "#FF4DC4" }),
 		})
 		ctx.emit("Near", {
@@ -1271,7 +1272,7 @@ LOOKS.RainbowAurora = {
 
 LOOKS.BloodMoon = {
 	Tint = hex("FFB3B3"), Saturation = -0.12, Contrast = 0.16, Brightness = -0.02, Dark = 0.65, Ambient = hex("5A1020"), Clock = 0, HideSun = true,
-	AtmoColor = hex("7A1020"), AtmoDecay = hex("4A0A14"), Haze = 2, Glare = 0, Stars = 3000, Density = 0.12,
+	AtmoColor = hex("7A1020"), AtmoDecay = hex("4A0A14"), Glare = 0, Stars = 3000, FogHaze = 1.1, FogDensity = 0.27, -- a thin, even red haze
 	Build = function(ctx)
 		ctx.sky(SKY_DIR, 520, 150, {
 			{ Image = T.SoftGlow, Color = hex("FF1F3D"), Scale = 2.6, Transparency = 0.3, Pulse = 1.4 },
@@ -1281,9 +1282,9 @@ LOOKS.BloodMoon = {
 		})
 		ctx.emit("Ground", {
 			Name = "BloodMist", Texture = T.CloudPuff, Color = CS({ "#A0102A", "#5A0010" }), LightEmission = 0.3, LightInfluence = 0.6,
-			Size = NS(0, 12, 1, 24), Transparency = NS(0, 1, 0.3, 0.5, 1, 1), Lifetime = NumberRange.new(4, 6),
+			Size = NS(0, 8, 1, 16), Transparency = NS(0, 1, 0.3, 0.78, 1, 1), Lifetime = NumberRange.new(4, 6),
 			Speed = NumberRange.new(2, 4), EmissionDirection = Enum.NormalId.Left, Rotation = NumberRange.new(0, 360),
-			RotSpeed = NumberRange.new(-10, 10), Rate = 14,
+			RotSpeed = NumberRange.new(-10, 10), Rate = 6,
 		})
 		ctx.emit("Near", {
 			Name = "BloodEmbers", Texture = T.Sparks, Color = CS({ "#FF8A8A", "#FF1F3D" }), Size = NS(0, 0.25, 1, 0),
@@ -1445,7 +1446,7 @@ PLUS.Blizzard = function(ctx, state)
 		if snow then
 			snow:Emit(reduced() and 40 or 140)
 		end
-		tintPulse(hex("F4FAFF"), 0.28)
+		tintPulse(hex("F4FAFF"), 0.14)
 		shake(0.25, 0.6)
 		playSound(S.DeepWind, nil, { Volume = 0.6, Pitch = 1.35 })
 	end)
@@ -1500,7 +1501,66 @@ PLUS.RainbowAurora = function(ctx, state)
 		Orientation = STREAK, EmissionDirection = UP, Speed = NumberRange.new(3, 6), Size = NS(0, 0, 0.3, 0.8, 1, 0),
 		Squash = NS(0, -1, 1, 3), Lifetime = NumberRange.new(1, 1.8), Brightness = 1.2, Rate = 10,
 	})
-	ctx.every({ 5, 9 }, function() -- a rainbow comet across the sky
+	-- a real rainbow arching over the map: seven coloured bands (Beams), kept out in the sky ahead of the camera
+	local BANDS = { "#FF3B3B", "#FF9A2E", "#FFE84D", "#4DFF88", "#4DD8FF", "#5A6BFF", "#C44DFF" }
+	local holder = newPart("RainbowArc", Vector3.new(1, 1, 1))
+	local flatDir = Vector3.new(SKY_DIR.X, 0, SKY_DIR.Z).Unit
+	local right = flatDir:Cross(Vector3.yAxis).Unit
+	state.arcBeams = {}
+	for i, hexc in BANDS do
+		local r = 300 - (i - 1) * 9
+		local a0 = Instance.new("Attachment")
+		local a1 = Instance.new("Attachment")
+		a0.Position = -right * r + Vector3.new(0, -90, 0)
+		a1.Position = right * r + Vector3.new(0, -90, 0)
+		a0.Axis, a0.SecondaryAxis = Vector3.yAxis, right
+		a1.Axis, a1.SecondaryAxis = Vector3.yAxis, right
+		a0.Parent, a1.Parent = holder, holder
+		local b = Instance.new("Beam")
+		b.Attachment0, b.Attachment1 = a0, a1
+		b.CurveSize0, b.CurveSize1 = r * 1.33, -r * 1.33
+		b.Color = ColorSequence.new(hex(hexc))
+		b.LightEmission = 1
+		b.LightInfluence = 0
+		b.Brightness = 1.6
+		b.Width0, b.Width1 = 10, 10
+		b.Segments = 48
+		b.FaceCamera = false
+		b.Transparency = NumberSequence.new(1)
+		b.Parent = holder
+		table.insert(state.arcBeams, b)
+	end
+	table.insert(state.sky, { part = holder, dir = flatDir * 0.94 + Vector3.new(0, 0.34, 0), dist = 620, spins = {} })
+	ctx.emit("Near", { -- rainbow bubbles floating up round you
+		Name = "RainbowBubbles", Texture = "rbxassetid://10789587520", Color = CS({ "#FFB3E6", "#B3F0FF", "#D9FFB3" }),
+		LightEmission = 0.6, Size = NS(0, 0, 0.15, 0.8, 0.85, 1, 1, 0), Transparency = NS(0, 1, 0.15, 0.45, 0.85, 0.55, 1, 1),
+		Lifetime = NumberRange.new(4, 6), Speed = NumberRange.new(0.5, 1.5), SpreadAngle = Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, 0.8, 0), Rotation = NumberRange.new(0, 360), RotSpeed = NumberRange.new(-20, 20), Rate = 8,
+	})
+	ctx.emit("Sky", { -- prism confetti twinkling down
+		Name = "PrismConfetti", Texture = T.Diamond, Color = CS({ "#FF4D4D", "#FFE84D", "#4DFF88", "#4DD8FF", "#C44DFF" }),
+		Orientation = Enum.ParticleOrientation.FacingCamera, EmissionDirection = Enum.NormalId.Bottom, LightEmission = 0.8,
+		Speed = NumberRange.new(6, 10), Size = NS(0, 0.35, 1, 0.25), Lifetime = NumberRange.new(5, 7),
+		Acceleration = Vector3.new(0, -1, 0), Rotation = NumberRange.new(0, 360), RotSpeed = NumberRange.new(-200, 200),
+		Brightness = 1.6, Rate = 45,
+	})
+	ctx.emit("Near", { -- soft rainbow glows drifting (light catching the air)
+		Name = "RainbowGlow", Texture = T.SoftGlow, Color = CS({ "#FF8AE0", "#8AE0FF", "#B8FF8A" }), LightEmission = 1,
+		Size = NS(0, 0, 0.3, 3, 1, 0), Transparency = NS(0, 1, 0.3, 0.75, 1, 1), Lifetime = NumberRange.new(3, 5),
+		Speed = NumberRange.new(0.2, 0.8), SpreadAngle = Vector2.new(180, 180), Rate = 6,
+	})
+	ctx.every({ 11, 17 }, function() -- a prism burst: chroma slivers, a twinkle chord and a hue wash
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp and state.weight > 0.5 then
+			local p = hrp.Position + Vector3.new(rng:NextNumber(-10, 10), rng:NextNumber(5, 9), rng:NextNumber(-10, 10))
+			chroma(p, 22, 24)
+			flarePop(p, CS({ "#FFFFFF", "#FF8AE0", "#8AE0FF" }), 12, 0.5)
+		end
+		tintPulse(Color3.fromHSV(rng:NextNumber(), 0.35, 1), 0.12)
+		playSound(S.Chime, nil, { Volume = 0.6, Pitch = rng:NextNumber(1.05, 1.25) })
+	end)
+	ctx.every({ 3.5, 7 }, function() -- a rainbow comet across the sky
 		local cam = workspace.CurrentCamera
 		if not cam then
 			return
@@ -1518,10 +1578,17 @@ PLUS.RainbowAurora = function(ctx, state)
 		flarePop(p, hex("E6D4FF"), 14, 0.35)
 	end)
 	state.plusUpdate = function(st)
+		local h = (os.clock() * 0.08) % 1
 		if st.floor then
-			local h = (os.clock() * 0.08) % 1
 			st.floor.Color = ColorSequence.new(Color3.fromHSV(h, 0.6, 1), Color3.fromHSV((h + 0.25) % 1, 0.6, 1))
 		end
+		local k = 1 - 0.45 * st.weight
+		local seqT = NS(0, 1, 0.12, k, 0.88, k, 1, 1)
+		for _, b in st.arcBeams or {} do
+			b.Transparency = seqT
+		end
+		-- the light itself slowly drifts through soft rainbow hues
+		st.look.Tint = Color3.fromHSV((h * 0.5 + 0.75) % 1, 0.1, 1)
 	end
 end
 
@@ -1529,8 +1596,8 @@ PLUS.BloodMoon = function(ctx, state)
 	ctx.emit("Near", { -- dark crimson crescent wisps drifting past
 		Name = "Crescents", Texture = TX.CrescentSmoke, Color = CS({ "#3A0008", "#1A0004" }), LightEmission = 0,
 		LightInfluence = 0.5, Speed = NumberRange.new(1, 3), SpreadAngle = Vector2.new(180, 40), Size = NS(0, 3, 1, 6),
-		Transparency = NS(0, 1, 0.3, 0.55, 1, 1), Rotation = NumberRange.new(-360, 360), RotSpeed = NumberRange.new(60, 120),
-		Lifetime = NumberRange.new(2, 3), Rate = 6,
+		Transparency = NS(0, 1, 0.3, 0.8, 1, 1), Rotation = NumberRange.new(-360, 360), RotSpeed = NumberRange.new(60, 120),
+		Lifetime = NumberRange.new(2, 3), Rate = 3,
 	})
 	ctx.emit("Near", { -- red motes with a flare twinkle
 		Name = "RedTwinkles", Texture = TX.FourStar, Color = CS({ "#FFB3B3", "#FF1F3D" }), Speed = NumberRange.new(0.001),
@@ -1545,7 +1612,7 @@ PLUS.BloodMoon = function(ctx, state)
 			local char = player.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart")
 			if hrp and st.weight > 0.5 then
-				groundRing(Vector3.new(hrp.Position.X, groundY, hrp.Position.Z), hex("FF1F3D"), 22, 0.8, TX.SpikyCrater)
+				darkLinger(hrp.Position + Vector3.new(rng:NextNumber(-14, 14), 1, rng:NextNumber(-14, 14)), hex("2A0006"), 6, 2)
 			end
 		end
 	end

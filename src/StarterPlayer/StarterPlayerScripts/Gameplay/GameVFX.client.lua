@@ -1174,7 +1174,10 @@ local baseLook = {
 -- the zone's sky (Atmosphere Color / Decay / Haze / Glare, e.g. Storm Spires' overcast): published as the Lighting
 -- attributes ZoneAtmo* so WeatherFX blends its events from (and back to) the zone's sky, and written to the
 -- Atmosphere directly only while no weather event is showing (WeatherFX owns it while one is)
-local atmoCur = atmo and { color = atmo.Color, decay = atmo.Decay, haze = atmo.Haze, glare = atmo.Glare }
+local atmoCur = atmo and { color = atmo.Color, decay = atmo.Decay, haze = atmo.Haze, glare = atmo.Glare, density = atmo.Density }
+if atmo then
+	Lighting:SetAttribute("ZoneAtmoDensity", atmo.Density)
+end
 local atmoFade = 0
 local function fadeAtmo(target)
 	if not atmo then
@@ -1192,12 +1195,15 @@ local function fadeAtmo(target)
 			atmoCur.decay = from.decay:Lerp(target.decay, s)
 			atmoCur.haze = from.haze + (target.haze - from.haze) * s
 			atmoCur.glare = from.glare + (target.glare - from.glare) * s
+			atmoCur.density = from.density + (target.density - from.density) * s
+			Lighting:SetAttribute("ZoneAtmoDensity", atmoCur.density)
 			Lighting:SetAttribute("ZoneAtmoColor", atmoCur.color)
 			Lighting:SetAttribute("ZoneAtmoDecay", atmoCur.decay)
 			Lighting:SetAttribute("ZoneAtmoHaze", atmoCur.haze)
 			Lighting:SetAttribute("ZoneAtmoGlare", atmoCur.glare)
 			if Lighting:GetAttribute("WeatherDark") == nil then
 				atmo.Color, atmo.Decay, atmo.Haze, atmo.Glare = atmoCur.color, atmoCur.decay, atmoCur.haze, atmoCur.glare
+				atmo.Density = atmoCur.density -- while a weather event shows, WeatherFX owns the density (no double fog)
 			end
 			if a >= 1 then
 				break
@@ -1227,8 +1233,8 @@ local function setZone(zone)
 		}):Play()
 	end
 	if atmo and baseLook.density then
-		TweenService:Create(atmo, info, { Density = baseLook.density + (look and look.Haze or 0) }):Play()
 		fadeAtmo({
+			density = math.clamp(baseLook.density + (look and look.Haze or 0), 0, 1),
 			color = look and look.AtmoColor or baseLook.color,
 			decay = look and look.AtmoDecay or baseLook.decay,
 			haze = look and look.AtmoHaze or baseLook.haze,
