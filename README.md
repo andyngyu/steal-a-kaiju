@@ -1,4 +1,4 @@
-# Steal a Kaiju
+# Steal a Kaiju [WIP]
 
 A Roblox game about stealing kaiju eggs from guarded nests, hatching them into monsters that earn you money, and stealing from other players' pens.
 
