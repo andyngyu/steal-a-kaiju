@@ -2,7 +2,7 @@
 
 A Roblox game about stealing kaiju eggs from guarded nests, hatching them into monsters that earn you money, and stealing from other players' pens.
 
-![A pen of kaiju in the Kaiju Citadel, all animated](docs/media/pen-hero.jpg)
+![Astral Wyrm rearing up with its constellation wings spread, at night in the Kaiju Citadel](docs/media/astral-wyrm-night.jpg)
 
 Written in Luau in Roblox Studio: about 66,000 lines across 200 scripts. This repo holds the game's code. The UI (`StarterGui`) is left out, and so are the place file, models and assets.
 
@@ -20,11 +20,13 @@ Written in Luau in Roblox Studio: about 66,000 lines across 200 scripts. This re
 
 Every kaiju, guardian and shopkeeper is animated by one client-side engine, `ReplicatedStorage/KaijuAnimation` (about 6,400 lines). Each model is a few hundred to over a thousand anchored bricks. The engine turns them into a living rig on each player's machine, without the server or the saved models ever changing.
 
-| Thunderback's ground punch | Scorchback's tail club | Quasarab's wing cases |
-|---|---|---|
-| ![Thunderback winds up, punches the ground and roars](docs/media/thunderback-ground-punch.gif) | ![Scorchback's back plates flash white-hot as it swings its tail club](docs/media/scorchback-tail-swing.gif) | ![Quasarab's wing cases open and stardust pours out](docs/media/quasarab-wing-cases.gif) |
+| Raijin Wyrm: drumroll | Astral Wyrm: wing spread |
+|---|---|
+| ![Raijin Wyrm rears back and roars as the drums round its halo light up one after another](docs/media/raijin-wyrm-drumroll.gif) | ![Astral Wyrm rears up and spreads its constellation wings](docs/media/astral-wyrm-wing-spread.gif) |
+| **Hydravine: squabble** | **Tidewyrm: wing ripple** |
+| ![Hydravine's three heads snap at each other](docs/media/hydravine-squabble.gif) | ![Tidewyrm sweeps its glowing fin wings up and down](docs/media/tidewyrm-wing-ripple.gif) |
 
-*Recorded in the game, stepped frame by frame with the engine's debug tools.*
+*Recorded in the game at night on maximum graphics, stepped frame by frame with the engine's debug tools.*
 
 How it works:
 
