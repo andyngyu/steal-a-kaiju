@@ -26,7 +26,6 @@ Every kaiju, guardian and shopkeeper is animated by one client-side engine, `Rep
 | **Hydravine: squabble** | **Tidewyrm: wing ripple** |
 | ![Hydravine's three heads snap at each other](docs/media/hydravine-squabble.gif) | ![Tidewyrm sweeps its glowing fin wings up and down](docs/media/tidewyrm-wing-ripple.gif) |
 
-*Recorded in the game at night on maximum graphics, stepped frame by frame with the engine's debug tools.*
 
 How it works:
 
